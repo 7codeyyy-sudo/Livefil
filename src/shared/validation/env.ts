@@ -54,7 +54,9 @@ function isLogLevel(value: string): boolean {
 }
 
 /** 去除首尾空白，并把非字符串值归一为 undefined。 */
-function normalizeEnvSource(source: Record<string, string | undefined>): Record<string, string | undefined> {
+function normalizeEnvSource(
+  source: Record<string, string | undefined>,
+): Record<string, string | undefined> {
   const normalized: Record<string, string | undefined> = {};
   for (const [name, value] of Object.entries(source)) {
     normalized[name] = typeof value === 'string' ? value.trim() : undefined;

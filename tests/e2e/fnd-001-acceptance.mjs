@@ -33,7 +33,10 @@ const READY_TIMEOUT_MS = 60_000;
 const nextBin = path.join(PROJECT_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next');
 
 const nodeExecutable = (() => {
-  const portable = path.join(PATHS.portableNode, process.platform === 'win32' ? 'node.exe' : 'bin/node');
+  const portable = path.join(
+    PATHS.portableNode,
+    process.platform === 'win32' ? 'node.exe' : 'bin/node',
+  );
   return existsSync(portable) ? portable : process.execPath;
 })();
 
@@ -216,10 +219,7 @@ test('非法环境变量下服务启动失败且指明变量名', async () => {
     assert.notEqual(exitCode, 'still-running', '非法环境变量下服务不应继续运行');
     assert.notEqual(exitCode, 0, '非法环境变量下服务应以非零退出码结束');
     assert.match(server.readOutput(), /LOG_LEVEL/, '错误信息应指明出错的变量名');
-    assert.ok(
-      !server.readOutput().includes(INVALID_LOG_LEVEL),
-      '错误信息不应回显变量的非法取值',
-    );
+    assert.ok(!server.readOutput().includes(INVALID_LOG_LEVEL), '错误信息不应回显变量的非法取值');
   } finally {
     await server.stop();
   }

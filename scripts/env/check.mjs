@@ -117,11 +117,19 @@ function checkPortableRuntime() {
     ? readFileSync(PATHS.nodeVersionFile, 'utf8').trim()
     : '';
   if (expectedVersion === '') {
-    record(LEVEL.WARN, '项目内便携 Node 运行时', `已安装 v${actualVersion}，但缺少 .nvmrc，无法校验固定版本。`);
+    record(
+      LEVEL.WARN,
+      '项目内便携 Node 运行时',
+      `已安装 v${actualVersion}，但缺少 .nvmrc，无法校验固定版本。`,
+    );
     return;
   }
   if (actualVersion === expectedVersion) {
-    record(LEVEL.PASS, '项目内便携 Node 运行时', `v${actualVersion}，与 .nvmrc 声明的固定版本一致。`);
+    record(
+      LEVEL.PASS,
+      '项目内便携 Node 运行时',
+      `v${actualVersion}，与 .nvmrc 声明的固定版本一致。`,
+    );
     return;
   }
   record(
@@ -136,7 +144,11 @@ function checkDependencyLocation() {
     // node_modules 尚未生成时，改为校验 npm 解析出的安装位置，避免只给出「无法判断」。
     const outcome = runNpm(['root']);
     if (!outcome.started) {
-      record(LEVEL.WARN, '依赖安装位置', `无法启动 npm 校验安装位置：${outcome.startError?.message}`);
+      record(
+        LEVEL.WARN,
+        '依赖安装位置',
+        `无法启动 npm 校验安装位置：${outcome.startError?.message}`,
+      );
       return;
     }
     if (outcome.status !== 0 || outcome.stdout === '') {
@@ -214,7 +226,11 @@ function checkNpmCacheLocation() {
 function checkManagedDirectories() {
   const missing = MANAGED_DIRECTORIES.filter((directory) => !existsSync(directory));
   if (missing.length === 0) {
-    record(LEVEL.PASS, '项目内运行数据目录', `已创建 ${MANAGED_DIRECTORIES.length} 个目录（.runtime / .cache / .data）。`);
+    record(
+      LEVEL.PASS,
+      '项目内运行数据目录',
+      `已创建 ${MANAGED_DIRECTORIES.length} 个目录（.runtime / .cache / .data）。`,
+    );
     return;
   }
   record(
@@ -256,7 +272,11 @@ function checkEnvLocalTracking() {
     return;
   }
   if (tracked.stderr.includes('not a git repository')) {
-    record(LEVEL.WARN, '.env.local 的 Git 跟踪状态', '当前目录尚未初始化 Git 仓库，ENV-001 该项待仓库初始化后复查。');
+    record(
+      LEVEL.WARN,
+      '.env.local 的 Git 跟踪状态',
+      '当前目录尚未初始化 Git 仓库，ENV-001 该项待仓库初始化后复查。',
+    );
     return;
   }
   record(LEVEL.PASS, '.env.local 的 Git 跟踪状态', '.env.local 未被 Git 跟踪。');
@@ -340,10 +360,18 @@ function checkHardcodedAbsolutePaths() {
   const scannableFiles = collectScannableFiles();
   const offenders = findAbsolutePathOffenders(scannableFiles);
   if (offenders.length === 0) {
-    record(LEVEL.PASS, '代码与配置无硬编码本机路径', `已扫描 ${scannableFiles.length} 个代码与配置文件。`);
+    record(
+      LEVEL.PASS,
+      '代码与配置无硬编码本机路径',
+      `已扫描 ${scannableFiles.length} 个代码与配置文件。`,
+    );
     return;
   }
-  record(LEVEL.FAIL, '代码与配置无硬编码本机路径', `发现 ${offenders.length} 处：\n      ${offenders.join('\n      ')}`);
+  record(
+    LEVEL.FAIL,
+    '代码与配置无硬编码本机路径',
+    `发现 ${offenders.length} 处：\n      ${offenders.join('\n      ')}`,
+  );
 }
 
 /**
@@ -357,7 +385,11 @@ function checkDocumentationPaths() {
   ];
   const offenders = findAbsolutePathOffenders(documentationFiles);
   if (offenders.length === 0) {
-    record(LEVEL.PASS, '文档与原型无硬编码本机路径', `已扫描 ${documentationFiles.length} 个文档与原型文件。`);
+    record(
+      LEVEL.PASS,
+      '文档与原型无硬编码本机路径',
+      `已扫描 ${documentationFiles.length} 个文档与原型文件。`,
+    );
     return;
   }
   record(
@@ -376,7 +408,9 @@ function printReport() {
   }
   const count = (level) => results.filter((item) => item.level === level).length;
   console.log('');
-  console.log(`汇总：PASS ${count(LEVEL.PASS)} | WARN ${count(LEVEL.WARN)} | FAIL ${count(LEVEL.FAIL)}`);
+  console.log(
+    `汇总：PASS ${count(LEVEL.PASS)} | WARN ${count(LEVEL.WARN)} | FAIL ${count(LEVEL.FAIL)}`,
+  );
 }
 
 checkProjectRootResolution();

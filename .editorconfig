@@ -1,0 +1,24 @@
+# EditorConfig：让不同编辑器/IDE 对同一份文件采用一致的排版行为。
+# 规范来源：doc/06-development-plan/开发任务清单.md → FND-002
+#
+# 为什么需要它：.gitattributes 只约束 Git 提交与检出，管不住编辑器「在保存时插入什么」。
+# 两者配合才能保证仓库内文本文件长期稳定为 UTF-8 + LF。
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+# 正式文档由人工维护：去掉行尾空白会导致中文段落出现无意义的整段差异，
+# 因此仅对 Markdown 关闭该规则（其余规则仍然生效）。
+[*.md]
+trim_trailing_whitespace = false
+
+# YAML 有硬性排版约定
+[*.{yml,yaml}]
+indent_size = 2

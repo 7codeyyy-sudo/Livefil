@@ -1,24 +1,22 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2022"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "strict": true,
+    "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+    // 刻意不开启 noUnusedLocals / noUnusedParameters：
+    // 这两项与 ESLint 的 @typescript-eslint/no-unused-vars 职责重叠，且会对 Next.js
+    // 路由签名、第三方库类型声明产生无价值噪音。未使用变量统一交给 ESLint 处理
+    // （见 eslint.config.mjs）。若在此处重新开启，会造成同一问题两处报错。
     "allowJs": false,
     "noEmit": true,
     "allowImportingTsExtensions": true,
@@ -35,9 +33,7 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
@@ -47,11 +43,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    ".next",
-    ".runtime",
-    ".cache",
-    ".data"
-  ]
+  "exclude": ["node_modules", ".next", ".runtime", ".cache", ".data"]
 }

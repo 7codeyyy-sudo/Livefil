@@ -24,7 +24,10 @@ function captureIssues(source: Record<string, string | undefined>): readonly str
   try {
     parseServerEnv(source);
   } catch (error) {
-    assert.ok(error instanceof EnvValidationError, `期望 EnvValidationError，实际为 ${String(error)}`);
+    assert.ok(
+      error instanceof EnvValidationError,
+      `期望 EnvValidationError，实际为 ${String(error)}`,
+    );
     return error.issues;
   }
   assert.fail('期望抛出 EnvValidationError，但校验通过了');
@@ -77,7 +80,11 @@ describe('parseServerEnv 空数据', () => {
 
   it('不因存在无关变量而失败', () => {
     // 取值刻意不用真实路径形态，避免路径门禁把它们误判成硬编码绝对路径。
-    const env = parseServerEnv({ PATH: 'bin-dir-1:bin-dir-2', HOME: 'user-home-dir', RANDOM_FLAG: '1' });
+    const env = parseServerEnv({
+      PATH: 'bin-dir-1:bin-dir-2',
+      HOME: 'user-home-dir',
+      RANDOM_FLAG: '1',
+    });
 
     assert.equal(env.logLevel, 'info');
   });
