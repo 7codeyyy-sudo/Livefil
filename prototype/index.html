@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f7f5" />
+    <title>Livefil · 今日</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="#today" aria-label="Livefil 首页">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span>livefil</span>
+        </a>
+        <p class="sidebar-date">星期二，9 月 15 日</p>
+        <nav class="nav-list">
+          <button class="nav-item is-active" data-page="today" type="button">今日</button>
+          <button class="nav-item" data-page="inbox" type="button">收件箱</button>
+          <button class="nav-item" data-page="goals" type="button">目标</button>
+          <button class="nav-item" data-page="expenses" type="button">开销</button>
+          <button class="nav-item" data-page="review" type="button">复盘</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <button class="nav-item" data-page="settings" type="button">设置</button>
+          <div class="profile-chip">
+            <span class="avatar" aria-hidden="true">你</span>
+            <span><strong>我的生活</strong><small>云端账号</small></span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="mobile-brand"><span class="brand-mark" aria-hidden="true">L</span> livefil</div>
+          <div class="topbar-actions">
+            <button class="button button-ghost" id="open-review" type="button">今日复盘</button>
+            <button class="button button-primary" id="open-add" type="button">＋ 快速添加</button>
+            <button class="icon-button" id="toggle-sidebar" type="button" aria-label="切换导航">☰</button>
+          </div>
+        </header>
+
+        <div id="page-root" class="page-root" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="add-modal" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-title">
+        <div class="modal-header">
+          <div><span class="eyebrow">快速记录</span><h2 id="add-title">现在想记下什么？</h2></div>
+          <button class="icon-button" data-close-modal type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="add-tabs" role="tablist" aria-label="记录类型">
+          <button class="add-tab is-active" data-add-type="task" type="button">任务</button>
+          <button class="add-tab" data-add-type="expense" type="button">开销</button>
+          <button class="add-tab" data-add-type="note" type="button">想法</button>
+        </div>
+        <form id="quick-form">
+          <label class="field-label" for="quick-input">内容</label>
+          <input class="text-input" id="quick-input" name="value" placeholder="例如：晚饭后散步 20 分钟" autocomplete="off" required />
+          <p class="field-hint" id="quick-hint">先记下来，时间和分类之后再补充也可以。</p>
+          <div class="modal-actions">
+            <button class="button button-ghost" data-close-modal type="button">稍后处理</button>
+            <button class="button button-primary" type="submit">保存记录</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+# 依赖与包管理器产物
+node_modules/
+.pnp.*
+.yarn/
+
+# 项目内运行数据（不入库）
+.runtime/
+.cache/
+.data/
+
+# 本地环境变量与秘密
+.env
+.env.local
+.env.*.local
+
+# Next.js 构建产物
+.next/
+out/
+next-env.d.ts
+
+# 构建、测试与覆盖率产物
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# 日志与临时文件
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# 编辑器与操作系统
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
