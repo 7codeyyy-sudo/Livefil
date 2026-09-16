@@ -11,7 +11,7 @@ doc/
 ├─ 03-requirements/          # 需求规格说明书 SRS
 ├─ 04-product-design/        # 产品流程、交互和 UI 页面规范
 ├─ 05-technical-design/      # 架构、详细设计、数据库和接口
-└─ 06-development-plan/      # 分阶段开发任务、环境规范、工程决策记录和 AI 执行规则
+└─ 06-development-plan/      # 分阶段开发任务、环境规范、工程决策记录、事故记录和 AI 执行规则
 ```
 
 ## 推荐阅读顺序
@@ -29,6 +29,7 @@ doc/
 11. [开发任务清单](./06-development-plan/开发任务清单.md)
 12. [开发环境规范](./06-development-plan/开发环境规范.md)
 13. [工程决策记录](./06-development-plan/工程决策记录.md)
+14. [事故记录](./06-development-plan/事故记录.md)
 
 ## 原型
 
