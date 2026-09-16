@@ -317,7 +317,13 @@ function collectScannableFiles() {
     path.join(PATHS.docker, 'compose.dev.yaml'),
   ];
   const scriptFiles = collectFilesByExtension(PATHS.scripts, ['.mjs']);
-  return [...explicitFiles, ...scriptFiles].filter(isScannableFile);
+  // CI 工作流同样属于「配置」：它是最容易写死本机路径的地方，且不在 scripts/ 下，
+  // 因此必须显式纳入，否则新增工作流会绕开这条检查。
+  const workflowFiles = collectFilesByExtension(path.join(PROJECT_ROOT, '.github', 'workflows'), [
+    '.yml',
+    '.yaml',
+  ]);
+  return [...explicitFiles, ...scriptFiles, ...workflowFiles].filter(isScannableFile);
 }
 
 /** 递归收集目录下的指定后缀文件。 */

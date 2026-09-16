@@ -1,0 +1,104 @@
+name: CI
+
+# 触发：main 的推送与所有 PR。
+# PR 事件是「构建失败阻止合并」的载体——分支保护要拦的就是这里的检查。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # 同一分支的连续推送只保留最新一次运行，避免排队与重复消耗。
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 锁文件的 resolved 已归一为官方源（scripts/ci/normalize-lockfile-registry.mjs）；
+  # 这里再显式指定一次作双保险，使 CI 不受任何环境级 registry 配置影响。
+  NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+
+jobs:
+  ci-gate:
+    name: ci-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node（版本取自 .nvmrc）
+        uses: actions/setup-node@v4
+        with:
+          # 刻意不用 setup-node 的 cache 选项：它缓存 ~/.npm，
+          # 而本项目要求包管理器缓存落在项目内 .cache/npm（由 env:check 校验）。
+          node-version-file: .nvmrc
+
+      - name: 恢复 npm 缓存
+        uses: actions/cache@v4
+        with:
+          path: .cache/npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      # 必须在安装与测试之前：env:check 会断言 .runtime / .cache / .data 齐备，
+      # 而四个验收脚本（fnd-002/003/004/005）都内含「env:check 全绿」的断言。
+      # 全新检出时这些目录都不存在，跳过这一步会让 test:e2e 必然失败。
+      - name: 创建项目内目录
+        run: npm run env:bootstrap
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 校验锁文件来源
+        run: npm run lockfile:check
+
+      - name: 记录版本（Node / 包管理器 / 数据库迁移）
+        run: npm run env:versions -- --strict
+
+      # 一次跑完：format:check → lint → typecheck → unit → integration → e2e → build
+      - name: 质量门禁
+        run: npm run check
+
+  browser-e2e:
+    name: browser-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node（版本取自 .nvmrc）
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: 恢复 npm 缓存
+        uses: actions/cache@v4
+        with:
+          path: .cache/npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: 恢复 Playwright 浏览器
+        uses: actions/cache@v4
+        with:
+          # 与 playwright.mjs 注入的 PLAYWRIGHT_BROWSERS_PATH 一致，
+          # 因此缓存命中的浏览器正好落在运行时查找的位置上。
+          path: .cache/playwright/browsers
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      - name: 创建项目内目录
+        run: npm run env:bootstrap
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 安装 Chromium 与系统依赖
+        run: npm run test:browser:install -- --with-deps
+
+      # 用例经真实 HTTP 验证 requestId 头回写与统一 JSON 404，
+      # 是 FND-005 错误结构在运行系统里的唯一兜底证据。
+      - name: 浏览器端 E2E
+        run: npm run test:browser

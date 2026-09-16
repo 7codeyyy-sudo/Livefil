@@ -29,7 +29,10 @@
     "env:bootstrap": "node scripts/env/bootstrap.mjs",
     "env:check": "node scripts/env/check.mjs",
     "env:npm": "node scripts/env/npm.mjs",
-    "env:install": "node scripts/env/npm.mjs install"
+    "env:install": "node scripts/env/npm.mjs install",
+    "env:versions": "node scripts/ci/record-versions.mjs",
+    "lockfile:normalize": "node scripts/ci/normalize-lockfile-registry.mjs",
+    "lockfile:check": "node scripts/ci/normalize-lockfile-registry.mjs --check"
   },
   "dependencies": {
     "next": "16.3.5",

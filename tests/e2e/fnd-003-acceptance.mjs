@@ -27,21 +27,11 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 
+import { resolveNpmInvocation } from '../../scripts/env/npm-command.mjs';
 import { PATHS, PROJECT_ROOT, formatPath, projectEnv } from '../../scripts/env/paths.mjs';
 
 /** 单条外部命令的最长等待时间，避免脚本在异常时无限挂起。 */
 const COMMAND_TIMEOUT_MS = 300_000;
-
-const nodeExecutable = (() => {
-  const portable = path.join(
-    PATHS.portableNode,
-    process.platform === 'win32' ? 'node.exe' : 'bin/node',
-  );
-  return existsSync(portable) ? portable : process.execPath;
-})();
-
-/** 便携 Node 自带的 npm CLI，用于真实执行项目自己的 npm 脚本。 */
-const npmCli = path.join(PATHS.portableNode, 'node_modules', 'npm', 'bin', 'npm-cli.js');
 
 const VITEST_CONFIG = path.join(PROJECT_ROOT, 'vitest.config.mts');
 const PLAYWRIGHT_CONFIG = path.join(PROJECT_ROOT, 'playwright.config.ts');
@@ -75,21 +65,23 @@ const API_DOC = path.join(PROJECT_ROOT, 'doc', '05-technical-design', '接口文
 const API_ROUTES_DIR = path.join(PROJECT_ROOT, 'app', 'api');
 
 /**
- * 执行一条 Node 命令并收集输出。
+ * 执行一条外部命令并收集输出。
  *
- * @param {readonly string[]} args 传给 Node 的参数（首项为脚本路径）。
- * @param {{ input?: string, timeoutMs?: number }} [options] 可选输入与超时。
+ * @param {string} command 可执行文件。
+ * @param {readonly string[]} args 参数列表。
+ * @param {{ input?: string, timeoutMs?: number, shell?: boolean }} [options] 可选输入、超时与 shell。
  * @returns {Promise<{ code: number | null, stdout: string, stderr: string, output: string }>}
  *   退出码与输出；`output` 为 stdout 与 stderr 的拼接，便于失败时完整展示。
  */
-function runNode(args, options = {}) {
-  const { input, timeoutMs = COMMAND_TIMEOUT_MS } = options;
+function runCommand(command, args, options = {}) {
+  const { input, timeoutMs = COMMAND_TIMEOUT_MS, shell = false } = options;
 
   return new Promise((resolve, reject) => {
-    const child = spawn(nodeExecutable, args, {
+    const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
       env: projectEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell,
     });
 
     let stdout = '';
@@ -103,7 +95,8 @@ function runNode(args, options = {}) {
 
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`命令超时（${timeoutMs}ms）：${args.join(' ')}\n${stdout}${stderr}`));
+      const detail = `${stdout}${stderr}`;
+      reject(new Error(`命令超时（${timeoutMs}ms）：${command} ${args.join(' ')}\n${detail}`));
     }, timeoutMs);
 
     child.on('error', (error) => {
@@ -119,9 +112,25 @@ function runNode(args, options = {}) {
   });
 }
 
-/** 以项目便携 npm 执行指定参数。 */
-function npmArgs(...args) {
-  return [npmCli, ...args];
+/**
+ * 经 npm 执行指定参数。
+ *
+ * 刻意不复用 `PATHS.portableNode` 下的 npm-cli.js：`.runtime/` 不入库，
+ * 在没有便携运行时的机器上（CI 即如此）那条路径必然不存在——而且它写死的还是
+ * Windows 布局，POSIX 发行包的路径并不相同。
+ * `resolveNpmInvocation()` 与 `npm run env:npm` 包装器同源，已覆盖便携的两种布局
+ * 与系统 npm 回退（含 Windows 下 npm.cmd 的 shell 处理），不产生第二套探测逻辑。
+ *
+ * @param {readonly string[]} args 传给 npm 的参数。
+ * @param {{ input?: string, timeoutMs?: number }} [options] 可选输入与超时。
+ * @returns {Promise<{ code: number | null, stdout: string, stderr: string, output: string }>}
+ */
+function runNpm(args, options = {}) {
+  const invocation = resolveNpmInvocation();
+  return runCommand(invocation.command, [...invocation.prefixArgs, ...args], {
+    ...options,
+    shell: invocation.useShell,
+  });
 }
 
 /**
@@ -377,19 +386,19 @@ test('app/api 下的每个路由都在接口文档中有登记', () => {
 });
 
 test('单元测试通过（验收标准：至少一个单元测试）', async () => {
-  const result = await runNode(npmArgs('run', 'test:unit'));
+  const result = await runNpm(['run', 'test:unit']);
 
   assert.equal(result.code, 0, `npm run test:unit 应通过：\n${result.output}`);
 });
 
 test('集成测试通过（验收标准：至少一个 API 测试）', async () => {
-  const result = await runNode(npmArgs('run', 'test:integration'));
+  const result = await runNpm(['run', 'test:integration']);
 
   assert.equal(result.code, 0, `npm run test:integration 应通过：\n${result.output}`);
 });
 
 test('环境门禁 env:check 仍全绿（无回归）', async () => {
-  const result = await runNode(npmArgs('run', 'env:check'));
+  const result = await runNpm(['run', 'env:check']);
 
   assert.equal(result.code, 0, `env:check 应通过：\n${result.output}`);
 });

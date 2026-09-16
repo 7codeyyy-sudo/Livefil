@@ -28,6 +28,7 @@ import { test } from 'node:test';
 
 import ts from 'typescript';
 
+import { resolveNpmInvocation } from '../../scripts/env/npm-command.mjs';
 import { PATHS, PROJECT_ROOT, formatPath, isInside, projectEnv } from '../../scripts/env/paths.mjs';
 
 /** 单条外部命令的最长等待时间，避免脚本在异常时无限挂起。 */
@@ -40,9 +41,6 @@ const nodeExecutable = (() => {
   );
   return existsSync(portable) ? portable : process.execPath;
 })();
-
-/** 便携 Node 自带的 npm CLI，用于真实执行项目自己的 npm 脚本。 */
-const npmCli = path.join(PATHS.portableNode, 'node_modules', 'npm', 'bin', 'npm-cli.js');
 
 const eslintBin = path.join(PROJECT_ROOT, 'node_modules', 'eslint', 'bin', 'eslint.js');
 
@@ -85,21 +83,23 @@ function removeTypecheckProbe() {
 removeTypecheckProbe();
 
 /**
- * 执行一条 Node 命令并收集输出。
+ * 执行一条外部命令并收集输出。
  *
- * @param {readonly string[]} args 传给 Node 的参数（首项为脚本路径）。
- * @param {{ input?: string, timeoutMs?: number }} [options] 可选输入与超时。
+ * @param {string} command 可执行文件。
+ * @param {readonly string[]} args 参数列表。
+ * @param {{ input?: string, timeoutMs?: number, shell?: boolean }} [options] 可选输入、超时与 shell。
  * @returns {Promise<{ code: number | null, stdout: string, stderr: string, output: string }>}
  *   退出码与输出；`output` 为 stdout 与 stderr 的拼接，便于失败时完整展示。
  */
-function runNode(args, options = {}) {
-  const { input, timeoutMs = COMMAND_TIMEOUT_MS } = options;
+function runCommand(command, args, options = {}) {
+  const { input, timeoutMs = COMMAND_TIMEOUT_MS, shell = false } = options;
 
   return new Promise((resolve, reject) => {
-    const child = spawn(nodeExecutable, args, {
+    const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
       env: projectEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell,
     });
 
     let stdout = '';
@@ -113,7 +113,8 @@ function runNode(args, options = {}) {
 
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`命令超时（${timeoutMs}ms）：${args.join(' ')}\n${stdout}${stderr}`));
+      const detail = `${stdout}${stderr}`;
+      reject(new Error(`命令超时（${timeoutMs}ms）：${command} ${args.join(' ')}\n${detail}`));
     }, timeoutMs);
 
     child.on('error', (error) => {
@@ -129,9 +130,36 @@ function runNode(args, options = {}) {
   });
 }
 
-/** 以项目便携 npm 执行指定参数。 */
-function npmArgs(...args) {
-  return [npmCli, ...args];
+/**
+ * 用 Node 执行一条命令（首项为脚本路径）。
+ *
+ * @param {readonly string[]} args 传给 Node 的参数。
+ * @param {{ input?: string, timeoutMs?: number }} [options] 可选输入与超时。
+ * @returns {Promise<{ code: number | null, stdout: string, stderr: string, output: string }>}
+ */
+function runNode(args, options = {}) {
+  return runCommand(nodeExecutable, args, options);
+}
+
+/**
+ * 经 npm 执行指定参数。
+ *
+ * 刻意不复用 `PATHS.portableNode` 下的 npm-cli.js：`.runtime/` 不入库，
+ * 在没有便携运行时的机器上（CI 即如此）那条路径必然不存在——而且它写死的还是
+ * Windows 布局，POSIX 发行包的路径并不相同。
+ * `resolveNpmInvocation()` 与 `npm run env:npm` 包装器同源，已覆盖便携的两种布局
+ * 与系统 npm 回退（含 Windows 下 npm.cmd 的 shell 处理），不产生第二套探测逻辑。
+ *
+ * @param {readonly string[]} args 传给 npm 的参数。
+ * @param {{ input?: string, timeoutMs?: number }} [options] 可选输入与超时。
+ * @returns {Promise<{ code: number | null, stdout: string, stderr: string, output: string }>}
+ */
+function runNpm(args, options = {}) {
+  const invocation = resolveNpmInvocation();
+  return runCommand(invocation.command, [...invocation.prefixArgs, ...args], {
+    ...options,
+    shell: invocation.useShell,
+  });
 }
 
 /** 把 ESLint 结果压缩成一行，便于失败时定位。 */
@@ -462,13 +490,13 @@ test('不存在放宽类型检查的构建后门', () => {
 test('工具产物全部落在项目内 .cache 目录', async () => {
   // 真实执行项目自己的命令，而不是假定调用方此前已经跑过它们；
   // 否则本用例会隐式依赖执行顺序，单独运行 test:e2e 时无法反映真实情况。
-  const lintResult = await runNode(npmArgs('run', 'lint'));
+  const lintResult = await runNpm(['run', 'lint']);
   assert.equal(lintResult.code, 0, `npm run lint 应通过：\n${lintResult.output}`);
 
-  const typecheckResult = await runNode(npmArgs('run', 'typecheck'));
+  const typecheckResult = await runNpm(['run', 'typecheck']);
   assert.equal(typecheckResult.code, 0, `npm run typecheck 应通过：\n${typecheckResult.output}`);
 
-  const formatCheckResult = await runNode(npmArgs('run', 'format:check'));
+  const formatCheckResult = await runNpm(['run', 'format:check']);
   assert.equal(
     formatCheckResult.code,
     0,
@@ -492,7 +520,7 @@ test('工具产物全部落在项目内 .cache 目录', async () => {
 });
 
 test('环境门禁 env:check 仍全绿（无回归）', async () => {
-  const result = await runNode(npmArgs('run', 'env:check'));
+  const result = await runNpm(['run', 'env:check']);
 
   assert.equal(result.code, 0, `env:check 应通过：\n${result.output}`);
 });
