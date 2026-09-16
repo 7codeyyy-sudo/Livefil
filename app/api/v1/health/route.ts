@@ -13,6 +13,8 @@
  */
 import { NextResponse } from 'next/server';
 
+import { createApiRouteHandler } from '../../../_lib/api-route.ts';
+
 /** 健康检查响应体。 */
 export interface HealthResponse {
   readonly status: 'ok';
@@ -21,8 +23,10 @@ export interface HealthResponse {
 /**
  * 返回服务存活状态。
  *
- * @returns 固定 `{ status: 'ok' }`，HTTP 200。
+ * 经统一错误包装器导出（FND-005）。响应体保持锁定不变——《接口文档》§14 已登记
+ * 该端点固定返回 `{ status: 'ok' }`；包装器只额外补上 `x-request-id` 响应头。
  */
-export function GET(): NextResponse<HealthResponse> {
-  return NextResponse.json<HealthResponse>({ status: 'ok' });
-}
+export const GET = createApiRouteHandler(
+  (): NextResponse<HealthResponse> => NextResponse.json<HealthResponse>({ status: 'ok' }),
+  { operation: 'health_check' },
+);

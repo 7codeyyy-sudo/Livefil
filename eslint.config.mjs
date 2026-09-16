@@ -136,6 +136,32 @@ const LAYER_BOUNDARY_RULES = {
 };
 
 /**
+ * 日志通道约束（FND-005）。
+ *
+ * `src/**` 下禁止直接使用 `console`。
+ *
+ * 理由不是「console 不好」，而是它会让日志规范**整体失效**：绕过 logger 之后，
+ * 脱敏、requestId 贯穿、字段规范化全部不生效，而这些恰恰是日志规范存在的目的。
+ * 一处 `console.log` 就足以把 token 直接打进采集管道。
+ *
+ * 唯一的例外是 logger 自己的 sink 实现（`src/shared/telemetry/logger.ts`），
+ * 它以行内 `eslint-disable-next-line` 声明，理由写在那一行旁边——
+ * 这里的例外必须局部可见，而不是在配置里开一个大口子。
+ *
+ * `scripts/**` 与 `tests/**` 不受约束：它们是开发工具与测试，输出给人看，
+ * 不进入生产日志管道。本规则只作用于 `src/**`，因此无需额外声明例外。
+ */
+const LOGGING_CHANNEL_RULES = {
+  files: ['src/**/*.{ts,tsx}'],
+  rules: {
+    // 不带选项即「一律禁止」。刻意不写成 `{ allow: [] }`——ESLint 要求 allow 数组
+    // 至少有一项，空数组会让整份配置加载失败，从而**所有规则一起失效**，
+    // 而报错信息只提到这个选项，容易让人误以为只是这一条规则有问题。
+    'no-console': 'error',
+  },
+};
+
+/**
  * Flat config 导出的完整配置。
  *
  * 刻意赋给具名常量后再导出（而不是直接 `export default [...]`）：
@@ -148,6 +174,7 @@ const config = [
   ...nextTypescript,
   { rules: PROJECT_RULES },
   LAYER_BOUNDARY_RULES,
+  LOGGING_CHANNEL_RULES,
   prettierCompat,
 ];
 
