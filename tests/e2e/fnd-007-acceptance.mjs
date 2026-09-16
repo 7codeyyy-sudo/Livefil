@@ -19,7 +19,7 @@
  *     提交只会作用于沙箱的暂存区。
  *   - 主仓永不产生提交、暂存区永不被扰动。
  *
- * 沙箱的三处联接（`node_modules`、`.runtime/node`，均为只读依赖）**删除时必须先删
+ * 沙箱的两处联接（`node_modules`、`.runtime/node`，均为只读依赖）**删除时必须先删
  * 联接本身**：直接递归删除会顺着联接进去清空主仓的真实依赖。脚本在清理后断言主仓
  * `node_modules/next` 仍在。
  */
@@ -34,6 +34,7 @@ import {
   rmSync,
   rmdirSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -561,10 +562,14 @@ function removeRunRoot() {
 }
 
 /**
- * 解除一个目录联接。
+ * 解除一个目录联接（只删联接本身，绝不进入目标目录）。
  *
- * 必须用非递归的 rmdir：递归删除会**顺着联接**清空目标目录，
- * 也就是把主仓真实的 node_modules 删掉。
+ * 平台差异（2026-09-17 GitHub Actions Linux runner 实测暴露）：
+ *   - Windows 的 junction 只能用非递归 `rmdirSync`：junction 对 unlink 无效，
+ *     而递归删除会**顺着联接**清空目标目录，即主仓真实的 node_modules；
+ *   - POSIX 的目录符号链接本身不是目录，`rmdir(2)` 会报 ENOTDIR
+ *     （`fs.rmdirSync` 在 POSIX 对符号链接即如此），必须用 `unlinkSync`
+ *     删除符号链接自身。
  *
  * @param {string} linkPath 联接路径。
  */
@@ -572,7 +577,11 @@ function unlinkDirectoryLink(linkPath) {
   if (!existsSync(linkPath)) {
     return;
   }
-  rmdirSync(linkPath);
+  if (process.platform === 'win32') {
+    rmdirSync(linkPath);
+  } else {
+    unlinkSync(linkPath);
+  }
 }
 
 /**
