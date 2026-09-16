@@ -79,6 +79,63 @@ const PROJECT_RULES = {
 };
 
 /**
+ * 分层依赖边界（FND-004）。
+ *
+ * 这里只覆盖**最关键的一条**：领域层不得依赖框架与基础设施实现。
+ *
+ * 完整的依赖矩阵（表现层、应用层、基础设施、共享层的相互方向）由
+ * `tests/unit/architecture/dependency-boundaries.test.ts` 校验。分工的理由：
+ * ESLint 的 `no-restricted-imports` 表达不了「A 可引用 B、但 B 不可引用 A」
+ * 这类跨目录方向规则，那需要 `eslint-plugin-import` 的 zones；而为一条规则
+ * 新增一个直接依赖并不划算。
+ *
+ * 保留这一条的价值是**即时反馈**：写代码的当下就标红，而不是等到跑测试。
+ *
+ * 注意 `patterns` 使用 minimatch 语义，`*` 不跨 `/`，因此需要同时列出
+ * 「包本身」与「包内子路径」两种写法。
+ */
+const LAYER_BOUNDARY_RULES = {
+  files: ['src/modules/*/domain/**/*.{ts,tsx}'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['next', 'next/*', 'react', 'react/*', 'react-dom', 'react-dom/*'],
+            message:
+              '领域层不得依赖 Next.js 或 React：它必须能脱离框架单独运行单元测试' +
+              '（《概要设计》§10）。规则与原因见 tests/unit/architecture/dependency-rules.ts。',
+          },
+          {
+            group: [
+              '@/infrastructure',
+              '@/infrastructure/**',
+              '**/infrastructure',
+              '**/infrastructure/**',
+            ],
+            message:
+              '领域层不得依赖基础设施实现：持久化、认证与 AI 都应以领域定义的端口注入' +
+              '（《概要设计》§4.4、§4.5）。规则与原因见 tests/unit/architecture/dependency-rules.ts。',
+          },
+          {
+            group: [
+              '@/modules/*/application',
+              '@/modules/*/application/**',
+              '**/application',
+              '**/application/**',
+            ],
+            message:
+              '领域层不得依赖应用层：依赖方向应为 application → domain，反向会形成环。' +
+              '规则与原因见 tests/unit/architecture/dependency-rules.ts。',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+/**
  * Flat config 导出的完整配置。
  *
  * 刻意赋给具名常量后再导出（而不是直接 `export default [...]`）：
@@ -90,6 +147,7 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   { rules: PROJECT_RULES },
+  LAYER_BOUNDARY_RULES,
   prettierCompat,
 ];
 
