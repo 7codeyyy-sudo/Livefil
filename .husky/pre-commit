@@ -1,0 +1,15 @@
+# 提交前检查（FND-007）：只对「已暂存文件」执行格式化与 ESLint 自动修复。
+#
+# 为什么是一行转发给 npm.mjs，而不是直接写 `npx lint-staged`：
+#   git 执行钩子时用的是系统 PATH，它不知道项目内便携 Node 的存在。
+#   `scripts/env/npm.mjs` 是项目里唯一统一决定「用哪份 Node / npm」的地方
+#   （它会把便携 Node 目录前置进子进程 PATH），经它转发后 Node 选择策略与
+#   全项目同源——本机走便携运行时，CI 走 setup-node 的版本。
+#
+# 为什么用相对路径而不自行推导脚本位置：
+#   git 始终以「仓库根为 cwd」执行钩子，husky 的引导脚本也建立在这个约定上，
+#   因此相对路径最简且没有额外失效面（绝对路径在这里既无必要也不允许）。
+#
+# 为什么不 source `.husky/_/husky.sh`：
+#   husky 9 里它只剩一条弃用告警（提示 v10 起会失败），官方方向正是不再 source。
+node scripts/env/npm.mjs run lint:staged

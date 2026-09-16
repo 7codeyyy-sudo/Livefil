@@ -4,6 +4,8 @@ node_modules/
 .yarn/
 
 # 项目内运行数据（不入库）
+# 注意 `.runtime/` 已覆盖 `.runtime/probes/`——FND-007 的提交前检查验收脚本
+# 会在该目录下建临时 git 沙箱，沙箱及其一次性仓库都不会进入版本库。
 .runtime/
 .cache/
 .data/
@@ -35,6 +37,11 @@ blob-report/
 *.log
 npm-debug.log*
 yarn-error.log*
+
+# Git 钩子：`.husky/pre-commit` 等手工维护的钩子文件要提交；
+# `.husky/_/` 是 husky 在 `prepare` 时生成的引导层（它自己也会在里面写一份
+# 内容为 `*` 的 .gitignore），属于生成物，这里再显式声明一次以防误提交。
+.husky/_/
 
 # 编辑器与操作系统
 .idea/
