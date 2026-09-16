@@ -40,6 +40,9 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    // Vitest 的配置文件用 .mts 明确声明 ESM（原因见该文件顶部说明），
+    // 而 .mts 不匹配上面的 **/*.ts，需要单独列出才会被类型检查覆盖。
+    "**/*.mts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

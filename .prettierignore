@@ -17,6 +17,11 @@ out/
 dist/
 build/
 coverage/
+# 测试产物兜底：项目内配置已把它们指向 .cache/，此处防止绕过项目脚本直接调用工具时
+# 在项目根生成目录，并让格式化避开其中的 trace 与截图等二进制内容。
+test-results/
+playwright-report/
+blob-report/
 
 # ── 项目内运行数据与缓存 ────────────────────────────────────────────
 .runtime/

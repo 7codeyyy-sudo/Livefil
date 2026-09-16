@@ -17,10 +17,15 @@
     "format": "prettier --write . --cache --cache-location .cache/prettier/.prettier-cache",
     "format:check": "prettier --check . --cache --cache-location .cache/prettier/.prettier-cache",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "node --test \"tests/**/*.test.ts\"",
+    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "node --test --test-concurrency=1 \"tests/e2e/**/*.mjs\"",
+    "test:browser": "node scripts/env/playwright.mjs test",
+    "test:browser:install": "node scripts/env/playwright.mjs install chromium",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "check:all": "npm run check && npm run test:browser",
     "env:bootstrap": "node scripts/env/bootstrap.mjs",
     "env:check": "node scripts/env/check.mjs",
     "env:npm": "node scripts/env/npm.mjs",
@@ -34,13 +39,24 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
     "@types/node": "22.20.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vitest/coverage-v8": "5.0.1",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.5",
     "eslint-config-prettier": "10.1.8",
+    "jsdom": "30.0.1",
+    "msw": "2.15.0",
     "prettier": "3.9.6",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
   }
 }

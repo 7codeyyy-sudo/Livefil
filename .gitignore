@@ -24,6 +24,13 @@ build/
 coverage/
 *.tsbuildinfo
 
+# 测试产物兜底。
+# 项目内配置已把 Playwright 的输出指向 .cache/playwright/，但直接执行
+# `npx playwright test`（绕过项目脚本）时，工具会按默认值把结果写到项目根。
+test-results/
+playwright-report/
+blob-report/
+
 # 日志与临时文件
 *.log
 npm-debug.log*

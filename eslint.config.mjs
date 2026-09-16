@@ -32,6 +32,10 @@ const GLOBAL_IGNORES = [
   'build/**',
   'dist/**',
   'coverage/**',
+  // 测试产物兜底。项目内配置已把 Playwright 输出指向 .cache/playwright/，
+  // 这里防止绕过项目脚本（直接 npx playwright test）时在项目根留下的目录被 lint 扫描。
+  'test-results/**',
+  'playwright-report/**',
   // 项目内运行数据与缓存（开发环境规范 §2.1）
   '.runtime/**',
   '.cache/**',

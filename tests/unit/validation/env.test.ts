@@ -1,13 +1,14 @@
 /**
- * 服务端环境变量校验的单元测试（FND-001）。
+ * 服务端环境变量校验的单元测试（FND-001，FND-003 起迁移到 Vitest）。
  *
  * 覆盖：正常路径、空数据、非法输入、条件必填、边界值，以及
  * 「错误信息不得回显变量取值」这一安全约束。
  *
- * 用 Node 内置测试运行器（零依赖），不预先替 FND-003 做测试框架选型。
+ * 断言仍使用 `node:assert/strict`：本文件是从 Node 内置测试运行器迁移过来的，
+ * 只替换了运行器本身，断言风格保持不变，迁移的 diff 因此可以小到逐行审阅。
  */
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 
 import {
   EnvValidationError,
