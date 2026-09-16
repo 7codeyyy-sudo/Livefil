@@ -33,6 +33,8 @@ blob-report/
 package-lock.json
 # 由 Next.js 生成。
 next-env.d.ts
+# husky 生成的钩子引导层（程序产物，非人工维护）。
+.husky/_/
 
 # ── 压缩产物 ────────────────────────────────────────────────────────
 *.min.js

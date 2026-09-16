@@ -323,7 +323,28 @@ function collectScannableFiles() {
     '.yml',
     '.yaml',
   ]);
-  return [...explicitFiles, ...scriptFiles, ...workflowFiles].filter(isScannableFile);
+  return [...explicitFiles, ...scriptFiles, ...workflowFiles, ...collectHookFiles()].filter(
+    isScannableFile,
+  );
+}
+
+/**
+ * 收集 `.husky/` 下由人工维护的 git 钩子文件。
+ *
+ * 只取顶层的普通文件（钩子文件天然无扩展名，因此不能按后缀筛），并跳过 `_/`：
+ * `_/` 是 husky 在 `prepare` 时生成的引导层，内容随 husky 版本变化，不属本项目维护。
+ *
+ * 钩子是**最容易写死本机路径**的配置之一——它要在 shell 里定位脚本，
+ * 而「绝对路径」在这里既无必要也不被允许（git 始终以仓库根为 cwd 执行钩子）。
+ */
+function collectHookFiles() {
+  const hooksDirectory = path.join(PROJECT_ROOT, '.husky');
+  if (!existsSync(hooksDirectory)) {
+    return [];
+  }
+  return readdirSync(hooksDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(hooksDirectory, entry.name));
 }
 
 /** 递归收集目录下的指定后缀文件。 */

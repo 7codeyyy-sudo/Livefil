@@ -42,6 +42,10 @@ const GLOBAL_IGNORES = [
   '.data/**',
   // 由工具生成，不参与人工维护
   'next-env.d.ts',
+  // Git 钩子：`.husky/pre-commit` 是无扩展名的 shell 脚本，`.husky/_/` 是 husky
+  // 生成的引导层（含各 hook 的 shim）。两者都不是本项目用手写的 JS/TS，
+  // 显式忽略以免 lint 遍历时产生「无法匹配配置」的噪音。
+  '.husky/**',
   // 已冻结的静态原型：属历史产物，不属本期任务范围，保持逐字节原样
   'prototype/**',
 ];
