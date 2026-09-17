@@ -1,8 +1,9 @@
 # Livefil UI 页面规范
 
-> 版本：v0.1  
+> 版本：v0.2  
 > 设计方向：高级简约、浅色优先、PC Web 先行、移动端预留  
-> 日期：2026-09-15
+> 日期：2026-09-17  
+> 变更：v0.2 新增 §2.4 设计令牌的 CSS 命名与深色预留约定（对应 T-002 样式方案确认、UI-001）
 
 ## 1. 视觉关键词
 
@@ -103,6 +104,36 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 - 常用圆角：10px、14px、20px。
 - 主要按钮触控高度：至少 40px；移动端主要触控目标建议 44px。
 - 阴影极少使用，只用于抽屉、浮层和主操作反馈。
+
+### 2.4 设计令牌的 CSS 命名与使用约定
+
+本节把 §2.1–§2.3 的设计令牌落到 CSS 形态（对应 T-002：原生 CSS 自定义属性 + CSS Modules）。令牌唯一定义在 `src/shared/ui/styles/tokens.css`，由应用根布局唯一导入；组件使用 CSS Modules 引用变量，不直接写字面量。
+
+颜色变量对应 §2.1 语义表：
+
+| 语义 | CSS 变量 |
+|---|---|
+| 页面背景 | `--color-bg-page` |
+| 主表面 | `--color-surface` |
+| 主文字 | `--color-text-primary` |
+| 次文字 | `--color-text-secondary` |
+| 边界 | `--color-border` |
+| 主强调色 | `--color-accent` |
+| 强调色上的文字/图标 | `--color-on-accent` |
+| 强调色柔和底（选中态、浅底容器） | `--color-accent-soft` |
+| 成功 / 警告 / 危险 | `--color-success`、`--color-warning`、`--color-danger` |
+| 状态色柔和底 | `--color-success-soft`、`--color-warning-soft`、`--color-danger-soft` |
+
+`*-soft` 与 `--color-on-accent` 是 §2.1 语义的派生令牌（浅底容器、强调按钮上的文字），取值在 UI-001 与原型对齐后一次性确定，不在组件内临时写死。
+
+其他令牌族：`--font-*`（字体族、字号、字重、行高，取值见 §2.2）、`--space-*`（4px 倍数）、`--radius-*`（10/14/20px）、`--shadow-*`（仅抽屉、浮层、主操作反馈）。断点不做成 CSS 变量（变量无法用于 `@media` 条件），CSS 中按 §3.1 的像素值书写媒体查询；仅当 JS 需要读取断点时，维护一份 TS 常量镜像，禁止第二份取值。
+
+使用规则：
+
+- 令牌文件之外禁止出现 hex/rgb/hsl 字面量（含内联 style）；原型中的写死值（如主按钮文字 `#fff`）必须先收编为 `--color-on-accent` 等令牌才能迁入。
+- 第一阶段只实现浅色：`:root` 声明 `color-scheme: light`。
+- 深色只预留、不激活：tokens.css 保留 `html[data-theme='dark']` 占位块（值留空/注释）；仓库内任何代码不得设置 `data-theme` 属性，也不得使用 `@media (prefers-color-scheme: dark)`——系统深色用户在第一阶段必须看到已验收的浅色。
+- 将来激活深色时，主题属性只挂在 `<html>` 单一节点，变量定义与覆盖选择器统一使用 `html[data-theme='dark']`，只替换变量值，引用方零改动。
 
 ## 3. 页面布局
 
