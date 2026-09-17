@@ -307,6 +307,20 @@ function isScannableFile(file) {
   return existsSync(file) && statSync(file).isFile();
 }
 
+/**
+ * 应用源码的扫描扩展名。
+ *
+ * 补上 `app/` 与 `src/` 的理由：此前这条检查覆盖了配置、脚本与 git 钩子，
+ * 唯独**应用代码本身**是盲区——而它恰恰是绝大多数路径拼接发生的地方。
+ *
+ * 纳入 `.css` 是因为设计令牌文件（`src/shared/ui/styles/tokens.css`）会成为
+ * 新的取值与路径书写点。
+ *
+ * 刻意**不含** `tests/`：测试夹具合理地需要路径样本（例如验收脚本要喂入
+ * 违规字符串来自证检查有效），纳入只会持续产生需要豁免的噪音。
+ */
+const APPLICATION_SOURCE_EXTENSIONS = ['.ts', '.tsx', '.css'];
+
 /** 收集需要扫描硬编码路径的代码与配置文件。 */
 function collectScannableFiles() {
   const explicitFiles = [
@@ -323,9 +337,22 @@ function collectScannableFiles() {
     '.yml',
     '.yaml',
   ]);
-  return [...explicitFiles, ...scriptFiles, ...workflowFiles, ...collectHookFiles()].filter(
-    isScannableFile,
+  const applicationFiles = collectFilesByExtension(
+    path.join(PROJECT_ROOT, 'app'),
+    APPLICATION_SOURCE_EXTENSIONS,
   );
+  const moduleFiles = collectFilesByExtension(
+    path.join(PROJECT_ROOT, 'src'),
+    APPLICATION_SOURCE_EXTENSIONS,
+  );
+  return [
+    ...explicitFiles,
+    ...scriptFiles,
+    ...workflowFiles,
+    ...collectHookFiles(),
+    ...applicationFiles,
+    ...moduleFiles,
+  ].filter(isScannableFile);
 }
 
 /**
