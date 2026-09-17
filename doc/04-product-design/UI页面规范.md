@@ -1,9 +1,9 @@
 # Livefil UI 页面规范
 
-> 版本：v0.2  
+> 版本：v0.3  
 > 设计方向：高级简约、浅色优先、PC Web 先行、移动端预留  
 > 日期：2026-09-17  
-> 变更：v0.2 新增 §2.4 设计令牌的 CSS 命名与深色预留约定（对应 T-002 样式方案确认、UI-001）
+> 变更：v0.2 新增 §2.4 设计令牌的 CSS 命名与深色预留约定（对应 T-002 样式方案确认、UI-001）；v0.3 颜色令牌补齐为基础 9 + 派生/辅助 9（新增 surface-soft、text-placeholder、focus-ring、overlay 与 warning/danger-soft 权威值），新增 2 个阴影令牌、soft 推导规则、暂不收编项与主按钮配色待决项
 
 ## 1. 视觉关键词
 
@@ -109,31 +109,60 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 
 本节把 §2.1–§2.3 的设计令牌落到 CSS 形态（对应 T-002：原生 CSS 自定义属性 + CSS Modules）。令牌唯一定义在 `src/shared/ui/styles/tokens.css`，由应用根布局唯一导入；组件使用 CSS Modules 引用变量，不直接写字面量。
 
-颜色变量对应 §2.1 语义表：
+颜色令牌共 18 个：9 个基础语义色（对应 §2.1，逐行给出权威取值）+ 9 个派生/辅助色。
 
-| 语义 | CSS 变量 |
-|---|---|
-| 页面背景 | `--color-bg-page` |
-| 主表面 | `--color-surface` |
-| 主文字 | `--color-text-primary` |
-| 次文字 | `--color-text-secondary` |
-| 边界 | `--color-border` |
-| 主强调色 | `--color-accent` |
-| 强调色上的文字/图标 | `--color-on-accent` |
-| 强调色柔和底（选中态、浅底容器） | `--color-accent-soft` |
-| 成功 / 警告 / 危险 | `--color-success`、`--color-warning`、`--color-danger` |
-| 状态色柔和底 | `--color-success-soft`、`--color-warning-soft`、`--color-danger-soft` |
+基础语义色（9 个）：
 
-`*-soft` 与 `--color-on-accent` 是 §2.1 语义的派生令牌（浅底容器、强调按钮上的文字），取值在 UI-001 与原型对齐后一次性确定，不在组件内临时写死。
+| 语义 | CSS 变量 | 浅色取值 |
+|---|---|---|
+| 页面背景 | `--color-bg-page` | `#F7F7F5` |
+| 主表面 | `--color-surface` | `#FFFFFF` |
+| 主文字 | `--color-text-primary` | `#1D1D1F` |
+| 次文字 | `--color-text-secondary` | `#6E6E73` |
+| 边界 | `--color-border` | `#E5E5E2` |
+| 主强调色 | `--color-accent` | `#1769E0` |
+| 成功 | `--color-success` | `#2D8A5B` |
+| 警告 | `--color-warning` | `#B7791F` |
+| 危险 | `--color-danger` | `#C0392B` |
 
-其他令牌族：`--font-*`（字体族、字号、字重、行高，取值见 §2.2）、`--space-*`（4px 倍数）、`--radius-*`（10/14/20px）、`--shadow-*`（仅抽屉、浮层、主操作反馈）。断点不做成 CSS 变量（变量无法用于 `@media` 条件），CSS 中按 §3.1 的像素值书写媒体查询；仅当 JS 需要读取断点时，维护一份 TS 常量镜像，禁止第二份取值。
+派生/辅助色（9 个）：
+
+| 语义 | CSS 变量 | 浅色取值 | 取值来源 |
+|---|---|---|---|
+| 柔和面（悬停/选中、标签、分段控件、进度轨道） | `--color-surface-soft` | `#F0F0ED` | 原型 `--surface-soft`，6 处使用 |
+| 占位文字 | `--color-text-placeholder` | `#A2A2A7` | 原型输入框 placeholder |
+| 强调色上的文字/图标 | `--color-on-accent` | `#FFFFFF` | 原型主按钮/头像文字 `#fff` |
+| 强调色柔和底（选中态、浅底容器） | `--color-accent-soft` | `#EAF1FF` | 原型 `--blue-soft` |
+| 键盘焦点环 | `--color-focus-ring` | `rgba(23, 105, 224, 0.28)` | 原型 `:focus-visible`（§7 要求焦点可见） |
+| 弹层遮罩 | `--color-overlay` | `rgba(29, 29, 31, 0.28)` | 原型 modal-backdrop |
+| 成功柔和底 | `--color-success-soft` | `rgba(45, 138, 91, 0.08)` | 原型完成态底色 |
+| 警告柔和底 | `--color-warning-soft` | `rgba(183, 121, 31, 0.08)` | 按 soft 推导规则生成 |
+| 危险柔和底 | `--color-danger-soft` | `rgba(192, 57, 43, 0.08)` | 按 soft 推导规则生成 |
+
+`*-soft` 推导规则：**状态色柔和底 = 对应语义色在白底上按 8% alpha 叠加的快照**（`rgba(<语义色 RGB>, 0.08)`）。accent-soft 保留原型已验收的定值 `#EAF1FF`，不强行改为纯 8%。焦点环的 3px 宽度与 2px offset 是几何不是颜色，写在 base/组件样式中，不做颜色令牌。
+
+阴影令牌（2 个，只允许这两处阴影）：
+
+| 语义 | CSS 变量 | 取值 |
+|---|---|---|
+| 弹层阴影（Modal、Drawer） | `--shadow-overlay` | `0 16px 44px rgba(29, 29, 31, 0.10)` |
+| 抬升阴影（Tabs 等激活项、主操作反馈） | `--shadow-raised` | `0 1px 4px rgba(29, 29, 31, 0.06)` |
+
+其他令牌族：`--font-*`（字体族、字号、字重、行高，取值见 §2.2）、`--space-*`（4px 倍数）、`--radius-*`（10/14/20px）。断点不做成 CSS 变量（变量无法用于 `@media` 条件）：CSS（含各组件的 CSS Modules）按 §3.1 的像素值书写媒体查询，这不算第二份取值；仅当 JS 需要读取断点时，维护一份 TS 常量镜像，断点像素值在 `.ts/.tsx` 中只允许出现在该镜像文件。
+
+暂不收编（明确推后，UI-001 不得预造）：
+
+- 状态色边框（原型仅有成功态 `rgba(45,138,91,0.24)`）：UI-002 做 Badge 时补 `--color-success-border` 等，并同时设计警告、危险两色，不单独引入一个。
+- 半透明白（原型侧栏 `rgba(255,255,255,.66)`、Modal 边框 `rgba(255,255,255,.6)`）：属磨砂效果，与 §1.1 反玻璃拟态条款相关，留到 UI-003 外壳阶段决定。
 
 使用规则：
 
-- 令牌文件之外禁止出现 hex/rgb/hsl 字面量（含内联 style）；原型中的写死值（如主按钮文字 `#fff`）必须先收编为 `--color-on-accent` 等令牌才能迁入。
+- 令牌文件之外禁止出现 hex/rgb/hsl 字面量（含内联 style）；原型中的写死值必须先收编为本节令牌才能迁入。
 - 第一阶段只实现浅色：`:root` 声明 `color-scheme: light`。
 - 深色只预留、不激活：tokens.css 保留 `html[data-theme='dark']` 占位块（值留空/注释）；仓库内任何代码不得设置 `data-theme` 属性，也不得使用 `@media (prefers-color-scheme: dark)`——系统深色用户在第一阶段必须看到已验收的浅色。
 - 将来激活深色时，主题属性只挂在 `<html>` 单一节点，变量定义与覆盖选择器统一使用 `html[data-theme='dark']`，只替换变量值，引用方零改动。
+
+待决项（不阻塞 UI-001，UI-002 开工前必须定）：原型主按钮为近黑底（`--color-text-primary`，hover 纯黑）+ 白字，而 §2.1 规定主操作用主强调色蓝。Button 组件以哪个为准需产品确认；令牌层不受影响（`--color-on-accent` 白字对蓝底、黑底均成立）。
 
 ## 3. 页面布局
 
