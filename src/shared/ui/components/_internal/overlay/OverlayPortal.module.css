@@ -1,0 +1,45 @@
+/**
+ * 浮层遮罩样式（浮层内部基建，批次 3a）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号的字面量——
+ * 由 `tests/e2e/ui-001-acceptance.mjs` 的扫描器守住。
+ *
+ * ## 进场用 animation、退场用 transition
+ *
+ * 进场时元素刚刚挂载，如果此时它已经是终态（`data-state="open"`），
+ * 过渡没有起始值可插值，根本不会播放——所以进场只能靠动画。
+ * 退场时元素已在 DOM 里、从 open 切到 closed，过渡会自动插值，
+ * 而且结束时会派发 `transitionend`，正好用来驱动延迟卸载。
+ */
+
+.root {
+  position: fixed;
+  inset: 0;
+  /* 遮罩层：只表达「面板之下、页面之上」。面板自己用 --z-overlay。 */
+  z-index: var(--z-scrim);
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background-color: var(--color-overlay);
+}
+
+.root[data-state='open'] {
+  opacity: 1;
+  animation: scrim-fade-in var(--duration-slow) var(--ease-standard);
+}
+
+/* 退场期间元素仍在 DOM 里（延迟卸载），所以只改不透明度，不做 display:none。 */
+.root[data-state='closed'] {
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-standard);
+}
+
+@keyframes scrim-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

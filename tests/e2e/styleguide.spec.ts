@@ -320,6 +320,130 @@ test.describe('批次 2：Badge / Progress / Tabs 的语义与状态', () => {
   });
 });
 
+test.describe('批次 3a：Modal / ConfirmDialog 的浮层行为', () => {
+  test('未打开时不渲染任何浮层', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    // 浮层挂到 body 下，如果初始就渲染会盖住整页。这条断言同时守着
+    // 「Portal 的 SSR 守卫没把内容提前渲出来」。
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  });
+
+  test('Modal：语义、滚动锁与初始焦点都到位', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-modal"]').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+    // 无障碍名称来自标题——读屏用户听到的是「编辑任务」而不是「对话框」
+    await expect(dialog).toHaveAccessibleName('编辑任务');
+
+    // 打开时锁定背景滚动，否则滚轮会把浮层下面的页面滚走
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+
+    // 初始焦点必须已经进入面板，否则键盘用户还停在背景页面上
+    const focusInPanel = await page.evaluate(() => {
+      const panel = document.querySelector('[role="dialog"]');
+      const active = document.activeElement;
+      return panel !== null && active !== null && panel.contains(active);
+    });
+    expect(focusInPanel).toBe(true);
+  });
+
+  test('Modal：Tab 在面板内循环，焦点不会逃到背景', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-modal"]').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    // 面板内可聚焦元素有四个（关闭 X / 取消 / 保存 / 删除）。
+    // 连按两轮 Tab 都应留在面板内；不循环的话第一轮结束就会跳到背景。
+    for (let index = 1; index <= 8; index += 1) {
+      await page.keyboard.press('Tab');
+
+      const focusInPanel = await page.evaluate(() => {
+        const panel = document.querySelector('[role="dialog"]');
+        const active = document.activeElement;
+        return panel !== null && active !== null && panel.contains(active);
+      });
+
+      expect(focusInPanel, `第 ${String(index)} 次 Tab 之后焦点仍应在面板内`).toBe(true);
+    }
+  });
+
+  test('Modal：ESC 关闭后滚动解锁、焦点归还触发按钮', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const opener = page.locator('[data-variant="open-modal"]');
+    await opener.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    // 退场动画播完才从 DOM 移除（延迟卸载）；若有人把 transition 删掉，
+    // 这条会等到兜底计时器才过——是"慢"而不是"错"，但至少不会永久留着。
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+
+    // 焦点必须回到打开它的按钮上，否则键盘用户要从头 Tab 一遍
+    await expect(opener).toBeFocused();
+  });
+
+  test('Modal：点遮罩关闭，点面板内部不关闭', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-modal"]').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    await dialog.click();
+    await expect(dialog).toBeVisible();
+
+    // 点遮罩的左上角（面板居中，那里一定是遮罩本身）
+    await page.locator('[data-overlay-scrim]').click({ position: { x: 8, y: 8 } });
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test('ConfirmDialog：alertdialog 语义 + 描述关联 + 初始焦点在「取消」', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-confirm"]').click();
+
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAccessibleName('删除这个任务？');
+
+    // 描述经 aria-describedby 关联：读屏用户打开时能直接听到后果，
+    // 而不是只知道"有个对话框"
+    await expect(dialog).toHaveAccessibleDescription('删除后无法恢复，关联的目标进度会同步回退。');
+
+    // §4.5：危险操作的初始焦点落在「取消」。用户随手按回车时，
+    // 焦点若在「删除」上就等于一键删除。
+    await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
+
+    // ESC 语义等同取消
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test('嵌套浮层：一次 ESC 只关最内层', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-modal"]').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.locator('[data-variant="open-nested-confirm"]').click();
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    // 外层必须还在：这是「每层都无条件响应 ESC 就会两层一起关」的回归守卫。
+    // 判据是「焦点在谁里面就关谁」——焦点陷阱保证焦点总在最内层。
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+});
+
 test.describe('减少动效（§6）', () => {
   test.use({ reducedMotion: 'reduce' });
 
