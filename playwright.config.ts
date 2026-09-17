@@ -73,6 +73,18 @@ export default defineConfig({
     { name: 'mobile-chromium', use: { ...resolveDevice('Pixel 5') } },
   ],
 
+  /**
+   * ⚠️ Windows 本机已知风险（事故记录 003）：
+   *   全量双 project 顺序跑时，desktop 跑完后 worker 进程挂着不动，
+   *   26 分钟仍未进入 mobile、日志 20 分钟不更新。
+   *   这是 Windows 特有的 Playwright 进程管理问题，CI（Ubuntu）不受影响。
+   *
+   *   **本机对策**：按 --project 拆开跑
+   *     node scripts/env/playwright.mjs test --project=desktop-chromium
+   *     node scripts/env/playwright.mjs test --project=mobile-chromium
+   *   两个 project 各 20~30 秒全绿。
+   */
+
   webServer: {
     // 先构建再启动：`next start` 需要 `.next` 产物，直接跑会失败。
     command: `npm run build && npm run start -- --port ${E2E_PORT}`,
