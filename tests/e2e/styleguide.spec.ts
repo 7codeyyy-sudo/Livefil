@@ -178,6 +178,148 @@ test.describe('几何量与断点覆盖', () => {
   });
 });
 
+test.describe('批次 2：Badge / Progress / Tabs 的语义与状态', () => {
+  test('Badge：四个变体都渲染，状态变体有边框、中性没有', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const section = page.locator('#badge');
+
+    // §2.1「颜色不能成为唯一语义载体」：四个变体各自都有文字，
+    // 所以颜色只是叠加信息，不是唯一信息。
+    for (const text of ['待整理', '已完成', '已延期', '冲突']) {
+      await expect(section.getByText(text).first()).toBeVisible();
+    }
+
+    // 中性标签无边（§2.4：「中性 Tag 仍用次文字 + 柔和面，不新增边框令牌」）
+    await expect(section.locator('[data-variant="neutral"]').first()).toHaveCSS(
+      'border-top-color',
+      'rgba(0, 0, 0, 0)',
+    );
+
+    // 状态变体的边框取语义色（24% alpha）。这里断言具体值而不是「等于令牌当前值」，
+    // 理由同批次 1 的主按钮：配色是产品决策，改它必须显式改到这里。
+    //
+    // `.first()` 是必需的：同一变体可以出现多次（例如两条警告标签），
+    // 不加选择器会命中多个元素而触发严格模式报错——那是**测试写法**的错，
+    // 不是样式的错。
+    for (const [variant, rgb] of [
+      ['success', 'rgba(45, 138, 91, 0.24)'],
+      ['warning', 'rgba(183, 121, 31, 0.24)'],
+      ['danger', 'rgba(192, 57, 43, 0.24)'],
+    ] as const) {
+      await expect(section.locator(`[data-variant="${variant}"]`).first()).toHaveCSS(
+        'border-top-color',
+        rgb,
+      );
+    }
+  });
+
+  test('Progress：aria 三属性与可见数值一致', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const section = page.locator('#progress');
+
+    // 四个进度条（含一个不带可见数值的形态）
+    await expect(section.getByRole('progressbar')).toHaveCount(4);
+
+    for (const [name, expected] of [
+      ['今日完成度', '0'],
+      ['目标进度', '58'],
+      ['本周预算使用', '100'],
+    ] as const) {
+      const bar = section.getByRole('progressbar', { name });
+
+      await expect(bar).toHaveAttribute('aria-valuenow', expected);
+      await expect(bar).toHaveAttribute('aria-valuemin', '0');
+      await expect(bar).toHaveAttribute('aria-valuemax', '100');
+
+      // 屏幕上写的数与朗读的数必须是同一个——读屏听到 58、屏幕写着 58.33
+      // 会让「同事说 58%」对不上。
+      await expect(section).toContainText(`${expected}%`);
+    }
+  });
+
+  test('Progress：填充宽度真的反映百分比，不是装饰', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const bar = page.getByRole('progressbar', { name: '目标进度' });
+    const track = await bar.boundingBox();
+    const fill = await bar.locator('span').boundingBox();
+
+    const ratio = (fill?.width ?? 0) / (track?.width ?? 1);
+
+    // 容差而非等值：亚像素舍入会让 58% 落在 57.9~58.1 之间。
+    // 真正要防的是「填充条宽度写死、与 value 无关」这类退化。
+    expect(ratio).toBeGreaterThan(0.56);
+    expect(ratio).toBeLessThan(0.6);
+  });
+
+  test('Tabs：真 Tab 三层语义 + roving tabindex', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const list = page.getByRole('tablist', { name: '添加类型' });
+    await expect(list).toBeVisible();
+    await expect(list.getByRole('tab')).toHaveCount(3);
+
+    // 有且仅有一个选中项（ARIA 对 tablist 的硬要求）
+    await expect(list.getByRole('tab', { name: '任务' })).toHaveAttribute('aria-selected', 'true');
+    await expect(list.getByRole('tab', { name: '目标' })).toHaveAttribute('aria-selected', 'false');
+
+    // roving tabindex：Tab 键把标签栏当作一个停靠点，而不是逐项停靠
+    await expect(list.getByRole('tab', { name: '任务' })).toHaveAttribute('tabindex', '0');
+    await expect(list.getByRole('tab', { name: '目标' })).toHaveAttribute('tabindex', '-1');
+
+    // 未选中的面板是 hidden，因此可见的 tabpanel 恰好一个
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await expect(page.getByRole('tabpanel')).toContainText('只要求标题');
+  });
+
+  test('Tabs：点击与方向键都能切换，且两端回绕', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    await page.getByRole('tab', { name: '目标' }).click();
+    await expect(page.getByRole('tabpanel')).toContainText('结果描述');
+
+    // 焦点在标签上时才响应方向键——这也是真实键盘用户的路径
+    await page.getByRole('tab', { name: '目标' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: '开销' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel')).toContainText('金额优先');
+
+    // 末项继续右移回绕到首项（键盘操作不留死角）
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: '任务' })).toHaveAttribute('aria-selected', 'true');
+
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tab', { name: '开销' })).toHaveAttribute('aria-selected', 'true');
+
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.getByRole('tab', { name: '目标' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('丸形与分段控件的几何：Badge/进度条全圆，Tabs 保持 34px', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    // 丸形令牌（§2.4）：Badge 与进度轨道都是「端帽完全圆化」
+    await expect(page.locator('#badge [data-variant="neutral"]').first()).toHaveCSS(
+      'border-radius',
+      '999px',
+    );
+
+    const track = page.getByRole('progressbar', { name: '目标进度' });
+    await expect(track).toHaveCSS('border-radius', '999px');
+    expect((await track.boundingBox())?.height ?? 0).toBe(6);
+
+    const badge = await page.locator('#badge [data-variant="neutral"]').first().boundingBox();
+    expect(badge?.height ?? 0).toBe(24);
+
+    // 分段控件**不参与**移动端触控抬升（§2.4 明文：它不是独立触控目标）。
+    // 两条断言在两个 project 下都会跑：若有人顺手把 34px 改成
+    // --size-control-sm，窄屏会变成 44px、这里立刻红。
+    expect((await page.getByRole('tab', { name: '任务' }).boundingBox())?.height ?? 0).toBe(34);
+  });
+});
+
 test.describe('减少动效（§6）', () => {
   test.use({ reducedMotion: 'reduce' });
 

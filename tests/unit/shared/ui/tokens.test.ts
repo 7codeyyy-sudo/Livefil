@@ -40,6 +40,10 @@ const EXPECTED_COLOR_TOKENS = {
   '--color-success-soft': 'rgba(45, 138, 91, 0.08)',
   '--color-warning-soft': 'rgba(183, 121, 31, 0.08)',
   '--color-danger-soft': 'rgba(192, 57, 43, 0.08)',
+  /* §2.4 状态色边框（v0.5 定值，UI-002 批次 2 收编）：语义色 24% alpha。 */
+  '--color-success-border': 'rgba(45, 138, 91, 0.24)',
+  '--color-warning-border': 'rgba(183, 121, 31, 0.24)',
+  '--color-danger-border': 'rgba(192, 57, 43, 0.24)',
 } as const;
 
 /** §2.4「只允许这两处阴影」。 */
@@ -88,11 +92,18 @@ const EXPECTED_FONT_WEIGHTS = {
   '--font-weight-medium': '500',
 } as const;
 
-/** §2.3 常用圆角。 */
+/**
+ * §2.3 / §2.4 圆角。
+ *
+ * 前三档是**几何圆角**（矩形表面的曲率），`--radius-pill` 是「端帽完全圆化」
+ * 的形态成语（Badge、进度条），两者不是同一维度的取值——所以这里的断言是
+ * 「取值正确」，而不是「四个档位」。
+ */
 const EXPECTED_RADIUS_TOKENS = {
   '--radius-sm': '10px',
   '--radius-md': '14px',
   '--radius-lg': '20px',
+  '--radius-pill': '999px',
 } as const;
 
 /**
@@ -172,7 +183,7 @@ const tokensSource = readFileSync(TOKENS_FILE, 'utf8');
 const tokens = parseCustomProperties(tokensSource);
 
 describe('设计令牌 · 颜色', () => {
-  it('18 个颜色令牌全部存在且取值与规范语义一致', () => {
+  it('21 个颜色令牌全部存在且取值与规范语义一致', () => {
     const mismatches = findTokenMismatches(
       tokens,
       EXPECTED_COLOR_TOKENS,
@@ -180,19 +191,25 @@ describe('设计令牌 · 颜色', () => {
     );
 
     expect(mismatches).toEqual([]);
-    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(18);
+    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(21);
   });
 
-  it('基础语义色恰好 9 个、派生辅助色恰好 9 个', () => {
+  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3」', () => {
     const names = Object.keys(EXPECTED_COLOR_TOKENS);
-    const base = names.filter(
-      (name) => !/-(soft|placeholder|on-accent|focus-ring|overlay)$/.test(name),
+    // 判据必须限定到三个状态色：基础语义色里本来就有 `--color-border`（分隔线），
+    // 用 `endsWith('-border')` 会把它也算成状态边框，于是基础色少一个、边框多一个。
+    const borders = names.filter((name) => /-(success|warning|danger)-border$/.test(name));
+    const derived = names.filter((name) =>
+      /-(soft|placeholder|on-accent|focus-ring|overlay)$/.test(name),
     );
+    const base = names.filter((name) => !borders.includes(name) && !derived.includes(name));
 
-    // 计数写死在这里是有意的：§2.4 把「9 + 9」定为契约，
+    // 计数写死在这里是有意的：§2.4 把「9 + 9 + 3」定为契约，
     // 将来若增减令牌，这条会强迫改动者回来确认总数，而不是悄悄漂移。
     expect(base).toHaveLength(9);
-    expect(names).toHaveLength(18);
+    expect(derived).toHaveLength(9);
+    expect(borders).toHaveLength(3);
+    expect(names).toHaveLength(21);
   });
 
   it('状态色柔和底按 8% alpha 推导，accent-soft 保留原型定值', () => {
@@ -313,7 +330,7 @@ describe('设计令牌 · 间距与圆角', () => {
     }
   });
 
-  it('三个常用圆角令牌与规范一致', () => {
+  it('三个几何圆角与丸形令牌的取值都与规范一致', () => {
     expect(findTokenMismatches(tokens, EXPECTED_RADIUS_TOKENS)).toEqual([]);
   });
 

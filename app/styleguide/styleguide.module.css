@@ -56,6 +56,13 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+/* 进度条按行排列：它的宽度需要撑满可用空间才能看出百分比差异。 */
+.progressList {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 420px;
+}
+
 /* 窄屏下收紧页面内边距（媒体查询里写像素值是允许的：变量无法用于 @media 条件）。 */
 @media (max-width: 767px) {
   .page {

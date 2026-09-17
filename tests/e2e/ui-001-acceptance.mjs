@@ -92,6 +92,27 @@ const DURATION_LITERAL_PATTERN = /\d+(?:\.\d+)?ms\b/;
 /** 数字 z-index，只应通过 `--z-*` 令牌表达。 */
 const NUMERIC_Z_INDEX_PATTERN = /z-index\s*:\s*-?\d+/;
 
+/**
+ * 带单位的数字圆角，只应通过 `--radius-*` 令牌表达（UI-002 批次 2 新增）。
+ *
+ * 放行三类合法写法：`var(...)`（引用令牌）、`50%`（头像与时间线圆点的几何写法，
+ * 不是半径档位）、无单位 `0`。同一条纪律在 JSX 内联样式里的 camelCase 形态
+ * 一并覆盖——否则「组件里写死圆角」只是换了个写法就绕过去了。
+ *
+ * 局限：逐行匹配，值跨行书写（超长时 Prettier 会换行）不在覆盖范围内。
+ * 这是与其它扫描一致的取舍——用整文件正则会让「第几行出错」无法报告。
+ */
+const NUMERIC_RADIUS_PATTERN = /(?:border-radius|borderRadius)\s*:\s*[^;,}]*\b\d+(?:\.\d+)?px/;
+
+/**
+ * 数字字号，只应通过 `--font-size-*` 令牌表达（UI-002 批次 2 新增）。
+ *
+ * 有了这条，原型 `.tag` 的 11px 这类「档位外的孤立取值」就不能悄悄回到代码里。
+ * 注意 `--font-size-body: 16px` 这种**令牌声明**不会命中：`font-size` 之后
+ * 紧跟的是 `-` 而不是 `:`。
+ */
+const NUMERIC_FONT_SIZE_PATTERN = /(?:font-size|fontSize)\s*:\s*[^;,}]*\d+(?:\.\d+)?(?:px|rem|em)/;
+
 /** 读取项目内文件。 */
 function readProjectFile(file) {
   return readFileSync(file, 'utf8');
@@ -303,13 +324,56 @@ test('令牌文件之外不出现数字 z-index（层级必须走 --z-*）', () 
   );
 });
 
-test('令牌尚未被预造（§2.4「暂不收编」项不得提前出现）', () => {
+test('令牌文件之外不出现数字圆角（圆角必须走 --radius-* 或 50%）', () => {
+  // 丸形（Badge、进度条）与几何圆角是两回事，但它们都只能来自令牌——
+  // 否则「所有圆角来自三档 + 一个丸形」这套约束就退化成了约定。
+  const styleSheets = collectApplicationFiles()
+    .filter((file) => !isTokensFile(file))
+    .filter((file) => file.endsWith('.css'));
+  const offenders = findMatches(styleSheets, NUMERIC_RADIUS_PATTERN);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `圆角应引用 --radius-* 令牌（几何写法 50% 除外），不得写像素值：\n${offenders
+      .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
+      .join('\n')}`,
+  );
+});
+
+test('令牌文件之外不出现数字字号（字号必须走 --font-size-*）', () => {
+  // 这条针对的是「档位外的孤立取值」：原型 `.tag` 的 11px 就是这样来的——
+  // 单看每个值都合理，合起来就是一套没人控制的字阶。
+  const styleSheets = collectApplicationFiles()
+    .filter((file) => !isTokensFile(file))
+    .filter((file) => file.endsWith('.css'));
+  const offenders = findMatches(styleSheets, NUMERIC_FONT_SIZE_PATTERN);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `字号应引用 --font-size-* 令牌，不得写字面量：\n${offenders
+      .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
+      .join('\n')}`,
+  );
+});
+
+test('令牌收编进度符合 §2.4：边框三色已收编，「暂不收编」项仍未预造', () => {
   const source = readProjectFile(TOKENS_FILE);
 
-  // 这两族被明确推后：状态色边框要连三色一起设计，磨砂白涉及反玻璃拟态条款。
-  // 提前造一个会导致另外两个一直缺失。
-  for (const deferred of ['--color-success-border', '--color-frost']) {
-    assert.ok(!source.includes(deferred), `${deferred} 属「暂不收编」，UI-001 不得预造`);
+  // 批次 2 收编状态色边框，三色必须一次到位——规范明确「不单独引入一个」。
+  // 正向断言存在是必要的：「漏收编」与「多收编」是两种不同的失效。
+  for (const collected of [
+    '--color-success-border',
+    '--color-warning-border',
+    '--color-danger-border',
+  ]) {
+    assert.ok(source.includes(collected), `${collected} 应由 UI-002 批次 2 收编`);
+  }
+
+  // 仍被明确推后的项：磨砂白涉及 §1.1 的反玻璃拟态条款，属产品决策而非实现细节。
+  for (const deferred of ['--color-frost']) {
+    assert.ok(!source.includes(deferred), `${deferred} 属「暂不收编」，不得预造`);
   }
 });
 

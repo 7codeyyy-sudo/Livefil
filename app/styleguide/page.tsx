@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
 
-import { Button, IconButton, Input, Select, Textarea } from '@/shared/ui/components';
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Progress,
+  Select,
+  Textarea,
+} from '@/shared/ui/components';
 
+import { TabsDemo } from './TabsDemo';
 import styles from './styleguide.module.css';
 
 /**
@@ -142,6 +151,37 @@ export default function StyleguidePage() {
             data-variant="textarea-disabled"
           />
         </div>
+      </section>
+
+      <section className={styles.section} id="badge">
+        <h2 className={styles.sectionTitle}>Badge</h2>
+        <div className={styles.row}>
+          <Badge variant="neutral">待整理</Badge>
+          <Badge variant="success">已完成</Badge>
+          <Badge variant="warning">已延期</Badge>
+          <Badge variant="danger">冲突</Badge>
+        </div>
+        <div className={styles.row}>
+          {/* 长内容不该撑破容器或折行（原型 `.tag` 的 nowrap）。 */}
+          <Badge variant="neutral">2026-09-17 到期</Badge>
+          <Badge variant="warning">与「晨间例程」时间冲突</Badge>
+        </div>
+      </section>
+
+      <section className={styles.section} id="progress">
+        <h2 className={styles.sectionTitle}>Progress</h2>
+        <div className={styles.progressList}>
+          <Progress value={0} label="今日完成度" showValue />
+          <Progress value={58} label="目标进度" showValue />
+          <Progress value={100} label="本周预算使用" showValue />
+          {/* 不带可见数值的形态：由配套文字承担说明职责（§5）。 */}
+          <Progress value={35} label="行动完成进度" />
+        </div>
+      </section>
+
+      <section className={styles.section} id="tabs">
+        <h2 className={styles.sectionTitle}>Tabs</h2>
+        <TabsDemo />
       </section>
     </main>
   );
