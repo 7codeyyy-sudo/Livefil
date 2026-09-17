@@ -49,8 +49,21 @@ const EXPECTED_MODULES = [
 /** 《详细设计说明书》§2 规定的模块内分层。 */
 const EXPECTED_LAYERS = ['domain', 'application', 'infrastructure', 'presentation'];
 
-/** `src/shared` 的子目录（validation 由 FND-001 建立，其余属本任务）。 */
-const EXPECTED_SHARED_AREAS = ['validation', 'domain', 'date-time', 'money', 'errors', 'telemetry'];
+/**
+ * `src/shared` 的子目录（validation 由 FND-001 建立，其余属本任务；`ui` 由 UI-001 后加入）。
+ *
+ * 这是一份**显式清单**而不是从文件系统推导——目录结构属契约，
+ * 新增或删除都应当在这里留下痕迹，而不是被自动放行。
+ */
+const EXPECTED_SHARED_AREAS = [
+  'validation',
+  'domain',
+  'date-time',
+  'money',
+  'errors',
+  'telemetry',
+  'ui',
+];
 
 /** `src/infrastructure` 的子目录。 */
 const EXPECTED_INFRASTRUCTURE_AREAS = [
