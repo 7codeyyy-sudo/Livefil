@@ -1,0 +1,72 @@
+/**
+ * ConfirmDialog 样式（UI-002 批次 3a）。
+ *
+ * 与 Modal 同源：表面白 + 大圆角 + overlay 阴影 + 无边框。
+ * 宽度沿用规范给 Modal 的 `min(480px, 100%)`——§4.5 把确认弹窗定义为
+ * 「Modal 的特化」，没有另给宽度；自行收窄会造出一个无依据的取值。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.panel {
+  position: relative;
+  z-index: var(--z-overlay);
+  display: grid;
+  gap: var(--space-4);
+  width: min(480px, 100%);
+  max-height: calc(100vh - var(--space-10));
+  overflow-y: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.panel[data-state='open'] {
+  opacity: 1;
+  transform: scale(1);
+  /* 进场靠动画：元素刚挂载时已经是终态，过渡没有起始值可插值。 */
+  animation: confirm-panel-in var(--duration-slow) var(--ease-standard);
+}
+
+.panel[data-state='closed'] {
+  opacity: 0;
+  transform: scale(0.98);
+  transition:
+    opacity var(--duration-slow) var(--ease-standard),
+    transform var(--duration-slow) var(--ease-standard);
+}
+
+@keyframes confirm-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: end;
+}

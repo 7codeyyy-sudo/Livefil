@@ -72,8 +72,9 @@ const ALLOWED_TOKEN_PREFIXES = [
 /**
  * 当前阶段**必须存在**的令牌族。
  *
- * 比白名单少 `--z-`：层级令牌与 `--duration-slow` 要等批次 3 的首个消费者
- * 才落代码——「需要才落」不等于现在就先写死一个没人用的值。
+ * `--z-` 从 UI-002 批次 3a 起进入必存清单：层级令牌随 Modal/ConfirmDialog 落了
+ * 前两枚（`--z-scrim`、`--z-overlay`），有了真实消费者。
+ * 白名单里仍留着 `--z-toast` 的位置——它随批次 3b 的 Toast 一起落地。
  */
 const REQUIRED_TOKEN_FAMILIES = [
   '--color-',
@@ -84,10 +85,16 @@ const REQUIRED_TOKEN_FAMILIES = [
   '--duration-',
   '--ease-',
   '--size-',
+  '--z-',
 ];
 
-/** 时长字面量（如 `150ms`、`0.01ms`），只应出现在令牌文件里。 */
-const DURATION_LITERAL_PATTERN = /\d+(?:\.\d+)?ms\b/;
+/**
+ * 时长字面量（`150ms`、`0.2s`、`1s`），只应出现在令牌文件里。
+ *
+ * `m?s` 同时覆盖 `ms` 与 `s` 两种单位：规范 §2.4 的使用规则禁的是「`ms`/`s` 时长
+ * 字面量」，只拦 `ms` 会漏掉 `transition: 0.2s` 这种同样常见的写法。
+ */
+const DURATION_LITERAL_PATTERN = /\d+(?:\.\d+)?m?s\b/;
 
 /** 数字 z-index，只应通过 `--z-*` 令牌表达。 */
 const NUMERIC_Z_INDEX_PATTERN = /z-index\s*:\s*-?\d+/;
@@ -171,14 +178,21 @@ test('令牌文件存在，且定义了 §2.4 要求的全部令牌族', () => {
 
   const source = readProjectFile(TOKENS_FILE);
 
+  // 判定必须落在**真实的声明**（`--x:` 形式）上，不能用文本包含：
+  // 注释里提到一个"尚未落地"的令牌名（例如 `--z-toast` 要等批次 3b）是正常的
+  // 说明方式，而 `includes` 会被注释喂饱——把真定义删掉也不会变红。
+  const declared = [...source.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((match) => match[1]);
+
   // 只断言"族"存在，逐个取值由单元测试负责——验收脚本不该复制另一份取值表，
   // 两份清单必然漂移。
   for (const family of REQUIRED_TOKEN_FAMILIES) {
-    assert.ok(source.includes(family), `令牌文件应包含 ${family} 族的定义`);
+    assert.ok(
+      declared.some((name) => name !== undefined && name.startsWith(family)),
+      `令牌文件应定义 ${family} 族的令牌（要在声明里出现，注释中提及不算）`,
+    );
   }
 
   // 白名单：令牌文件里不应出现计划外的自定义属性。
-  const declared = [...source.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((match) => match[1]);
   const unexpected = declared.filter(
     (name) =>
       name !== undefined && !ALLOWED_TOKEN_PREFIXES.some((prefix) => name.startsWith(prefix)),
@@ -203,7 +217,16 @@ test('令牌由根布局唯一导入，全仓没有第二个导入点', () => {
     '根布局必须以 `@/shared/ui/styles/tokens.css` 导入令牌',
   );
 
-  const importPattern = /tokens\.css/;
+  // 只认**导入语句**，不认文本提及。
+  //
+  // 早先这里写的是 `/tokens\.css/`，于是任何在注释或文档里提到这个文件名的
+  // 源码都被当成"第二个导入点"——那会逼出一条反常识的约束：不许在注释里
+  // 提文件名。检查器的匹配过宽会把正常的表达方式一并禁掉。
+  //
+  // `m` flag 是必需的：这里 test 的是**整个文件内容**，没有 `m` 时 `^`
+  // 只匹配字符串开头，于是除文件第一行之外的 import 全被漏掉——
+  // 断言会退化成「谁都匹配不上」。
+  const importPattern = /^\s*import\b.*tokens\.css/m;
   const importers = collectApplicationFiles().filter(
     (file) => !isTokensFile(file) && importPattern.test(readProjectFile(file)),
   );

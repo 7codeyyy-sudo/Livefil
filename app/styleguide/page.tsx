@@ -10,6 +10,7 @@ import {
   Textarea,
 } from '@/shared/ui/components';
 
+import { OverlayDemo } from './OverlayDemo';
 import { TabsDemo } from './TabsDemo';
 import styles from './styleguide.module.css';
 
@@ -182,6 +183,15 @@ export default function StyleguidePage() {
       <section className={styles.section} id="tabs">
         <h2 className={styles.sectionTitle}>Tabs</h2>
         <TabsDemo />
+      </section>
+
+      <section className={styles.section} id="overlay">
+        <h2 className={styles.sectionTitle}>Modal / ConfirmDialog</h2>
+        <p className={styles.note}>
+          浮层默认不渲染——打开的弹窗会盖住整页，静态展示没有意义。 点按钮打开；滚动锁、焦点陷阱、ESC
+          语义与嵌套关闭由浏览器端用例验证。
+        </p>
+        <OverlayDemo />
       </section>
     </main>
   );

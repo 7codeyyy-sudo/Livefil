@@ -1,0 +1,81 @@
+/**
+ * Modal 样式（UI-002 批次 3a）。
+ *
+ * 形态取自规范 §4.5 的 v0.8 冻结值，原型 `.modal` 为据。
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.panel {
+  position: relative;
+  /* 面板层级：与遮罩的 --z-scrim 分开表达，方便将来插第三个层级时不用改组件。 */
+  z-index: var(--z-overlay);
+  display: grid;
+  gap: var(--space-5);
+  width: min(480px, 100%);
+  /* 内容超长时面板内部滚动，而不是把整个页面顶出视口。
+     上限减去上下内边距，避免面板贴到屏幕边缘。 */
+  max-height: calc(100vh - var(--space-10));
+  overflow-y: auto;
+  padding: var(--space-6);
+  /* 规范明确「不画原型那道磨砂白边」——这里刻意没有 border。 */
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.panel[data-state='open'] {
+  opacity: 1;
+  transform: scale(1);
+  /* 进场靠动画：元素刚挂载时已经是终态，过渡没有起始值可插值。 */
+  animation: modal-panel-in var(--duration-slow) var(--ease-standard);
+}
+
+/* 退场：轻微缩小 + 淡出。幅度取 0.98 而不是更小——浮层进出的意图是
+   「它本来就在这里」，不是「从远处飞进来」，夸张的缩放与 §1.1 的反动效条款冲突。
+   过渡结束后派发 transitionend，由它驱动真正的卸载。 */
+.panel[data-state='closed'] {
+  opacity: 0;
+  transform: scale(0.98);
+  transition:
+    opacity var(--duration-slow) var(--ease-standard),
+    transform var(--duration-slow) var(--ease-standard);
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.header {
+  display: flex;
+  gap: var(--space-5);
+  align-items: start;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.footer {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: end;
+}
