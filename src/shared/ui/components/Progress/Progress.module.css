@@ -1,0 +1,38 @@
+/**
+ * Progress 样式（UI-002 批次 2）。
+ *
+ * 形态取自原型 `.progress-line`：6px 细线、丸形端帽、柔和面轨道、强调色填充。
+ * 纪律：只引用设计令牌，不写颜色 / 圆角 / 字号字面量。
+ */
+
+.wrapper {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.track {
+  /* 原型 `.progress-line` 的 6px。尺寸族服务于控件高度，不覆盖这种装饰性轨道，
+     且它不是触控目标——按 §2.4「需要才落」处理。 */
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  /* 继承轨道的丸形端帽：填充条自身不必重复声明同一形态。 */
+  border-radius: inherit;
+  /* 强调色蓝的既定用途之一是「进度」（§2.1）——这也是它区别于主操作近黑的地方。 */
+  background-color: var(--color-accent);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+
+.value {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  /* 数值用等宽数字，避免百分比变化时文字宽度跳动（§5「金额使用等宽数字」同理）。 */
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-caption);
+}

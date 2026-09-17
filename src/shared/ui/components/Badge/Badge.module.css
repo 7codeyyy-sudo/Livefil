@@ -1,0 +1,62 @@
+/**
+ * Badge 样式（UI-002 批次 2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 圆角 / 字号的字面量——由
+ * `tests/e2e/ui-001-acceptance.mjs` 的扫描器守住。
+ *
+ * 三级层次（§2.4）：状态色的「8% 柔和底 / 24% 边框 / 100% 文字与图标」。
+ * 中性标签不用边框，按规范「中性 Tag 仍用次文字 + 柔和面，不新增边框令牌」。
+ */
+
+.badge {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  /* 必须声明 border-box：下面那条 1px 边框（中性变体是透明的，但仍在盒模型里）
+     会把总高撑到 26px，令牌意图的 24px 就不成立了。
+     项目目前没有全局 reset（`box-sizing: border-box` 尚未统一），
+     所以每个依赖"精确高度"的组件都要自带这一行——UI-003 建应用外壳时
+     若补了全局 reset，这里可以去掉。 */
+  box-sizing: border-box;
+  /* 原型 `.tag` 的 24px。尺寸族没有这一档，且徽章不是触控目标，
+     按 §2.4「需要才落」处理——不预造尺寸令牌。 */
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  /* 边框常驻（中性时透明）：三种变体的高度因此完全一致，
+     不会出现「加了状态色就变高 2px」的跳动。 */
+  border: 1px solid transparent;
+  /* 丸形是「端帽完全圆化」形态，不是第四档几何圆角（§2.4）。 */
+  border-radius: var(--radius-pill);
+  font-family: var(--font-family-base);
+  /* 原型 `.tag` 是 11px，低于 §2.2 字阶辅助档下限（12–13px），
+     属原型期取值——归整到辅助档，不为一个孤立值新开第六级字阶。 */
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+  /* 标签内容（如「2026-09-17 到期」）不该在窄屏被折成两行。 */
+  white-space: nowrap;
+}
+
+/* 中性：次文字 + 柔和面，无边。 */
+.neutral {
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface-soft);
+}
+
+.success {
+  color: var(--color-success);
+  background-color: var(--color-success-soft);
+  border-color: var(--color-success-border);
+}
+
+.warning {
+  color: var(--color-warning);
+  background-color: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+}
+
+.danger {
+  color: var(--color-danger);
+  background-color: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+}

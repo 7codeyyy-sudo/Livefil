@@ -1,0 +1,73 @@
+/**
+ * Tabs 样式（UI-002 批次 2）。
+ *
+ * 形态取自原型 `.add-tabs` / `.add-tab`（分段控件）：柔和面容器包住一组内项，
+ * 激活项换成主表面并抬起。纪律：只引用设计令牌，不写颜色 / 圆角 / 字号字面量。
+ */
+
+.tabs {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.list {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+}
+
+.tab {
+  flex: 1;
+  /* 原型 `.add-tab` 的 34px。分段控件不是独立触控目标，§2.4 明确
+     「不预造尺寸令牌，确有需要时按同一命名规则追加」——当前只有这一个消费者，
+     因此按「需要才落」处理，字号/圆角等纪律扫描不涉及高度。 */
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: 0;
+  /* 分段内项用控件圆角（§2.4 圆角令牌表「控件：按钮/输入框/导航项/分段控件内项」）。
+     原型写 8px，不在三档几何圆角内——归整到 10px，差值肉眼不可辨。 */
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.tab:hover:not(.active) {
+  color: var(--color-text-primary);
+}
+
+/* 焦点必须清晰可见（§7）。与 Button 同款：outline 不参与布局，也不会被相邻元素遮住。 */
+.tab:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 激活项：换成主表面 + 抬升阴影（原型 `.add-tab.is-active`）。
+   强调色蓝在这里刻意不用——§2.1 把蓝色留给「此刻活着的状态」，
+   而分段控件的选中是导航位置，不是运行状态。 */
+.active {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* `hidden` 必须显式声明：任何显式 display 都会覆盖浏览器对 [hidden] 的默认样式，
+   未选中的面板会在页面上照样显示出来。 */
+.panel[hidden] {
+  display: none;
+}
