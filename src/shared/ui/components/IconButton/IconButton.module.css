@@ -1,0 +1,82 @@
+/**
+ * IconButton 样式（UI-002 批次 1）。
+ *
+ * 强调级的色彩语义与 Button 一致，但尺寸为方形、内容只有图标。
+ *
+ * 为什么不用 CSS Modules 的 `composes` 复用 Button 的基础样式：那会让
+ * 「改 Button 的悬停表现」意外改掉 IconButton。这里的重复是**刻意的**——
+ * 二十行静态声明的维护成本，低于两个组件之间的隐式耦合。
+ */
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+/* 3px 宽度与 2px offset 是几何量；颜色来自令牌（§2.4）。 */
+.iconButton:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.iconButton[data-loading='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.primary {
+  color: var(--color-on-primary);
+  background-color: var(--color-primary-surface);
+}
+
+.primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.secondary {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-soft);
+}
+
+.ghost {
+  color: var(--color-text-secondary);
+  background-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-soft);
+}
+
+.danger {
+  color: var(--color-on-danger);
+  background-color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  filter: brightness(0.92);
+}

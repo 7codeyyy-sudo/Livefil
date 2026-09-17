@@ -1,0 +1,59 @@
+/**
+ * Select 样式（UI-002 批次 1）。
+ *
+ * 与 Input 同构——同样的字段结构、同样的状态表达。刻意保留原生外观
+ * （见组件注释）：只在尺寸、边框、排版上统一，不动 `appearance`。
+ */
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.select:focus-visible {
+  border-color: var(--color-accent);
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.select:disabled {
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface-soft);
+  cursor: not-allowed;
+}
+
+.select[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+}

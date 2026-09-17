@@ -1,0 +1,66 @@
+/**
+ * Input 样式（UI-002 批次 1）。
+ *
+ * 字段的 DOM 顺序（label → hint → 控件 → error）由组件保证，样式只负责呈现。
+ * 只引用令牌，不写颜色字面量。
+ */
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+/* 焦点：outline 保证可见（§7），同时把边框换成强调色。
+   强调色在 §2.1 收窄后的语义正是「焦点」，这里是对的用法。 */
+.input:focus-visible {
+  border-color: var(--color-accent);
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.input:disabled {
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface-soft);
+  cursor: not-allowed;
+}
+
+/* 错误态：边框变红**只是辅助**，真正传达语义的是 role="alert" 的文本
+   （§2.1「颜色不能成为唯一语义载体」）。 */
+.input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+}
