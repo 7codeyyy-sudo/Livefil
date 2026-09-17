@@ -1,0 +1,85 @@
+/**
+ * Button 样式（UI-002 批次 1）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级的字面量——由
+ * `tests/e2e/ui-001-acceptance.mjs` 的扫描器守住。
+ */
+
+.button {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-control-sm);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+/* 焦点必须清晰可见（§7）。用 outline 而不是 box-shadow：outline 不参与布局，
+   也不会被相邻元素遮住。3px 宽度与 2px offset 是几何量，不是颜色令牌。 */
+.button:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 加载中：文字保持不变，只降低不透明度并换光标。
+   §1.1 明确反对持续循环动效，所以这里不引入 spinner 或闪烁。 */
+.button[data-loading='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.primary {
+  color: var(--color-on-primary);
+  background-color: var(--color-primary-surface);
+}
+
+.primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.secondary {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-soft);
+}
+
+.ghost {
+  color: var(--color-text-secondary);
+  background-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-soft);
+}
+
+.danger {
+  color: var(--color-on-danger);
+  background-color: var(--color-danger);
+}
+
+/* 危险色的 hover 态：规范只给了一个红，这里用 brightness 压深，
+   而不是手写一个更深的红——后者会引入规范外的颜色字面量。 */
+.danger:hover:not(:disabled) {
+  filter: brightness(0.92);
+}

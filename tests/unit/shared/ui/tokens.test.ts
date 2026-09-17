@@ -205,6 +205,38 @@ describe('设计令牌 · 颜色', () => {
   });
 });
 
+/**
+ * §2.4「组件别名令牌」（v0.4 引入，v0.6 补 on-danger）。
+ *
+ * 别名只引用既有色板取值、不引入新颜色，因此**不计入** 18 个颜色令牌契约；
+ * 但取值仍由规范锁定，单独成表比对——别名漂移同样是设计漂移。
+ */
+const EXPECTED_COMPONENT_ALIASES = {
+  '--color-primary-surface': '#1d1d1f',
+  '--color-primary-hover': '#000000',
+  '--color-on-primary': '#ffffff',
+  '--color-on-danger': '#ffffff',
+} as const;
+
+describe('设计令牌 · 组件别名', () => {
+  it('别名令牌存在且取值与 §2.4 别名表一致', () => {
+    const mismatches = findTokenMismatches(
+      tokens,
+      EXPECTED_COMPONENT_ALIASES,
+      (a, b) => normalizeColor(a) === normalizeColor(b),
+    );
+
+    expect(mismatches).toEqual([]);
+  });
+
+  it('别名不计入 18 个颜色契约（防止有人把别名混进 EXPECTED_COLOR_TOKENS）', () => {
+    const contractNames = Object.keys(EXPECTED_COLOR_TOKENS);
+    for (const alias of Object.keys(EXPECTED_COMPONENT_ALIASES)) {
+      expect(contractNames).not.toContain(alias);
+    }
+  });
+});
+
 describe('设计令牌 · 阴影', () => {
   it('两个阴影令牌存在且取值与规范一致', () => {
     const mismatches = findTokenMismatches(

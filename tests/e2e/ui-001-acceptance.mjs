@@ -44,6 +44,54 @@ const COLOR_LITERAL_PATTERN = /#[0-9a-fA-F]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(/;
 /** 《UI 页面规范》§3.1 的断点像素值。 */
 const BREAKPOINT_PIXEL_PATTERN = /\b(320|767|768|1023|1024|1439|1440)\b/;
 
+/**
+ * 令牌文件允许出现的自定义属性前缀（UI-002 批次 1 扩充）。
+ *
+ * 这是一份**白名单**：令牌文件里出现任何不在此列的自定义属性都该被质疑——
+ * 否则「设计令牌」会慢慢退化成一个谁都能往里丢变量的杂物箱。
+ *
+ * `--line-height-` 单列的原因：§2.4 把行高归在 `--font-*` 族里，而实现把
+ * 「字体族 / 字号 / 字重 / 行高」拆成四个可独立演进的前缀——写成
+ * `--font-line-height-body` 读起来像「字体的行高」而不是「行高」，更容易误读。
+ * 这是对族清单的一处**细化**，不是新增一族。
+ */
+const ALLOWED_TOKEN_PREFIXES = [
+  '--color-',
+  '--shadow-',
+  '--font-',
+  '--line-height-',
+  '--space-',
+  '--layout-',
+  '--radius-',
+  '--duration-',
+  '--ease-',
+  '--size-',
+  '--z-',
+];
+
+/**
+ * 当前阶段**必须存在**的令牌族。
+ *
+ * 比白名单少 `--z-`：层级令牌与 `--duration-slow` 要等批次 3 的首个消费者
+ * 才落代码——「需要才落」不等于现在就先写死一个没人用的值。
+ */
+const REQUIRED_TOKEN_FAMILIES = [
+  '--color-',
+  '--shadow-',
+  '--font-',
+  '--space-',
+  '--radius-',
+  '--duration-',
+  '--ease-',
+  '--size-',
+];
+
+/** 时长字面量（如 `150ms`、`0.01ms`），只应出现在令牌文件里。 */
+const DURATION_LITERAL_PATTERN = /\d+(?:\.\d+)?ms\b/;
+
+/** 数字 z-index，只应通过 `--z-*` 令牌表达。 */
+const NUMERIC_Z_INDEX_PATTERN = /z-index\s*:\s*-?\d+/;
+
 /** 读取项目内文件。 */
 function readProjectFile(file) {
   return readFileSync(file, 'utf8');
@@ -104,9 +152,22 @@ test('令牌文件存在，且定义了 §2.4 要求的全部令牌族', () => {
 
   // 只断言"族"存在，逐个取值由单元测试负责——验收脚本不该复制另一份取值表，
   // 两份清单必然漂移。
-  for (const family of ['--color-', '--shadow-', '--font-', '--space-', '--radius-']) {
+  for (const family of REQUIRED_TOKEN_FAMILIES) {
     assert.ok(source.includes(family), `令牌文件应包含 ${family} 族的定义`);
   }
+
+  // 白名单：令牌文件里不应出现计划外的自定义属性。
+  const declared = [...source.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((match) => match[1]);
+  const unexpected = declared.filter(
+    (name) =>
+      name !== undefined && !ALLOWED_TOKEN_PREFIXES.some((prefix) => name.startsWith(prefix)),
+  );
+
+  assert.deepEqual(
+    unexpected,
+    [],
+    `令牌文件出现了计划外的自定义属性（确需新增时先扩 ALLOWED_TOKEN_PREFIXES 并说明来源）：\n${unexpected.join('\n')}`,
+  );
 
   assert.match(source, /:root\s*\{/, '令牌应定义在 :root 上');
   assert.match(source, /color-scheme:\s*light/, '第一阶段必须声明 color-scheme: light');
@@ -203,6 +264,40 @@ test('断点未做成 CSS 变量，且 JS 侧没有第二份断点取值', () =>
     offenders,
     [],
     `断点像素值不得出现在 TS/TSX 中（JS 需要时须建立唯一镜像文件）：\n${offenders
+      .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
+      .join('\n')}`,
+  );
+});
+
+test('令牌文件之外不出现时长字面量（动效必须走 --duration-*）', () => {
+  // 时长散写是「颜色字面量」问题的翻版，而且更隐蔽：没有任何视觉检查能发现
+  // 「两个浮层的动画快慢不同」。有了这条扫描，动效令牌才不只是愿望。
+  const styleSheets = collectApplicationFiles()
+    .filter((file) => !isTokensFile(file))
+    .filter((file) => file.endsWith('.css'));
+  const offenders = findMatches(styleSheets, DURATION_LITERAL_PATTERN);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `时长应引用 --duration-* 令牌，不得写字面量：\n${offenders
+      .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
+      .join('\n')}`,
+  );
+});
+
+test('令牌文件之外不出现数字 z-index（层级必须走 --z-*）', () => {
+  // 层级冲突不会报错，只会表现为「某个弹窗被另一个盖住」，而且在单组件测试里
+  // 完全看不见。集中成三档是唯一能预防它的做法。
+  const styleSheets = collectApplicationFiles()
+    .filter((file) => !isTokensFile(file))
+    .filter((file) => file.endsWith('.css'));
+  const offenders = findMatches(styleSheets, NUMERIC_Z_INDEX_PATTERN);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `层级应引用 --z-* 令牌，不得写数字：\n${offenders
       .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
       .join('\n')}`,
   );

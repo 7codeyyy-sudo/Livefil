@@ -101,6 +101,41 @@
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
+
+  /* ── 组件别名令牌（UI-002 批次 1）────────────────────────────────────
+   * 主按钮配色定稿为近黑实心（《UI 页面规范》v0.4 §2.1）。别名只引用既有
+   * 色板取值、不引入新颜色，因此**不计入** §2.4 的颜色令牌契约。
+   *
+   * 为什么要有别名而不是直接写 `--color-text-primary`：把文字令牌挪作表面色
+   * 会造成语义耦合——将来调「主按钮颜色」会连带改掉所有正文颜色。有别名之后，
+   * 配色改判或深色翻转只需改这几行，组件零改动。
+   *
+   * `--color-on-danger` 同理：danger 变体红底上的白字必须有自己的「面上之色」
+   * 别名，不能借用 `--color-on-accent`（那是蓝底白字的语义）——哪怕两者当前
+   * 取值都是 #fff，语义错配会在任一色调值时立刻变成视觉缺陷。
+   */
+  --color-primary-surface: #1d1d1f;
+  --color-primary-hover: #000000;
+  --color-on-primary: #ffffff;
+  --color-on-danger: #ffffff;
+
+  /* ── 动效 ——§6「常规状态过渡 150–250ms」──────────────────────────────
+   * 取值来源是**原型**而不是规范区间：原型 nav 与 button 的过渡为 160ms、
+   * 抽屉位移 180ms，这里归整到区间内；缓动沿用原型一致使用的 `ease`
+   * （只收编时长而不收编缓动，等于把同一个漂移问题留下一半）。
+   * `--duration-slow`（浮层进退场）随批次 3 的首个消费者一并落代码。
+   */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --ease-standard: ease;
+
+  /* ── 控件尺寸 ——§2.3 ──────────────────────────────────────────────────
+   * `--size-touch-min` 是**语义保证值**，不是某个组件的高度：它在移动端
+   * 覆盖 `--size-control-sm`（见下方媒体查询），组件样式自身不写媒体查询。
+   */
+  --size-control-sm: 40px;
+  --size-control-md: 48px;
+  --size-touch-min: 44px;
 }
 
 /* 平板/窄桌面（§3.1：768–1023px）。 */
@@ -114,6 +149,27 @@
 @media (max-width: 767px) {
   :root {
     --space-page-x: 16px;
+    /* 移动端把主控件抬到触控下限（§2.3）。在令牌层单点覆盖，
+       组件样式不写媒体查询改高度——否则每个组件都要重复一遍，
+       且必然有人漏写。 */
+    --size-control-sm: var(--size-touch-min);
+  }
+}
+
+/**
+ * 减少动效 —— 单点全局覆盖（§6 要求支持 `prefers-reduced-motion`）。
+ *
+ * 时长压到 `0.01ms` 而不是 `0`：`0` 会让部分浏览器的过渡事件不触发，
+ * 依赖 `transitionend` 的逻辑会静默失效；`0.01ms` 视觉上同样是瞬时完成，
+ * 但保留事件语义。
+ *
+ * **组件内不要各写 `prefers-reduced-motion` 媒体查询**——那会散成十几份，
+ * 且必然漏掉几个。改这里一处即可。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
   }
 }
 

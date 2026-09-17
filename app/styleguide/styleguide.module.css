@@ -1,0 +1,64 @@
+/**
+ * 组件展示夹具的样式（UI-002）。
+ *
+ * 本文件位于 `app/` 下，同样受令牌纪律扫描约束：不写颜色、时长、层级字面量。
+ * 它只负责把组件摆出来，不定义任何组件自身的视觉。
+ */
+
+.page {
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-page-x);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-page-title);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-10);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* 自动适配列数：窄屏一列、宽屏多列。组件的窄屏表现因此在本页可见。 */
+.fieldGrid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/* 窄屏下收紧页面内边距（媒体查询里写像素值是允许的：变量无法用于 @media 条件）。 */
+@media (max-width: 767px) {
+  .page {
+    padding: var(--space-6) var(--space-page-x);
+  }
+}
