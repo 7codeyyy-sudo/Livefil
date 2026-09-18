@@ -71,6 +71,20 @@
   height: 1200px;
 }
 
+/* 页面状态分区（批次 4）：三态竖排，每个占满一行。
+   `max-width` 是**夹具的布局量**（让骨架的百分比宽度看起来像真实内容区），
+   不是设计取值——它不参与任何组件的视觉。 */
+.stateGrid {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.statePanel {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 640px;
+}
+
 /* 窄屏下收紧页面内边距（媒体查询里写像素值是允许的：变量无法用于 @media 条件）。 */
 @media (max-width: 767px) {
   .page {

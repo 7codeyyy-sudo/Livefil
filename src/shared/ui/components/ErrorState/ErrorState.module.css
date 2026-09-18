@@ -1,0 +1,51 @@
+/**
+ * ErrorState 样式（UI-002 批次 4，《UI 页面规范》v0.11 §4.6）。
+ *
+ * 取值全部来自 §2.4 既有令牌，**零新增令牌**。
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  /* 与 Modal 同族的宽度上限，窄屏收缩到可用宽度。 */
+  width: min(480px, 100%);
+  margin: 0 auto;
+  text-align: center;
+  /* **刻意没有衬底边框**：虚线框是空态专有的语言（「这里还没有东西」），
+     错误态套同一套外观会让两者分不清。 */
+}
+
+/* 唯一带颜色的元素。红底/红框/红字都会稀释 danger 在删除确认里的分量。 */
+.icon {
+  width: 1.5em;
+  height: 1.5em;
+  color: var(--color-danger);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-2);
+}
