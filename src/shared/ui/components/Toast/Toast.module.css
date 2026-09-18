@@ -1,0 +1,105 @@
+/**
+ * Toast 样式（UI-002 批次 3b）。
+ *
+ * 形态取自规范 §4.5 的 v0.8 冻结值：表面色底 + `--radius-md` + `--shadow-overlay`、
+ * 进退场 `--duration-fast`、底部居中堆叠。
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.toast {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  /* 宽度上限与浮层同量级（Modal 480 / Drawer 440）。宽度没有令牌族
+     （`--layout-max-width` 是页面级 1200px，套在这里会变成一条横幅），
+     所以这里写字面量而不是硬造一个令牌。 */
+  max-width: 420px;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  /* 容器整体不吃点击（否则页面底部会多出一条看不见的挡板），
+     这里必须把它收回。 */
+  pointer-events: auto;
+}
+
+.toast[data-state='open'] {
+  opacity: 1;
+  transform: translateY(0);
+  /* 进场靠动画：元素挂载那一刻已是终态，过渡没有起始值可插值。 */
+  animation: toast-in var(--duration-fast) var(--ease-standard);
+}
+
+/* 退场：向下沉一点 + 淡出。提示条是"退到一边去"而不是"飞走"，
+   位移量因此只有一个间距档。过渡结束派发 transitionend，由它驱动摘除。 */
+.toast[data-state='closed'] {
+  opacity: 0;
+  transform: translateY(var(--space-2));
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 1em 跟着字号走：不硬编码像素，也不必为一个图标新造尺寸令牌。 */
+.icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+
+.toast[data-variant='success'] .icon {
+  color: var(--color-success);
+}
+
+.toast[data-variant='danger'] .icon {
+  color: var(--color-danger);
+}
+
+.message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* 操作槽（如「撤销」）。
+   刻意**不用已合并的 Button**：那是个控件级组件（40px 高、带边框与悬停底），
+   塞进一条 13px 文字的通知里，尺寸与语义都不对。这里是一个纯文字动作，
+   颜色走 `--color-accent`——§2.4 明确授权蓝用于操作点缀。
+   焦点环的 3px / 2px 是几何量，与 Button、IconButton 保持一致（§7 要求焦点可见）。 */
+.action {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.action:hover {
+  text-decoration: underline;
+}
+
+.action:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

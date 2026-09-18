@@ -73,8 +73,8 @@ const ALLOWED_TOKEN_PREFIXES = [
  * 当前阶段**必须存在**的令牌族。
  *
  * `--z-` 从 UI-002 批次 3a 起进入必存清单：层级令牌随 Modal/ConfirmDialog 落了
- * 前两枚（`--z-scrim`、`--z-overlay`），有了真实消费者。
- * 白名单里仍留着 `--z-toast` 的位置——它随批次 3b 的 Toast 一起落地。
+ * 前两枚（`--z-scrim`、`--z-overlay`），批次 3b 的 Toast 补上第三枚 `--z-toast`，
+ * 至此「遮罩 → 面板 → 全局提示」三档齐全。
  */
 const REQUIRED_TOKEN_FAMILIES = [
   '--color-',

@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import type { ReactNode } from 'react';
 
 import { OverlayPortal } from './OverlayPortal';
+import type { OverlayLayout } from './OverlayPortal';
 import { useDelayedUnmount } from './use-delayed-unmount';
 import { useEscapeKey } from './use-escape-key';
 import { useFocusTrap } from './use-focus-trap';
@@ -20,6 +21,8 @@ export type OverlayShellProps = {
   readonly describedBy?: string | undefined;
   /** 初始焦点的选择器（相对面板）。不给则聚焦面板本身。 */
   readonly initialFocusSelector?: string | undefined;
+  /** 面板落点。默认居中；Drawer 传 `edge`（贴右满高）。 */
+  readonly layout?: OverlayLayout | undefined;
   /**
    * 面板类名。类型含 `undefined` 是因为 CSS Modules 的类名在
    * `noUncheckedIndexedAccess` 下就是 `string | undefined`——写成 `string`
@@ -50,6 +53,7 @@ export function OverlayShell({
   labelledBy,
   describedBy,
   initialFocusSelector,
+  layout = 'center',
   panelClassName,
   children,
 }: OverlayShellProps) {
@@ -76,7 +80,7 @@ export function OverlayShell({
   useFocusTrap(panelRef, panelActive, initialFocusSelector);
 
   return (
-    <OverlayPortal mounted={mounted} phase={phase} onScrimClick={onClose}>
+    <OverlayPortal mounted={mounted} phase={phase} layout={layout} onScrimClick={onClose}>
       <div
         ref={panelRef}
         role={role}

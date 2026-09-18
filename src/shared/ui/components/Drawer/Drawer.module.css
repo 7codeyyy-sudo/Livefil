@@ -1,0 +1,104 @@
+/**
+ * Drawer 样式（UI-002 批次 3b）。
+ *
+ * 形态取自规范 §4.5 的 v0.8 冻结值：桌面右侧滑入、宽 `min(440px, 100vw)`、
+ * ≤767px 全屏、位移 `--duration-base`。
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.panel {
+  position: relative;
+  /* 面板层级：与遮罩的 --z-scrim 分开表达。 */
+  z-index: var(--z-overlay);
+  display: grid;
+  /* 三段纵列：Header / Body / Footer。`footer` 缺席时第三行内容为空、
+     高度自然塌成 0，所以不需要为「有 footer / 无 footer」写两套模板。 */
+  grid-template-rows: auto 1fr auto;
+  /* 贴视口右边缘。两行 height 是刻意的回退写法：不支持 `dvh` 的浏览器
+     用第一行的 `100vh`，支持的第二行覆盖——移动端地址栏收放时 `vh`
+     不跟着变，面板会被地址栏裁掉底部（那里正是钉底的 Footer）。 */
+  height: 100vh;
+  height: 100dvh;
+  width: min(440px, 100vw);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  /* 圆角：贴边面板**刻意是 0**（默认值，不声明）。圆角是「浮起的小块」的语言，
+     一个顶满视口高度、边缘锚定的面板加上圆角，只会在两个角漏出页面底色。
+     也没有为此新造令牌——扫描器本来就放行无单位 `0`，而「不写」比「写 0」更少歧义。 */
+}
+
+.panel[data-state='open'] {
+  opacity: 1;
+  transform: translateX(0);
+  /* 进场靠动画：元素刚挂载时已是终态，过渡没有起始值可插值。 */
+  animation: drawer-panel-in var(--duration-base) var(--ease-standard);
+}
+
+/* 退场：向右滑出 + 淡出。`translateX(100%)` 的百分比是相对面板自身宽度，
+   面板本身贴右边缘，所以滑出 100% 正好完全离开视口。
+   过渡结束后派发 transitionend，由它驱动真正的卸载。 */
+.panel[data-state='closed'] {
+  opacity: 0;
+  transform: translateX(100%);
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+@keyframes drawer-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Header 不随内容滚：它是 grid 的第一行，Body 才是唯一滚动区。 */
+.header {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.body {
+  /* `min-height: 0` 让这一行真的能收缩：grid 项默认 `min-height: auto`，
+     内容一长就会把行撑开、把 Footer 顶出视口，滚动条则出现在最外层。 */
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+/* Footer 钉在面板底部：长表单滚动时操作始终可达。 */
+.footer {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: end;
+  padding: var(--space-5) var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 窄屏（§3.1：320–767px）全屏呈现。断点值直接写像素：CSS 变量无法用于
+   `@media` 条件，这在项目里是既定做法（见 tokens.css 的说明）。 */
+@media (max-width: 767px) {
+  .panel {
+    width: 100%;
+  }
+}

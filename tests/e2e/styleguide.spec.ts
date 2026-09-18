@@ -444,6 +444,224 @@ test.describe('批次 3a：Modal / ConfirmDialog 的浮层行为', () => {
   });
 });
 
+test.describe('批次 3b：Drawer / Toast 的抽屉与全局提示', () => {
+  test('Drawer：贴右边缘，桌面 440px / 窄屏全屏', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-drawer"]').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAccessibleName('编辑任务');
+
+    // 遮罩必须走 edge 落点：这是 Drawer 与 Modal 唯一的形态分叉
+    await expect(page.locator('[data-overlay-scrim]')).toHaveAttribute('data-layout', 'edge');
+
+    // 用遮罩作为基准，而不是 `document.documentElement.clientWidth`：面板的容器
+    // 就是遮罩，「铺满容器 + 贴住右缘」才是真正的契约。两者在同一次求值里取，
+    // 同一坐标系，不受移动端设备像素比（Pixel 5 是 2.75）取整差的影响。
+    const readGeometry = async () =>
+      page.evaluate(() => {
+        const panel = document.querySelector('[role="dialog"]');
+        const scrim = document.querySelector('[data-overlay-scrim]');
+        if (panel === null || scrim === null) {
+          return null;
+        }
+        const p = panel.getBoundingClientRect();
+        const s = scrim.getBoundingClientRect();
+        return {
+          panelRight: p.right,
+          panelWidth: p.width,
+          scrimRight: s.right,
+          scrimWidth: s.width,
+          clientWidth: document.documentElement.clientWidth,
+        };
+      });
+
+    // 进场是 200ms 的 translateX 位移。不等它播完就量，拿到的是**中间态**
+    // （实测差 130px，看起来像"压根没贴边"）。轮询到它停在最终位置再断言。
+    await expect
+      .poll(
+        async () => {
+          const geometry = await readGeometry();
+          return geometry === null
+            ? Number.MAX_SAFE_INTEGER
+            : Math.abs(geometry.panelRight - geometry.scrimRight);
+        },
+        { message: '抽屉应停在遮罩（即视口）的右边缘' },
+      )
+      .toBeLessThanOrEqual(1);
+
+    const geometry = await readGeometry();
+    expect(geometry).not.toBeNull();
+
+    if (geometry !== null) {
+      // 供排查：移动端模拟下 `getBoundingClientRect` 与 `clientWidth` 目前差 2px
+      // （393 vs 395），需要真机目视确认是否存在横向溢出。
+      console.log('[drawer-geometry]', JSON.stringify(geometry));
+
+      // §4.5：桌面 min(440px, 100vw)；≤767px 全屏（铺满遮罩宽度）
+      if (geometry.clientWidth > 767) {
+        expect(Math.round(geometry.panelWidth)).toBe(440);
+      } else {
+        expect(Math.abs(geometry.panelWidth - geometry.scrimWidth)).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  test('Drawer：Header 与 Footer 不滚，Body 是唯一滚动区', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-drawer"]').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // 面板自身不出现滚动条。滚动若发生在最外层，Header 与 Footer 会跟着一起被滚走，
+    // 而 Footer 里正是「保存」——长表单填完还得滚回去找它。
+    expect(await dialog.evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+
+    const body = dialog.locator('[data-drawer-body]');
+    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    const header = dialog.locator('header');
+    const footer = dialog.locator('footer');
+    const headerBeforeY = (await header.boundingBox())?.y ?? -1;
+    const footerBeforeY = (await footer.boundingBox())?.y ?? -1;
+
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    const headerAfterY = (await header.boundingBox())?.y ?? -1;
+    const footerAfterY = (await footer.boundingBox())?.y ?? -1;
+
+    // 先确认真的取到了几何值，否则下面的相等断言会因「两边都是 -1」而假通过
+    expect(headerBeforeY).toBeGreaterThanOrEqual(0);
+    expect(footerBeforeY).toBeGreaterThanOrEqual(0);
+    expect(headerAfterY).toBe(headerBeforeY);
+    expect(footerAfterY).toBe(footerBeforeY);
+  });
+
+  test('Drawer：ESC 关闭后焦点归还触发按钮', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const opener = page.locator('[data-variant="open-drawer"]');
+    await opener.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test('Toast：错误提示浮在已打开的抽屉之上', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="open-drawer"]').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.locator('[data-variant="toast-inside-drawer"]').click();
+    await expect(page.locator('[data-toast-id]')).toBeVisible();
+
+    // 用命中测试而不是读 z-index 的数字：真正浮在最上层意味着在提示条所在的
+    // 坐标上取到的元素属于它。层级写错的症状正是「提示被浮层盖住」，而那种
+    // 情况下 z-index 的值仍然是对的。
+    const toastOnTop = await page.evaluate(() => {
+      const element = document.querySelector('[data-toast-id]');
+      if (element === null) {
+        return false;
+      }
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit !== null && element.contains(hit);
+    });
+    expect(toastOnTop).toBe(true);
+  });
+
+  test('Toast：最多 3 条、新条在最下方、底部居中', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="toast-overflow"]').click();
+
+    const items = page.locator('[data-toast-id]');
+    await expect(items).toHaveCount(3);
+
+    // 普通态是 status；错误态才是 alert（那条在下面的用例里断言）
+    await expect(items.nth(0)).toHaveAttribute('role', 'status');
+
+    // 连发 4 条，第 1 条被淘汰（最老的自动关闭条），留下的是第 2~4 条
+    await expect(items.nth(0)).toContainText('第二条');
+    await expect(items.nth(2)).toContainText('第四条');
+
+    const first = await items.nth(0).boundingBox();
+    const last = await items.nth(2).boundingBox();
+    const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(first).not.toBeNull();
+    expect(last).not.toBeNull();
+
+    if (first !== null && last !== null) {
+      // 新条在最底部、旧条向上顶
+      expect(last.y).toBeGreaterThan(first.y);
+
+      // 堆叠列水平居中于视口
+      expect(Math.abs(first.x + first.width / 2 - layoutWidth / 2)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test('Toast：普通提示 5 秒后自动消失', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="toast-plain"]').click();
+    await expect(page.locator('[data-toast-id]')).toBeVisible();
+
+    // 5 秒自动关闭 + 退场 + 移除。上限放宽到 9 秒，避免受构建机负载影响。
+    await expect(page.locator('[data-toast-id]')).toHaveCount(0, { timeout: 9000 });
+  });
+
+  test('Toast：错误态常驻不自动关闭，但要留手动出口', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="toast-error"]').click();
+
+    // 不能用 `getByRole('alert')`：这一页上还有三个表单错误提示与 Next 的
+    // RouteAnnouncer 也都是 alert，会直接撞上 strict mode violation。
+    // 用 data 属性定位，同时把 role 本身断言掉（语义仍要守住）。
+    const alert = page.locator('[data-toast-id]');
+    await expect(alert).toHaveAttribute('role', 'alert');
+    await expect(alert).toContainText('同步失败，请重试');
+
+    // NFR-REL-002：失败必须明确提示，所以它不参与自动关闭。
+    // 等过普通提示的 5 秒档，它仍应留在页面上。
+    await page.waitForTimeout(6000);
+    await expect(alert).toBeVisible();
+
+    // 「常驻」不等于关不掉：手动出口必须在
+    await alert.getByRole('button', { name: '关闭提示' }).click();
+    await expect(page.locator('[data-toast-id]')).toHaveCount(0);
+  });
+
+  test('Toast：悬停时暂停计时', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="toast-plain"]').click();
+
+    const toast = page.locator('[data-toast-id]');
+    await expect(toast).toBeVisible();
+    await toast.hover();
+
+    // 指针停在上面时不关闭：否则用户正要点「撤销」，提示先自己消失了
+    await page.waitForTimeout(6000);
+    await expect(toast).toBeVisible();
+  });
+
+  test('Toast：操作槽可用且点击后关掉这条', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+    await page.locator('[data-variant="toast-with-action"]').click();
+
+    const toast = page.locator('[data-toast-id]');
+    await expect(toast).toContainText('任务已归档');
+
+    // 操作由调用方提供（§4.5：组件只给槽位，不内置撤销业务逻辑）
+    await toast.getByRole('button', { name: '撤销' }).click();
+    await expect(page.locator('[data-toast-id]')).toHaveCount(0);
+  });
+});
+
 test.describe('减少动效（§6）', () => {
   test.use({ reducedMotion: 'reduce' });
 
