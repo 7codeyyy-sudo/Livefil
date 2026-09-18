@@ -1,5 +1,5 @@
 /**
- * 浮层遮罩样式（浮层内部基建，批次 3a）。
+ * 浮层遮罩样式（浮层内部基建，批次 3a；批次 3b 加 edge 落点）。
  *
  * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号的字面量——
  * 由 `tests/e2e/ui-001-acceptance.mjs` 的扫描器守住。
@@ -10,6 +10,13 @@
  * 过渡没有起始值可插值，根本不会播放——所以进场只能靠动画。
  * 退场时元素已在 DOM 里、从 open 切到 closed，过渡会自动插值，
  * 而且结束时会派发 `transitionend`，正好用来驱动延迟卸载。
+ *
+ * ## 两套落点各自写时长，不抽中间变量
+ *
+ * `edge`（Drawer）的遮罩改用 `--duration-base`，与面板位移同步。
+ * 这是**有意重复两条声明**而不是引入一个组件内的自定义属性来少写一行：
+ * 组件里新造一个 `--scrim-duration` 就等于在令牌体系之外开了个口子，
+ * 而那个口子会立刻长出第二个、第三个（颜色、圆角都会有人想这么省事）。
  */
 
 .root {
@@ -18,9 +25,25 @@
   /* 遮罩层：只表达「面板之下、页面之上」。面板自己用 --z-overlay。 */
   z-index: var(--z-scrim);
   display: grid;
+  /* 列轨道写 `minmax(0, 1fr)` 而不是用默认的 `auto`：
+     `auto` 轨道的尺寸会先按内容的 **min-content** 计算，窄屏下抽屉里的
+     表单内容把轨道撑到 395px，而视口只有 393px —— 面板因此比视口宽 2px，
+     会带出横向溢出。`minmax(0, 1fr)` 让轨道严格等于容器宽，
+     内容再宽也只在面板内部消化（Body 自己可滚）。
+     Modal 那边看不出来，是因为它内容短、撑不到 480px。 */
+  grid-template-columns: minmax(0, 1fr);
+  background-color: var(--color-overlay);
+}
+
+/* 居中：Modal / ConfirmDialog。内边距保证面板在窄屏也不贴边。 */
+.root[data-layout='center'] {
   place-items: center;
   padding: var(--space-5);
-  background-color: var(--color-overlay);
+}
+
+/* 贴边：Drawer。面板自己满高，遮罩不参与排版，所以没有内边距。 */
+.root[data-layout='edge'] {
+  place-items: stretch end;
 }
 
 .root[data-state='open'] {
@@ -28,10 +51,18 @@
   animation: scrim-fade-in var(--duration-slow) var(--ease-standard);
 }
 
+.root[data-layout='edge'][data-state='open'] {
+  animation: scrim-fade-in var(--duration-base) var(--ease-standard);
+}
+
 /* 退场期间元素仍在 DOM 里（延迟卸载），所以只改不透明度，不做 display:none。 */
 .root[data-state='closed'] {
   opacity: 0;
   transition: opacity var(--duration-slow) var(--ease-standard);
+}
+
+.root[data-layout='edge'][data-state='closed'] {
+  transition: opacity var(--duration-base) var(--ease-standard);
 }
 
 @keyframes scrim-fade-in {

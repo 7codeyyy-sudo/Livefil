@@ -10,6 +10,7 @@ import {
   Textarea,
 } from '@/shared/ui/components';
 
+import { DrawerDemo, ToastDemo } from './DrawerToastDemo';
 import { OverlayDemo } from './OverlayDemo';
 import { TabsDemo } from './TabsDemo';
 import styles from './styleguide.module.css';
@@ -192,6 +193,25 @@ export default function StyleguidePage() {
           语义与嵌套关闭由浏览器端用例验证。
         </p>
         <OverlayDemo />
+      </section>
+
+      <section className={styles.section} id="drawer">
+        <h2 className={styles.sectionTitle}>Drawer</h2>
+        <p className={styles.note}>
+          详情编辑抽屉。桌面右侧滑入、宽 440px；窄屏全屏。正文刻意很长，用来验证 Header
+          不随内容滚、Body 是唯一滚动区、Footer
+          钉在底部。抽屉里的「发一条提示」用来验证提示条浮在浮层之上。
+        </p>
+        <DrawerDemo />
+      </section>
+
+      <section className={styles.section} id="toast">
+        <h2 className={styles.sectionTitle}>Toast</h2>
+        <p className={styles.note}>
+          全局提示通道。底部居中堆叠、同时最多 3 条；普通与成功 5 秒、带操作 8
+          秒、错误常驻不自动关闭。指针悬停或键盘焦点进入时暂停计时。
+        </p>
+        <ToastDemo />
       </section>
     </main>
   );

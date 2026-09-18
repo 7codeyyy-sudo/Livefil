@@ -1,0 +1,24 @@
+/**
+ * ToastRegion 样式（UI-002 批次 3b）。
+ *
+ * 层级 `--z-toast`：提示条必须浮在**一切浮层之上**——包括已经打开的
+ * Modal / Drawer（它们的遮罩在 `--z-scrim`、面板在 `--z-overlay`）。
+ * 这正是 §2.4 把层级集中成三档的意义：这个关系只要写错一次，
+ * 表现就是"提示被弹窗盖住"，而在单组件测试里完全看不见。
+ */
+
+.region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-6);
+  left: var(--space-4);
+  z-index: var(--z-toast);
+  /* column：数组里越靠后（越新）的排在越下面——「新条在最底部、旧条向上顶」。 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  /* 容器铺满整宽只是为了给内部的提示条居中。
+     它自己不吃点击，否则页面底部会多出一条看不见的挡板，下面的按钮全点不中。 */
+  pointer-events: none;
+}
