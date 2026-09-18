@@ -12,6 +12,7 @@ import {
 
 import { DrawerDemo, ToastDemo } from './DrawerToastDemo';
 import { OverlayDemo } from './OverlayDemo';
+import { StateDemo } from './StateDemo';
 import { TabsDemo } from './TabsDemo';
 import styles from './styleguide.module.css';
 
@@ -212,6 +213,15 @@ export default function StyleguidePage() {
           秒、错误常驻不自动关闭。指针悬停或键盘焦点进入时暂停计时。
         </p>
         <ToastDemo />
+      </section>
+
+      <section className={styles.section} id="state">
+        <h2 className={styles.sectionTitle}>EmptyState / LoadingState / ErrorState</h2>
+        <p className={styles.note}>
+          页面/区块级状态（§4.6）。空态复刻原型虚线框；加载态是静态骨架、零循环动画；错误态只让图标带危险色。
+          操作一律由调用方传真实 Button（组件不收 {'{label,onClick}'} 配置对象）。
+        </p>
+        <StateDemo />
       </section>
     </main>
   );

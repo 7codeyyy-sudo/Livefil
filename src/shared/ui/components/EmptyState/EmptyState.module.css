@@ -1,0 +1,53 @@
+/**
+ * EmptyState 样式（UI-002 批次 4，《UI 页面规范》v0.11 §4.6）。
+ *
+ * 取值全部来自 §2.4 既有令牌，**零新增令牌**。
+ * 纪律：不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  /* 原型 `.empty-state` 是 `padding: 56px 24px`：纵向 56px 不在间距档位
+     （最大 `--space-12` = 48px），就近归整；横向 24px 正好是 `--space-6`。 */
+  padding: var(--space-12) var(--space-6);
+  /* 虚线框是**空态专属**的语言——「这里还没有东西」。§4.6 明确 ErrorState
+     不做衬底边框，两者刻意不共用这套外观。 */
+  border: 1px dashed var(--color-border);
+  /* 原型用的是它自己的 `--radius: 16px`，16px 不在本项目三档几何圆角
+     （10/14/20）里 ⇒ 就近归整到 `--radius-md`。 */
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  text-align: center;
+}
+
+/* 标题与描述**同字号**（原型即如此：`.empty-state strong` 是 16px），
+   两者靠字重与颜色分层，不另开一级字号。 */
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  /* 与描述再拉开一点：两个槽是「下一步」，不该和说明文字挤在一起。 */
+  margin-top: var(--space-2);
+}

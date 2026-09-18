@@ -662,6 +662,115 @@ test.describe('批次 3b：Drawer / Toast 的抽屉与全局提示', () => {
   });
 });
 
+test.describe('批次 4：页面状态组件（EmptyState / LoadingState / ErrorState）', () => {
+  test('EmptyState：虚线框、令牌圆角、不加图标', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const root = page.locator('[data-variant="state-empty"] > div');
+    await expect(root).toBeVisible();
+
+    const style = await root.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        borderStyle: computed.borderTopStyle,
+        borderWidth: computed.borderTopWidth,
+        borderRadius: computed.borderTopLeftRadius,
+        borderColor: computed.borderTopColor,
+      };
+    });
+
+    // 原型 `.empty-state` 的虚线框——§4.6 明确这是空态专属语言
+    expect(style.borderStyle).toBe('dashed');
+    expect(style.borderWidth).toBe('1px');
+    // --radius-md = 14px（原型 16px 就近归整，不新增圆角档）
+    expect(style.borderRadius).toBe('14px');
+    // --color-border = #e5e5e2
+    expect(style.borderColor).toBe('rgb(229, 229, 226)');
+
+    // 不加图标：原型无此形态，§4.6 明确不预造
+    await expect(root.locator('svg')).toHaveCount(0);
+  });
+
+  test('EmptyState：两个操作槽都可省', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const plain = page.locator('[data-variant="state-empty-plain"] > div');
+    await expect(plain).toContainText('暂无开销记录');
+    await expect(plain).toContainText('记一笔之后');
+    // 只给两段文字也能成立——空态的「具体下一步」也可以由文案承担
+    await expect(plain.getByRole('button')).toHaveCount(0);
+
+    // 对照：给了槽的那一格渲染出的是调用方传的真实 Button
+    const withSlots = page.locator('[data-variant="state-empty"] > div');
+    await expect(withSlots.locator('[data-variant="empty-primary"]')).toBeVisible();
+    await expect(withSlots.locator('[data-variant="empty-secondary"]')).toBeVisible();
+  });
+
+  test('LoadingState：role 与 aria-busy 到位，骨架底色正确且零循环动画', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const status = page.locator('[data-variant="state-loading"] [role="status"]');
+    await expect(status).toHaveAttribute('aria-busy', 'true');
+
+    // 骨架数量与调用方给的一致
+    const skeletons = status.locator('span[aria-hidden="true"]');
+    await expect(skeletons).toHaveCount(3);
+
+    const style = await skeletons.first().evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        background: computed.backgroundColor,
+        borderRadius: computed.borderTopLeftRadius,
+        animationName: computed.animationName,
+      };
+    });
+
+    // --color-surface-soft = #f0f0ed
+    expect(style.background).toBe('rgb(240, 240, 237)');
+    // --radius-sm = 10px
+    expect(style.borderRadius).toBe('10px');
+    // §4.6：静态骨架，不转圈、不 shimmer、不呼吸
+    expect(style.animationName).toBe('none');
+  });
+
+  test('ErrorState：alert 语义、图标是唯一红色、无衬底边框', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const root = page.locator('[data-variant="state-error"] [role="alert"]');
+    await expect(root).toBeVisible();
+
+    const style = await root.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      const icon = el.querySelector('svg');
+      const title = el.querySelector('p');
+      return {
+        borderStyle: computed.borderTopStyle,
+        iconColor: icon === null ? null : getComputedStyle(icon).color,
+        titleColor: title === null ? null : getComputedStyle(title).color,
+      };
+    });
+
+    // 虚线框是空态专属，错误态没有衬底边框
+    expect(style.borderStyle).toBe('none');
+    // --color-danger = #c0392b
+    expect(style.iconColor).toBe('rgb(192, 57, 43)');
+    // 标题保持 text-primary：不做整面红，也不稀释 danger 在删除场景的分量
+    expect(style.titleColor).toBe('rgb(29, 29, 31)');
+  });
+
+  test('ErrorState：重试是近黑主按钮（肯定动作，不是危险动作）', async ({ page }) => {
+    await page.goto(STYLEGUIDE_PATH);
+
+    const retry = page.locator('[data-variant="error-retry"]');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveText('重试');
+
+    // --color-primary-surface = #1d1d1f
+    const background = await retry.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(background).toBe('rgb(29, 29, 31)');
+  });
+});
+
 test.describe('减少动效（§6）', () => {
   test.use({ reducedMotion: 'reduce' });
 
