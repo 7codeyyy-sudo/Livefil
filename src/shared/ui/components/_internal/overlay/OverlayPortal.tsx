@@ -6,10 +6,26 @@ import type { MouseEvent, ReactNode } from 'react';
 import styles from './OverlayPortal.module.css';
 import type { OverlayPhase } from './use-delayed-unmount';
 
+/**
+ * 遮罩内部的对齐方式（浮层内部基建，批次 3b 新增）。
+ *
+ * 只有两档，**刻意不做成通用的"位次引擎"**：本项目模态浮层只有两种落点——
+ * 居中（Modal / ConfirmDialog）与贴右（Drawer），§4.5 也明确指出 Drawer
+ * 不做左/右/底部方向参数（原型那个左滑物是移动端导航 sidebar，归 UI-003 外壳）。
+ * 等到真出现第三种落点再抽参数，现在多一个维度就是多一份没人验证的分支。
+ *
+ * 两档的差异不只是对齐，还有**遮罩的时长**：居中浮层要「稳稳地出现」，
+ * 用 `--duration-slow`；贴边抽屉是位移，用 `--duration-base`——否则面板
+ * 200ms 已经滑到位、遮罩还要再淡 50ms，收尾处会看出两截感。
+ */
+export type OverlayLayout = 'center' | 'edge';
+
 export type OverlayPortalProps = {
   /** 是否留在 DOM 里（由 `useDelayedUnmount` 决定，退场动画播完才为 false）。 */
   readonly mounted: boolean;
   readonly phase: OverlayPhase;
+  /** 面板落点。默认 `center`；Drawer 传 `edge`。 */
+  readonly layout?: OverlayLayout | undefined;
   /** 点击遮罩**本身**（而非面板）时触发，语义是「关闭」。 */
   readonly onScrimClick: () => void;
   /** 面板。挂 `data-state` 与 `onTransitionEnd` 由调用方负责——见下方注释。 */
@@ -17,7 +33,7 @@ export type OverlayPortalProps = {
 };
 
 /**
- * 浮层的挂载容器（浮层内部基建，批次 3a）。
+ * 浮层的挂载容器（浮层内部基建，批次 3a；批次 3b 加 `edge` 落点）。
  *
  * ## 为什么挂到 `document.body`
  *
@@ -45,7 +61,13 @@ export type OverlayPortalProps = {
  *
  * 本组件只负责「挂到 body」+「遮罩层」两件事。
  */
-export function OverlayPortal({ mounted, phase, onScrimClick, children }: OverlayPortalProps) {
+export function OverlayPortal({
+  mounted,
+  phase,
+  layout = 'center',
+  onScrimClick,
+  children,
+}: OverlayPortalProps) {
   if (typeof document === 'undefined' || !mounted) {
     return null;
   }
@@ -66,6 +88,7 @@ export function OverlayPortal({ mounted, phase, onScrimClick, children }: Overla
       // 用 data 属性而不是类名：CSS Modules 的类名带哈希，测试不该依赖它。
       data-overlay-scrim="true"
       data-state={phase}
+      data-layout={layout}
       onClick={handleClick}
     >
       {children}
