@@ -100,5 +100,12 @@ jobs:
 
       # 用例经真实 HTTP 验证 requestId 头回写与统一 JSON 404，
       # 是 FND-005 错误结构在运行系统里的唯一兜底证据。
+      #
+      # AUTH_SECRET 是必须的：`next start` 会加载 instrumentation.ts，
+      # 它在启动期装配会话签名器（《详细设计》§8.3「装配期失败」），
+      # 缺密钥时进程直接退出，Playwright 的 webServer 会一直等到超时。
+      # 这里注入的仅是 CI 临时会话用的测试常量，不是任何环境的真实密钥。
       - name: 浏览器端 E2E
         run: npm run test:browser
+        env:
+          AUTH_SECRET: ci-browser-e2e-test-secret-0123456789abcdef
