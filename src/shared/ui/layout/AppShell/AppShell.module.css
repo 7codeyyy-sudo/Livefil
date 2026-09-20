@@ -1,0 +1,58 @@
+/**
+ * 应用外壳样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * 三个网格列宽（`232px` 展开 / `72px` 折叠 / 单列）是**外壳布局量**，
+ * v0.12 明确「零新增令牌，232/72/250 集中在外壳 CSS 单点」——所以这里写
+ * 字面量并就地注明来源，而不是为它们各造一枚令牌。
+ */
+
+.shell {
+  display: grid;
+  /* 桌面：展开侧栏 + 主内容列。
+     第二列写 `minmax(0, 1fr)` 而不是 `1fr`：`1fr` 的最小值是 `auto`，
+     会按内容的 min-content 撑开轨道——长 URL、宽表格、`nowrap` 的标签
+     都会把整个外壳顶出横向滚动条（UI-002 的抽屉撞过同一个坑）。 */
+  grid-template-columns: 232px minmax(0, 1fr);
+  /* 两行 height 是刻意的回退写法：不支持 `dvh` 的浏览器用第一行的 `100vh`，
+     支持的第二行覆盖。移动端地址栏收放时 `vh` 不跟着变，
+     外壳底部会露出一条页面底色。 */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  /* flex/grid 项默认 `min-width: auto`，长内容会把主内容列撑宽。 */
+  min-width: 0;
+}
+
+.page {
+  /* 页面区容器：最大宽度受令牌约束、居中；窄于上限时全宽。
+     内边距走 `--space-page-x`，它在令牌层已按 32/24/16 三档覆盖，
+     页面因此不必各自写媒体查询。 */
+  width: min(var(--layout-max-width), 100%);
+  margin-inline: auto;
+  padding: 0 var(--space-page-x) var(--space-12);
+  /* 撑满主内容列剩余高度：短页面下页面底色也能到底。 */
+  flex: 1;
+}
+
+/* 平板/窄桌面折叠档（§3.1：768–1023px）。
+   断点值直接写像素：CSS 变量无法用于 `@media` 条件，项目既定做法。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .shell {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+}
+
+/* 手机竖屏（§3.1：320–767px）：单列。
+   流式侧栏在这一档整体隐藏（见 Sidebar.module.css 的说明），
+   导航改由汉堡唤出的浮层抽屉承担，所以网格只剩主内容一列。 */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

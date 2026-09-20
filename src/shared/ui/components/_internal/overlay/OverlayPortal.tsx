@@ -7,24 +7,27 @@ import styles from './OverlayPortal.module.css';
 import type { OverlayPhase } from './use-delayed-unmount';
 
 /**
- * 遮罩内部的对齐方式（浮层内部基建，批次 3b 新增）。
+ * 遮罩内部的对齐方式（浮层内部基建，批次 3b 新增；UI-003 加第三个落点）。
  *
- * 只有两档，**刻意不做成通用的"位次引擎"**：本项目模态浮层只有两种落点——
- * 居中（Modal / ConfirmDialog）与贴右（Drawer），§4.5 也明确指出 Drawer
- * 不做左/右/底部方向参数（原型那个左滑物是移动端导航 sidebar，归 UI-003 外壳）。
- * 等到真出现第三种落点再抽参数，现在多一个维度就是多一份没人验证的分支。
+ * 三档落点，**仍刻意不做成通用的"位次引擎"**：本项目模态浮层只有三种落点——
+ * 居中（Modal / ConfirmDialog）、贴右（Drawer 详情编辑）、贴左（UI-003 的
+ * 移动端导航抽屉）。§4.5 冻结 Drawer 时明确写过「原型那个左滑物是移动端导航
+ * sidebar，归 UI-003 外壳」，`edge-left` 正是那个消费者到位。
  *
- * 两档的差异不只是对齐，还有**遮罩的时长**：居中浮层要「稳稳地出现」，
- * 用 `--duration-slow`；贴边抽屉是位移，用 `--duration-base`——否则面板
- * 200ms 已经滑到位、遮罩还要再淡 50ms，收尾处会看出两截感。
+ * 加它而不是给 Drawer 加方向参数：落点是**遮罩的对齐方式**，属于这里；
+ * 而 Drawer 组件的职责是"右侧详情编辑抽屉"，不该为导航抽屉负责。
+ *
+ * 三档的差异不只是对齐，还有**遮罩的时长**：居中浮层要「稳稳地出现」，
+ * 用 `--duration-slow`；两个贴边抽屉都是位移，用 `--duration-base`——
+ * 否则面板已经滑到位、遮罩还要再淡一段，收尾处会看出两截感。
  */
-export type OverlayLayout = 'center' | 'edge';
+export type OverlayLayout = 'center' | 'edge' | 'edge-left';
 
 export type OverlayPortalProps = {
   /** 是否留在 DOM 里（由 `useDelayedUnmount` 决定，退场动画播完才为 false）。 */
   readonly mounted: boolean;
   readonly phase: OverlayPhase;
-  /** 面板落点。默认 `center`；Drawer 传 `edge`。 */
+  /** 面板落点。默认 `center`；Drawer 传 `edge`；移动端导航抽屉传 `edge-left`。 */
   readonly layout?: OverlayLayout | undefined;
   /** 点击遮罩**本身**（而非面板）时触发，语义是「关闭」。 */
   readonly onScrimClick: () => void;
@@ -33,7 +36,7 @@ export type OverlayPortalProps = {
 };
 
 /**
- * 浮层的挂载容器（浮层内部基建，批次 3a；批次 3b 加 `edge` 落点）。
+ * 浮层的挂载容器（浮层内部基建，批次 3a；批次 3b 加 `edge`，UI-003 加 `edge-left`）。
  *
  * ## 为什么挂到 `document.body`
  *

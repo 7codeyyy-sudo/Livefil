@@ -1,0 +1,73 @@
+/**
+ * 导航项样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量——
+ * 由 `tests/e2e/ui-001-acceptance.mjs` 的扫描器守住。
+ *
+ * ## 折叠档为什么用 `::first-letter` 而不是图标
+ *
+ * 平板档（§3.1 的 768–1023px）侧栏收窄成单栏，导航项只剩首字。
+ * 这是**照原型实现**，不是权宜之计：原型本身就用首字方案，因此
+ * 不需要新增图标资产（否则要新造六枚导航图标），而文字仍完整留在 DOM 中，
+ * 读屏读到的依然是「今日」而不是「今」。
+ *
+ * ## 为什么是 `display: block`
+ *
+ * `::first-letter` 只对**块容器**生效——`display: flex` / `grid` 都不是块容器，
+ * 换过去首字会静默消失（视觉上表现为折叠档导航项一片空白）。所以这里不为了
+ * 垂直居中改用 flex，而是用上下内边距把行盒撑到需要的触控高度。
+ */
+
+.item {
+  /* 块容器（见上方说明），不用 flex/grid。 */
+  display: block;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.item:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-soft);
+}
+
+/* 当前页：`aria-current` 同时是语义与选择器（见 NavItem.tsx 的说明）。
+   除了底色与文字色，还有更重的字重——状态不只靠颜色区分（SRS §6.9）。 */
+.item[aria-current='page'] {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-soft);
+  font-weight: var(--font-weight-medium);
+}
+
+/* 焦点必须清晰可见（SRS §6.9 / 规范 §7）。与 Button / Tabs 同款：
+   outline 不参与布局，也不会被相邻元素遮住。宽度与偏移是几何量，不是颜色令牌。 */
+.item:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 平板/窄桌面折叠档（§3.1：768–1023px）。
+   断点值直接写像素：CSS 变量无法用于 `@media` 条件，这是项目既定做法。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .item {
+    /* 横向不留白、只留纵向：单栏里两侧空间已经不多了。 */
+    padding: var(--space-3) 0;
+    text-align: center;
+    /* 文字**不可见但仍在**：`font-size: 0` 只让它不渲染，
+       `display: none` / `visibility: hidden` 会把导航名称从无障碍树里一并
+       拿掉，读屏就只剩下一串没有名字的链接。下方 `::first-letter` 再把首字放回。 */
+    font-size: 0;
+  }
+
+  .item::first-letter {
+    font-size: var(--font-size-body);
+  }
+}

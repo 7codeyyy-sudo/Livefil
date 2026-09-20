@@ -1,0 +1,83 @@
+/**
+ * 顶部工具栏样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * `82px` / `68px` 两处高度是**外壳布局量**（原型 `.topbar` 的
+ * `min-height`），与侧栏的 `232 / 72 / 250` 同类：v0.12 明确「零新增令牌，
+ * 布局量集中在外壳 CSS 单点」，所以这里写字面量并就地注明来源。
+ */
+
+.topbar {
+  /* 没有底色也没有分隔线：原型顶栏直接落在页面底色上，
+     页面标题与内容自己承担层次。 */
+  display: block;
+}
+
+.inner {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  /* 桌面/平板：操作区右对齐（原型 `justify-content: flex-end`）。 */
+  justify-content: flex-end;
+  /* 与页面区同一个容器：操作按钮的右边缘因此与页面内容右边缘对齐
+     （原型顶栏不参与最大宽度约束，宽屏下两者是错开的）。 */
+  width: min(var(--layout-max-width), 100%);
+  margin-inline: auto;
+  padding-inline: var(--space-page-x);
+  min-height: 82px;
+}
+
+.mobileBrand {
+  display: none;
+  gap: var(--space-2);
+  align-items: center;
+  /* 手机档出现时把它推到最左，与右侧操作区分列两端。 */
+  margin-right: auto;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+}
+
+.brandMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--color-on-primary);
+  background-color: var(--color-primary-surface);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.actions,
+.pageActions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* 汉堡的定位槽：`IconButton` 不接受 `className`（它的尺寸与样式归组件），
+   所以用外层元素承担"什么时候出现"这件事。 */
+.navToggleSlot {
+  display: none;
+}
+
+/* 手机竖屏（§3.1：320–767px）。断点值直接写像素：CSS 变量无法用于
+   `@media` 条件，这是项目既定做法。 */
+@media (max-width: 767px) {
+  .inner {
+    /* 手机档收窄（原型 68px）：竖向空间比桌面紧张。 */
+    min-height: 68px;
+  }
+
+  .mobileBrand {
+    display: flex;
+  }
+
+  .navToggleSlot {
+    display: inline-flex;
+  }
+}
