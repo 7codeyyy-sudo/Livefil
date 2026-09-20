@@ -375,14 +375,40 @@ test('app/api 下的每个路由都在接口文档中有登记', () => {
 
   assert.ok(routes.length > 0, 'app/api 下应至少存在一个路由');
 
+  /**
+   * 把 Next 的动态段目录名换成契约文档的记法。
+   *
+   * 文档写 `{lifeAreaId}`（HTTP 契约的通行写法），而 Next 的目录名**必须**是
+   * `[lifeAreaId]`——这是两种记法，不是两个端点。不归一化的话，任何合法的动态
+   * 路由都会被判成"未登记"，而检查器的误报会逼着人把框架语法写进契约文档。
+   *
+   * 前后断言（lookaround）是有意的：catch-all `[[...slug]]` 在文档里就是**逐字符
+   * 这么写的**，不能被归成 `{{...slug}}`。
+   */
+  function toDocumentedRoute(route) {
+    return route.replace(/(?<!\[)\[([^[\]]+)\](?!\])/g, '{$1}');
+  }
+
   for (const route of routes) {
     // 「存在但未登记的 API 表面」比「没有这个接口」更危险：调用方会真的用上它，
     // 而契约文档里查不到，后续改动就没人知道会破坏谁。
+    const documented = toDocumentedRoute(route);
     assert.ok(
-      apiDoc.includes(`\`${route}\``),
-      `接口文档缺少端点登记：${route}。新增 API 必须同步登记路径、是否只读、是否有鉴权、当前范围与后续扩展。`,
+      apiDoc.includes(`\`${documented}\``),
+      `接口文档缺少端点登记：${documented}（Next 目录名 ${route}）。新增 API 必须同步登记路径、是否只读、是否有鉴权、当前范围与后续扩展。`,
     );
   }
+
+  // 反证：同一条判据对一个**真的没登记**的路径必须为假。没有这一步，上面那段
+  // 归一化有可能宽到"怎么都能过"——那就等于这条检查不存在。
+  assert.ok(
+    !apiDoc.includes(`\`${toDocumentedRoute('/life-areas/[notRegistered]')}\``),
+    '归一化不应让未登记的路径也匹配上',
+  );
+
+  // 归一化本身的自证：动态段被换成花括号，catch-all 原样保留。
+  assert.equal(toDocumentedRoute('/life-areas/[lifeAreaId]'), '/life-areas/{lifeAreaId}');
+  assert.equal(toDocumentedRoute('/[[...slug]]'), '/[[...slug]]');
 });
 
 test('单元测试通过（验收标准：至少一个单元测试）', async () => {
