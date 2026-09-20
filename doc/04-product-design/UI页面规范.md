@@ -1,9 +1,9 @@
 # Livefil UI 页面规范
 
-> 版本：v0.13  
+> 版本：v0.14  
 > 设计方向：高级简约、浅色优先、PC Web 先行、移动端预留  
 > 日期：2026-09-20  
-> 变更：v0.2 新增 §2.4 设计令牌的 CSS 命名与深色预留约定（对应 T-002 样式方案确认、UI-001）；v0.3 颜色令牌补齐为基础 9 + 派生/辅助 9（新增 surface-soft、text-placeholder、focus-ring、overlay 与 warning/danger-soft 权威值），新增 2 个阴影令牌、soft 推导规则、暂不收编项；v0.4 定稿主按钮配色为近黑实心（原待决项关闭），主强调色语义收窄为状态/进度/焦点，新增组件别名令牌约定（§2.4），§4.1 同步；v0.5 为 UI-002 新增动效、控件尺寸、浮层层级三族令牌与字面量纪律，状态色边框三色定值（颜色契约批次 2 起 18→21），明确 UI-002 令牌收编批次，§6 增加动效令牌指针；v0.6 组件别名令牌补 `--color-on-danger`（UI-002 批次 1：danger 变体的面上之色不得借用 `--color-on-accent`）；v0.7 为批次 2 新增丸形圆角令牌 `--radius-pill` 与圆角令牌表（§2.3/§2.4），§2.2 字阶表补令牌列并把 Badge 文字由原型 11px 归整到 caption 13px（不新增第六级字阶），字号/圆角 px 字面量纳入批次 2 纪律扫描；Pagination 移出 UI-002，挂账到 UI-005（见《开发任务清单》）；v0.8 为批次 3 冻结浮层组件形态（§4.5）：批次 3 拆为 3a（Modal/ConfirmDialog）/3b（Drawer/Toast）两 PR，§2.4 令牌落地批次同步拆分（`--z-toast` 随 3b 首个消费者落地）；Modal 不画原型磨砂白边（仍属暂不收编，随 UI-003 外壳整体决策）；Drawer 冻结为桌面右侧详情抽屉、≤767px 全屏，原型 250px 左导航抽屉归 UI-003；Toast 形态、时长口径与 ARIA 首次成文；v0.9 为批次 3b 补三项实现级决策：Toast 公共 API 定为 `<ToastProvider>` + `useToast()`（不做命令式单例）、堆叠新条在最底部、满 3 条淘汰最老自动关闭条且错误常驻条豁免淘汰、悬停/聚焦暂停计时；状态变体只以前导语义图标（currentColor 内联 SVG，普通无图标/成功 success 色/错误 danger 色）区分，背景一律 surface，不做 warning 变体；Drawer 面板冻结为 header/body/footer 三段纵列、贴边面板圆角 0；v0.10 勘误：分隔线令牌名误写为不存在的 `--color-line`，3 处（§2.4 禁用示例、§4.5 Drawer header、《开发任务清单》3a）统一更正为 tokens.css 实际命名 `--color-border`（无形态变更）；v0.11 为批次 4 新增 §4.6 页面状态组件：EmptyState 复刻原型虚线框、LoadingState 静态骨架（零循环动画）+ Skeleton 原语、ErrorState 单点危险色与近黑重试，操作统一 ReactNode 槽、零新增令牌；styleguide 夹具去留有结论（保留为常驻视觉回归夹具，逐组件迁移、迁完才删路由）；v0.12 为 UI-003 重写 §3.2 冻结应用外壳：三档视口——≥1024px 展开 232px 侧栏、768–1023px 折叠为 72px 首字母栏（不引入图标库、不造 SVG）、320–767px 汉堡唤出 250px 左抽屉（浮层同标准）；顶栏与快速添加入口、`(app)` 路由组与六个占位页、页面区 1200px；原型磨砂（侧栏 `rgba(255,255,255,.66)`、Modal 白边）不采纳并销账，零新增令牌（232/72/250 为外壳 CSS 单点布局量）；原型媒体档 900/640 以 §3.1 断点 1024/768 为准；§3.3 标注移动端已落地项；v0.13 为 UI-003 实现勘误：§3.2 手机档原写「流式侧栏 `translateX(-100%)` 移出视口」，与实现不符——实际为流式侧栏 `display:none` 整体不渲染、导航只由浮层抽屉承担。理由：移动端既已走浮层抽屉（关闭即卸载），若仍把流式侧栏平移到屏外，① 屏外链接仍可被 Tab 聚焦（WCAG 焦点顺序缺口）；② 导航在 DOM 中存在两份，`aria-current` 当前项不再唯一。同步《详细设计》§2 路由组名 `(web)`→`(app)`（无形态变更）
+> 变更：v0.2 新增 §2.4 设计令牌的 CSS 命名与深色预留约定（对应 T-002 样式方案确认、UI-001）；v0.3 颜色令牌补齐为基础 9 + 派生/辅助 9（新增 surface-soft、text-placeholder、focus-ring、overlay 与 warning/danger-soft 权威值），新增 2 个阴影令牌、soft 推导规则、暂不收编项；v0.4 定稿主按钮配色为近黑实心（原待决项关闭），主强调色语义收窄为状态/进度/焦点，新增组件别名令牌约定（§2.4），§4.1 同步；v0.5 为 UI-002 新增动效、控件尺寸、浮层层级三族令牌与字面量纪律，状态色边框三色定值（颜色契约批次 2 起 18→21），明确 UI-002 令牌收编批次，§6 增加动效令牌指针；v0.6 组件别名令牌补 `--color-on-danger`（UI-002 批次 1：danger 变体的面上之色不得借用 `--color-on-accent`）；v0.7 为批次 2 新增丸形圆角令牌 `--radius-pill` 与圆角令牌表（§2.3/§2.4），§2.2 字阶表补令牌列并把 Badge 文字由原型 11px 归整到 caption 13px（不新增第六级字阶），字号/圆角 px 字面量纳入批次 2 纪律扫描；Pagination 移出 UI-002，挂账到 UI-005（见《开发任务清单》）；v0.8 为批次 3 冻结浮层组件形态（§4.5）：批次 3 拆为 3a（Modal/ConfirmDialog）/3b（Drawer/Toast）两 PR，§2.4 令牌落地批次同步拆分（`--z-toast` 随 3b 首个消费者落地）；Modal 不画原型磨砂白边（仍属暂不收编，随 UI-003 外壳整体决策）；Drawer 冻结为桌面右侧详情抽屉、≤767px 全屏，原型 250px 左导航抽屉归 UI-003；Toast 形态、时长口径与 ARIA 首次成文；v0.9 为批次 3b 补三项实现级决策：Toast 公共 API 定为 `<ToastProvider>` + `useToast()`（不做命令式单例）、堆叠新条在最底部、满 3 条淘汰最老自动关闭条且错误常驻条豁免淘汰、悬停/聚焦暂停计时；状态变体只以前导语义图标（currentColor 内联 SVG，普通无图标/成功 success 色/错误 danger 色）区分，背景一律 surface，不做 warning 变体；Drawer 面板冻结为 header/body/footer 三段纵列、贴边面板圆角 0；v0.10 勘误：分隔线令牌名误写为不存在的 `--color-line`，3 处（§2.4 禁用示例、§4.5 Drawer header、《开发任务清单》3a）统一更正为 tokens.css 实际命名 `--color-border`（无形态变更）；v0.11 为批次 4 新增 §4.6 页面状态组件：EmptyState 复刻原型虚线框、LoadingState 静态骨架（零循环动画）+ Skeleton 原语、ErrorState 单点危险色与近黑重试，操作统一 ReactNode 槽、零新增令牌；styleguide 夹具去留有结论（保留为常驻视觉回归夹具，逐组件迁移、迁完才删路由）；v0.12 为 UI-003 重写 §3.2 冻结应用外壳：三档视口——≥1024px 展开 232px 侧栏、768–1023px 折叠为 72px 首字母栏（不引入图标库、不造 SVG）、320–767px 汉堡唤出 250px 左抽屉（浮层同标准）；顶栏与快速添加入口、`(app)` 路由组与六个占位页、页面区 1200px；原型磨砂（侧栏 `rgba(255,255,255,.66)`、Modal 白边）不采纳并销账，零新增令牌（232/72/250 为外壳 CSS 单点布局量）；原型媒体档 900/640 以 §3.1 断点 1024/768 为准；§3.3 标注移动端已落地项；v0.13 为 UI-003 实现勘误：§3.2 手机档原写「流式侧栏 `translateX(-100%)` 移出视口」，与实现不符——实际为流式侧栏 `display:none` 整体不渲染、导航只由浮层抽屉承担。理由：移动端既已走浮层抽屉（关闭即卸载），若仍把流式侧栏平移到屏外，① 屏外链接仍可被 Tab 聚焦（WCAG 焦点顺序缺口）；② 导航在 DOM 中存在两份，`aria-current` 当前项不再唯一。同步《详细设计》§2 路由组名 `(web)`→`(app)`（无形态变更）；v0.14 为 UI-004 新增 §4.7 冻结「取数原语 + 四态容器 + 离线提示」：客户端自建轻量 `useAsyncQuery`（fetch 真实版本化 URL、AbortSignal、手动 refetch，不引 SWR/React Query，不做缓存/自动重试）；`<AsyncState>` 只消费判别状态、按四态组合 §4.6 组件（文案/操作/骨架由调用方提供，不内置泛化内容）；`useOnlineStatus` + `<OfflineBanner>` 为持久内联非模态横幅（内容区顶部、warning 语义、`role=status`，上线自动消失），「待同步 N 条」不做、随 Phase 5 sync 模块。落点 `src/shared/ui/components/AsyncState/`（不新增 src/shared 子目录）；本批不新增业务 API，加载/错误态经 MSW（集成）与 Playwright `page.route`（双 project e2e）验证；零新增令牌
 
 ## 1. 视觉关键词
 
@@ -363,6 +363,35 @@ EmptyState / LoadingState / ErrorState 是占满内容区的页面/区块级状�
 - **EmptyState（空状态）**：原型 `.empty-state` 为据——表面底 + `1px dashed var(--color-border)` 虚线框 + `--radius-md`（原型 16px 就近归整 14px）+ 纵 `--space-12`/横 `--space-6` 内边距（原型 56px 就近归整 48px）+ 居中；标题用 `--font-size-body`/medium/`--color-text-primary`，描述用 `--color-text-secondary`；**不加图标**（原型无此形态，无消费者不预造）。§1「空状态提供具体下一步，不使用泛化文案」由描述文案或操作承担：`action`、`secondaryAction` 两个操作槽均可选。
 - **LoadingState（加载状态）**：页面/区块首次加载用**静态骨架**，不用 spinner，也不用闪烁、发光、呼吸等循环动画（§6：首次加载不使用无意义的循环动画）。容器 `role="status"` + `aria-busy="true"`，配视觉隐藏的加载说明（等价 `aria-live="polite"`，§7）。同模块导出 **Skeleton** 支撑原语（`--color-surface-soft` 底 + `--radius-sm`，宽高由调用方给定），由调用方用间距令牌组合标题/段落/列表轮廓，**不做 `shape` 预设引擎**。保存、同步、AI 处理的进行态不归本组件（Button loading、Progress、Toast 各有其位）。
 - **ErrorState（阻塞式错误状态）**：无衬底边框（虚线框是「这里还没有东西」的空态专属语言）、居中、宽 `min(480px, 100%)` 与 Modal 同族；一枚 `currentColor` 内联警示图标取 `--color-danger`，是组件内**唯一红色**——标题仍用 `--color-text-primary`、描述 `--color-text-secondary`，不做整面红（§1 克制基调，并为删除场景保留 danger 的分量）；容器 `role="alert"`，插入即播报。主操作槽传重试按钮，用近黑 **primary** 变体（重试是肯定动作，danger 只留给破坏性确认），次操作槽可选。
+
+### 4.7 异步取数容器与离线提示（v0.14 冻结，UI-004）
+
+UI-004 **不新增任何业务 API**：本批交付的是「页面如何取数、如何呈现四态、如何提示离线」。状态呈现组件（EmptyState/LoadingState/ErrorState/Skeleton）形态已在 §4.6 冻结，本节只冻结取数与接线契约。三件新东西落同一模块 `src/shared/ui/components/AsyncState/`（**不新增 `src/shared` 子目录**——七子目录清单受 FND-004 验收精确断言）；各页面的查询定义（URL + DTO）暂放 `app/(app)/_lib/`，Phase 3 建立应用层时迁入 `src/modules/*/presentation`（记债）。
+
+#### 取数原语 `useAsyncQuery`
+
+- 客户端 hook：输入 `{ queryKey: readonly string[]; queryFn: (signal: AbortSignal) => Promise<T> }`；返回判别联合 `{ status: 'loading' } | { status: 'error'; error: Error } | { status: 'success'; data: T }` 与 `refetch()`。
+- 页面请求**真实版本化 URL**（如 `/api/v1/tasks/today`）；本批不建业务端点，无拦截时页面诚实落入错误态（未匹配路径经 FND-005 兜底返回结构化 404，本身就是真实失败）。不建返回空数据的假端点。
+- `AbortController`：卸载、queryKey 变化、手动 refetch 时 abort；**abort 不进入 error 态**（它是替换而非失败）。
+- HTTP 非 2xx 与网络错误归一为普通 `Error`（带 message）；**不自动重试、不指数退避**——重试只有用户手动触发。
+- **不缓存、不后台刷新、不去重、不乐观更新**；queryKey 本批只用于将来扩展与测试可辨。刻意不引 SWR/React Query（一个四态容器不值得引入依赖与缓存语义决策，真实缓存需求随 Phase 3 数据场景再议）。
+
+#### 四态容器 `<AsyncState>`
+
+- 容器**只消费状态、绝不发请求**（不碰 fetch），保持可在 jsdom 单测：props 为 `state`（上面的判别联合）、`isEmpty(data)`（调用方给空判据）、`renderSuccess(data)`（成功且非空时渲染真实内容），以及空态配置 `empty`（title/description/action?/secondaryAction?）与可选 `errorDescription`、`loading` 骨架。
+- 按状态组合 §4.6 组件，**不内置任何泛化文案**（不许出现写死的「出错了」「暂无数据」）：空态的具体下一步、错误描述、贴合页面的骨架轮廓一律由调用方提供——延续 §4.6 的 ReactNode 槽纪律。
+- 重试：错误态主按钮为近黑 **primary**，`onClick` 接 `refetch`（danger 只留给破坏性确认，同 §4.6）。
+- loading：默认 LoadingState；页面应提供用 Skeleton 组合的本页轮廓（§4.6 不做 shape 预设引擎）。
+- 成功但为空（空数组等）走 EmptyState；**EmptyState 的操作只能指向真实存在的目标**（如今日空→链接 `/inbox`）。快速添加（TASK-002）、收件箱输入框（UI-005）尚不存在，空操作槽留空，不放假按钮。
+- 零新增令牌。
+
+#### 在线状态 `useOnlineStatus` 与 `<OfflineBanner>`
+
+- `useOnlineStatus`：`navigator.onLine` 为初值，订阅 `online`/`offline` 事件（`useSyncExternalStore`，SSR/水合安全——服务端一律按在线处理）。不主动探测真实连通性；`navigator.onLine` 各浏览器语义差异（局域网上但实际断网）属已知边界，记档。
+- `<OfflineBanner>`：**持久、内联、非模态**——挂在 AppShell 内容区顶部、页面内容之上（不浮层、不遮罩、不阻塞），离立即现、**上（on）线自动消失**。
+- 与既有反馈的分工：不是 Toast（瞬时非阻塞）、不是 ErrorState（不阻塞内容区，缓存/已加载内容仍可看）；容器 `role="status"`（离线即播报，等价 polite live region）。
+- 文案止于「当前处于离线状态，显示的内容可能不是最新」；视觉用 surface 底 + warning 语义边框，不做整面警告色，零新增令牌。
+- **不做**「N 条待同步」、发件箱、全部重试：依赖尚不存在的 sync 模块（Phase 5）。「待同步提示」从 UI-004 拆出挂 Phase 5，用户已确认。
 
 ## 5. 页面规范
 
