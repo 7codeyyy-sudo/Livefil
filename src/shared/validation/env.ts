@@ -24,7 +24,15 @@ const DEFAULT_LOG_LEVEL: LogLevel = 'info';
 
 const DEFAULT_AI_PROVIDER = MOCK_AI_PROVIDER;
 
-/** Phase 0 尚未接入数据库，因此 DATABASE_URL 可选；一旦提供就必须是受支持的连接串。 */
+/**
+ * 受支持的数据库连接串协议。
+ *
+ * **为什么 `DATABASE_URL` 在本模块仍是 optional**（即便 Phase 2 已真正接入数据库）：
+ * 《详细设计说明书》§8.3 冻结的是「分层必填」——根校验只保证「**一旦提供必须合法**」。
+ * health、styleguide 与 CI 等入口不依赖数据库，把根校验做成必填会让这些路径整体
+ * 失败（以及让每个只想渲染静态页的构建都需要一份连接串）。必填约束下沉到使用方：
+ * 数据库连接工厂缺 URL 抛 `DEPENDENCY_UNAVAILABLE`，会话签名模块在装配期失败。
+ */
 const SUPPORTED_DATABASE_PROTOCOLS = ['postgres:', 'postgresql:'];
 
 /** 会话密钥最小长度。过短的密钥无法提供有效的签名强度。 */
@@ -96,6 +104,19 @@ const serverEnvSchema = z
         message: `DATABASE_URL 必须是 ${SUPPORTED_DATABASE_PROTOCOLS.join(' 或 ')} 开头的连接串，且不能为空`,
       })
       .optional(),
+    /**
+     * 真机数据库测试专用的**测试库**连接串（IAM-004）。
+     *
+     * 与 `DATABASE_URL` 分开而不是复用后者：真机测试会做空库迁移与事务回滚，
+     * 指向开发库等于把开发数据洗一遍。同样是「提供即校验、不提供不报错」——
+     * 默认的 `check` 链必须在没有任何数据库的环境下也能跑完。
+     */
+    TEST_DATABASE_URL: z
+      .string()
+      .refine(isSupportedDatabaseUrl, {
+        message: `TEST_DATABASE_URL 必须是 ${SUPPORTED_DATABASE_PROTOCOLS.join(' 或 ')} 开头的连接串，且不能为空`,
+      })
+      .optional(),
     AUTH_SECRET: z
       .string()
       .refine((value) => value.length >= AUTH_SECRET_MIN_LENGTH, {
@@ -125,6 +146,7 @@ export interface ServerEnv {
   readonly nodeEnv: string;
   readonly logLevel: LogLevel;
   readonly databaseUrl: string | undefined;
+  readonly testDatabaseUrl: string | undefined;
   readonly authSecret: string | undefined;
   readonly aiProvider: string;
   readonly aiApiKey: string | undefined;
@@ -169,6 +191,7 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     nodeEnv: parsed.NODE_ENV ?? 'development',
     logLevel: parsed.LOG_LEVEL ?? DEFAULT_LOG_LEVEL,
     databaseUrl: parsed.DATABASE_URL,
+    testDatabaseUrl: parsed.TEST_DATABASE_URL,
     authSecret: parsed.AUTH_SECRET,
     aiProvider: parsed.AI_PROVIDER ?? DEFAULT_AI_PROVIDER,
     aiApiKey: parsed.AI_API_KEY,
