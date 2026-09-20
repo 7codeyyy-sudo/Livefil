@@ -1,0 +1,69 @@
+/**
+ * 全局重置（UI-003 应用外壳）。
+ *
+ * ## 为什么现在才补
+ *
+ * 在此之前项目**没有全局 reset**，于是「依赖精确高度」的组件各自声明
+ * `box-sizing: border-box`（Badge 就是这么做的）。代价是控件高度**比令牌值
+ * 多 2px**：Button 的 `min-height` 取自 `--size-control-sm`，而 `border: 1px`
+ * 在 content-box 下是在此之外叠加的，实测渲染高度比令牌值多 2px。
+ * 浏览器端用例当时用 `>=` 断言，把偏差**掩住**了——那等于把一个真实偏差
+ * 记成了通过。
+ *
+ * 补上本文件后令牌值与渲染高度一致，`styleguide.spec.ts` 里相应的断言
+ * 一并从 `>=` 收紧为相等。
+ *
+ * ## 为什么刻意保持"最小"
+ *
+ * 只做外壳与页面真正需要的那几件事，不整套照搬 normalize：每多一条规则，
+ * 就多一个需要重新确认的既有视觉。本项目各组件都已自带明确样式（含各自的
+ * `:focus-visible`），全局层再插手只会互相打架。
+ *
+ * 两处**刻意不动**：
+ * - `svg` 的 `display` —— Toast 与 ErrorState 的图标是**内联**的，
+ *   设成块级会破坏它们与文字的基线对齐。
+ * - 列表的 `list-style` / `padding` —— 导航列表自带 `list-style: none`
+ *   与内边距，在全局抹掉会影响将来真实的内容列表。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* 基础排版放在这里，页面就不必各自重复一遍。
+   注意：这里是**默认值**，组件样式（CSS Modules 的类选择器）优先级更高，
+   不会被它覆盖。 */
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

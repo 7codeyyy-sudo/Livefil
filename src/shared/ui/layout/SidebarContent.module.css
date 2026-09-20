@@ -1,0 +1,116 @@
+/**
+ * 侧栏内容样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 形态与取值来源是**原型**（`.brand` / `.sidebar-date` / `.nav-list` /
+ * `.profile-chip`），超出令牌档位的原型取值按最近档位归整，逐处注明。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.brand {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-text-primary);
+  /* 原型 20px，落在 §2.2 的区块标题档。 */
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.03em;
+}
+
+.brandMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  /* 原型 30×30、圆角 10px。 */
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--color-on-primary);
+  background-color: var(--color-primary-surface);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.date {
+  /* 原型是 42px / 12px / 14px，归整到最近档位（40 / 12 / 12）。 */
+  margin: var(--space-10) var(--space-3) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* 把设置项与账户区一起顶到侧栏底部（原型同为 `margin-top: auto`）。 */
+.bottom {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: auto;
+}
+
+.profile {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  /* 全圆端帽用形态令牌，不写百分比：`--radius-pill` 就是为"圆"这件事存在的。 */
+  border-radius: var(--radius-pill);
+  color: var(--color-on-accent);
+  background-color: var(--color-accent);
+  font-size: var(--font-size-caption);
+}
+
+.profileName {
+  display: block;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.profileMeta {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+/* 平板/窄桌面折叠档（§3.1：768–1023px）——与导航项同一档，侧栏收成单栏。
+   断点值直接写像素：CSS 变量无法用于 `@media` 条件，项目既定做法。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .brand {
+    /* 文字被隐藏后不留间隙，图形才真正居中。 */
+    gap: 0;
+    justify-content: center;
+  }
+
+  /* 文字**不可见但仍在**：`font-size: 0` 不把节点移出无障碍树，
+     所以品牌链接仍有可访问名称、读屏仍能读出这些文字。 */
+  .brandName,
+  .date,
+  .profileText {
+    font-size: 0;
+  }
+
+  /* 日期已经看不见了，就不该再占着 40px 的顶部间距；
+     保留一段令牌间距维持品牌与导航之间的呼吸。 */
+  .date {
+    margin: var(--space-6) 0 0;
+  }
+
+  .profile {
+    gap: 0;
+    justify-content: center;
+    padding: var(--space-3) 0;
+  }
+}

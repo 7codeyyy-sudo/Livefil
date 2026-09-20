@@ -137,28 +137,38 @@ test.describe('焦点可见性（§7）', () => {
 });
 
 test.describe('几何量与断点覆盖', () => {
-  test('主控件高度达到当前视口对应的下限', async ({ page }) => {
+  test('主控件高度等于当前视口对应的令牌值', async ({ page }) => {
     await page.goto(STYLEGUIDE_PATH);
 
     const width = page.viewportSize()?.width ?? 0;
-    const expectedMin = width <= 767 ? TOUCH_MIN_PX : CONTROL_SM_PX;
+    const expected = width <= 767 ? TOUCH_MIN_PX : CONTROL_SM_PX;
 
     for (const selector of ['[data-variant="primary"]', '[data-variant="icon-ghost"]']) {
       const box = await page.locator(selector).boundingBox();
       expect(box, `${selector} 应可测量`).not.toBeNull();
-      // 这是 --size-touch-min 的浏览器级牙齿：令牌层的媒体覆盖若失效，
-      // 窄屏下这里会立刻掉到 40px 并失败。
-      expect(box?.height ?? 0, `${selector} 在 ${String(width)}px 视口下`).toBeGreaterThanOrEqual(
-        expectedMin,
-      );
+      // **相等**，而不是原来的「不少于」：UI-003 补上全局 `box-sizing: border-box`
+      // 之后，`min-height` 已把边框算在内，渲染高度与令牌值严格一致。
+      //
+      // 补 reset 之前这里只能是 `>=`——`border: 1px` 在 content-box 下是在
+      // `min-height` 之外额外叠加的，实际渲染比令牌值多 2px，而 `>=` 会把
+      // 这个真实偏差**记成通过**。窄屏抬升（--size-touch-min）失效时两者都会红，
+      // 但只有相等断言能同时守住"不多也不少"。
+      expect(box?.height ?? 0, `${selector} 在 ${String(width)}px 视口下`).toBe(expected);
     }
   });
 
-  test('输入框高度达到大控件下限（48px / 窄屏仍不少于 48）', async ({ page }) => {
+  test('输入框高度不低于大控件下限（48px / 窄屏仍不少于 48）', async ({ page }) => {
     await page.goto(STYLEGUIDE_PATH);
 
     const box = await page.locator('[data-variant="input-default"]').boundingBox();
 
+    // 这条**刻意只断下界**，而且原因与上面那条不同（不是"还没收紧"）：
+    // 夹具把四个字段放进 `.fieldGrid`，网格项默认 `align-items: stretch`，
+    // 而 `.field` 自身也是网格、行会被 `align-content` 撑开——同一行里
+    // 「带错误文案」的字段把行撑高，**输入框跟着被拉伸**（实测约 59.8px）。
+    // 也就是说它在这里的高度由**同排其他字段**决定，断言绝对值等于在断言
+    // 夹具的排版细节，而不是组件本身。组件级的"令牌值 = 渲染高度"已由上面
+    // 那条按钮断言守住（按钮不在会被拉伸的网格里）。
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
   });
 

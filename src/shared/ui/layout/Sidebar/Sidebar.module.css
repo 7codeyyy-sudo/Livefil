@@ -1,0 +1,43 @@
+/**
+ * 流式侧栏样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ * 侧栏自身的宽度由 `AppShell` 的网格列决定（232 / 72），不在本文件里声明——
+ * 宽度是外壳的布局决定，写两处必然漂移。
+ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  /* 原型是 30 / 18 / 22px，归整到最近档位（32 / 20 / 24）。 */
+  padding: var(--space-8) var(--space-5) var(--space-6);
+  border-right: 1px solid var(--color-border);
+  /* 底色是**不透明**的表面色：原型侧栏底为半透明白（磨砂），
+     v0.12 已按 §1.1「反玻璃拟态」销账不采纳——无 `backdrop-filter` 时
+     半透明白在浅色底上等于没有，加了 `backdrop-filter` 又正是被禁的效果。 */
+  background-color: var(--color-surface);
+}
+
+/* 平板/窄桌面折叠档（§3.1：768–1023px）。列宽由 AppShell 收到 72px，
+   这里同步收窄左右内边距，给单栏内容留出空间（原型同为 12px）。
+   断点值直接写像素：CSS 变量无法用于 `@media` 条件，项目既定做法。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar {
+    padding-inline: var(--space-3);
+  }
+}
+
+/* 手机竖屏（§3.1：320–767px）。
+ *
+ * 这里**整体隐藏**而不是像原型那样 `translateX(-100%)` 移出视口。
+ * v0.12 记的「侧栏移出视口」是描述原型的单元素做法，而本批的移动端导航
+ * 已确定走**浮层抽屉**（`MobileNavDrawer`，遮罩 + 焦点陷阱 + 关闭后卸载）。
+ * 若仍把本元素移到屏幕外，会同时出现两个问题：
+ *   1. 屏外链接依然可被 Tab 聚焦（这正是改用浮层要消除的那个缺口）；
+ *   2. 导航在 DOM 里存在两份，`aria-current` 的"唯一当前项"不再成立。
+ * 所以流式侧栏在这一档让位给抽屉，整体不渲染。 */
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+}

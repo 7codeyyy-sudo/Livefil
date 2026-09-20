@@ -1,0 +1,80 @@
+/**
+ * 移动端导航抽屉样式（UI-003，《UI 页面规范》v0.12 §3.2）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * `250px` 是**外壳布局量**（原型左抽屉宽度），与侧栏的 `232 / 72` 同类：
+ * v0.12 明确「零新增令牌，布局量集中在外壳 CSS 单点」。
+ */
+
+.panel {
+  position: relative;
+  /* 面板层级：与遮罩的 --z-scrim 分开表达。 */
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  /* 竖排导航在很矮的横屏里可能放不下，让面板自己可滚。 */
+  overflow-y: auto;
+  /* 两行 height 是刻意的回退写法：不支持 `dvh` 的浏览器用第一行的 `100vh`，
+     支持的第二行覆盖。移动端地址栏收放时 `vh` 不跟着变，
+     面板底部（账户区）会被地址栏裁掉。 */
+  height: 100vh;
+  height: 100dvh;
+  width: 250px;
+  /* 与流式侧栏同一套内边距，两处内容因此看起来是同一个侧栏。 */
+  padding: var(--space-8) var(--space-5) var(--space-6);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  /* 圆角：贴边面板**刻意是 0**（默认值，不声明）。与 Drawer 同因——
+     圆角是"浮起的小块"的语言，一个顶满视口高度、边缘锚定的面板加圆角
+     只会让角上漏出页面底色。 */
+}
+
+.panel[data-state='open'] {
+  opacity: 1;
+  transform: translateX(0);
+  /* 进场靠动画：元素刚挂载时已是终态，过渡没有起始值可插值。 */
+  animation: nav-drawer-in var(--duration-base) var(--ease-standard);
+}
+
+/* 退场：向左滑出 + 淡出。`translateX(-100%)` 的百分比是相对面板自身宽度，
+   面板贴左边缘，所以滑出 100% 正好完全离开视口。
+   过渡结束后派发 transitionend，由它驱动真正的卸载。 */
+.panel[data-state='closed'] {
+  opacity: 0;
+  transform: translateX(-100%);
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+@keyframes nav-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/**
+ * 视觉隐藏（但仍留在无障碍树里）。
+ *
+ * 用 `clip-path` 而不是 `display: none` / `visibility: hidden`：后两者会把
+ * 元素从无障碍树里一并移除，`aria-labelledby` 就指向了一个读屏读不到的名字。
+ * `position: absolute` 让它完全脱离面板的纵向布局，不参与 flex 排布。
+ */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

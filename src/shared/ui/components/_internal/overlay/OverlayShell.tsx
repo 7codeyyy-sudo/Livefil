@@ -21,8 +21,20 @@ export type OverlayShellProps = {
   readonly describedBy?: string | undefined;
   /** 初始焦点的选择器（相对面板）。不给则聚焦面板本身。 */
   readonly initialFocusSelector?: string | undefined;
-  /** 面板落点。默认居中；Drawer 传 `edge`（贴右满高）。 */
+  /**
+   * 面板落点。默认居中；Drawer 传 `edge`（贴右满高），
+   * UI-003 的移动端导航抽屉传 `edge-left`（贴左满高）。
+   */
   readonly layout?: OverlayLayout | undefined;
+  /**
+   * 面板元素的 `id`（可选）。
+   *
+   * 供触发按钮的 `aria-controls` 指向被它控制的面板——UI-003 的汉堡按钮
+   * 需要这层显式关联（`aria-expanded` 只说开合，`aria-controls` 才说明它
+   * 控制的是**谁**）。默认不生成：Modal / ConfirmDialog / Drawer 的触发点
+   * 分散在页面各处，没有这个需求，凭空生成一个 id 只是噪声。
+   */
+  readonly panelId?: string | undefined;
   /**
    * 面板类名。类型含 `undefined` 是因为 CSS Modules 的类名在
    * `noUncheckedIndexedAccess` 下就是 `string | undefined`——写成 `string`
@@ -54,6 +66,7 @@ export function OverlayShell({
   describedBy,
   initialFocusSelector,
   layout = 'center',
+  panelId,
   panelClassName,
   children,
 }: OverlayShellProps) {
@@ -83,6 +96,7 @@ export function OverlayShell({
     <OverlayPortal mounted={mounted} phase={phase} layout={layout} onScrimClick={onClose}>
       <div
         ref={panelRef}
+        id={panelId}
         role={role}
         aria-modal="true"
         aria-labelledby={labelledBy}
