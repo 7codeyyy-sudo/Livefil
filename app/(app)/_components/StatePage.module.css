@@ -1,0 +1,65 @@
+/**
+ * 状态页共享样式（UI-004）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * 三个类各自解决一个跨页重复的问题：状态区与页标题的间距、骨架的排布、
+ * 以及「按钮外观的真链接」。
+ */
+
+/* 状态区与页标题之间的间距。三个状态组件内部都有自己的留白（EmptyState
+   纵向 48px、ErrorState 居中块），但 LoadingState 只有骨架本身——不给统一间距
+   的话，加载态会紧贴着标题，而内容落位时又会跳一下。 */
+.section {
+  margin-top: var(--space-4);
+}
+
+/* 骨架轮廓的排布。宽度由每个 `<Skeleton>` 自己给（§4.6：宽高是布局量，
+   走内联样式），这里只负责行距——所以它是一条 `gap` 而不是一套形状预设。 */
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/**
+ * 「按钮外观的真链接」。
+ *
+ * 用于空态里那些**本质上是一次导航**的操作（如今日空 → 去收件箱）。它必须是
+ * `<a>`：那是真正的可导航元素——能中键新开、能复制地址、能被读屏识别为链接；
+ * 而 `<button>` + `router.push` 会把这三种能力都丢掉。
+ *
+ * 为什么不复用 `Button` 的样式类：那要跨组件 import `Button.module.css` 并
+ * 依赖它内部的类名。CSS Modules 的类名一旦重命名**不会报错**，只会静默丢掉
+ * 样式——复制这几个令牌声明比一条静默断掉的依赖更容易诊断。代价是两处外观
+ * 可能漂移，这一点由「两者都只引用同一批令牌」压小。
+ */
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-control-sm);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.actionLink:hover {
+  background-color: var(--color-surface-soft);
+}
+
+/* 焦点必须清晰可见（§7），写法与 Button 一致：outline 不参与布局、
+   不会被相邻元素遮住；3px / 2px 是几何量，不是颜色令牌。 */
+.actionLink:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

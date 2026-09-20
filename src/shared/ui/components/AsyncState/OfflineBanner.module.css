@@ -1,0 +1,30 @@
+/**
+ * 离线横幅样式（《UI 页面规范》v0.14 §4.7）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * §4.7 冻结的视觉是「surface 底 + warning 语义边框，不做整面警告色」：
+ * 底取普通表面色而不是 `--color-warning-soft`，因为这条横幅会在离线期间
+ * **一直**挂着，铺一层浅黄底等于让页面长期处于「被警告」的状态；而
+ * 「可能不是最新」也不到需要警告底色的程度。边框取 warning 语义色即可
+ * 表达「这不是常规状态」，且 24% alpha 的描边不会喧宾夺主。
+ */
+
+.banner {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-warning-border);
+}
+
+/* 与顶栏、页面区共用同一个最大宽度容器：横幅文字的左右边界因此与页面内容
+   对齐，而不是贴着主内容列的两边（那样在宽屏下会明显错位）。 */
+.inner {
+  width: min(var(--layout-max-width), 100%);
+  /* 垂直居中归零：`<p>` 自带上下 margin，不清掉横幅会比预期高一倍。
+     水平 auto 保留，用于居中。 */
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-page-x);
+  color: var(--color-text-primary);
+  /* 辅助档字号：它是状态说明，不是页面内容。 */
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}

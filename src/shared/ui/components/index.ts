@@ -8,7 +8,8 @@
  * 批次 2 是展板与导航（Badge / Progress / Tabs），
  * 批次 3a 是模态浮层（Modal / ConfirmDialog），批次 3b 是抽屉与全局提示通道
  * （Drawer / ToastProvider / useToast），批次 4 是页面状态
- * （EmptyState / LoadingState + Skeleton / ErrorState）。
+ * （EmptyState / LoadingState + Skeleton / ErrorState），UI-004 是异步取数
+ * （AsyncState / useAsyncQuery）与离线提示（OfflineBanner / useOnlineStatus）。
  *
  * **浮层基建（`_internal/overlay`）刻意不出现在这里**：它是这几个组件共用的
  * 实现细节，不是对外 API（§2.4 明确「不对外导出通用浮层框架」）。
@@ -51,3 +52,13 @@ export { ToastProvider } from './Toast/ToastProvider';
 export type { ToastProviderProps } from './Toast/ToastProvider';
 export { useToast } from './Toast/toast-context';
 export type { ToastAction, ToastApi, ToastOptions, ToastVariant } from './Toast/toast-context';
+export { AsyncState } from './AsyncState/AsyncState';
+export type { AsyncStateProps } from './AsyncState/AsyncState';
+export { OfflineBanner } from './AsyncState/OfflineBanner';
+export { useAsyncQuery } from './AsyncState/use-async-query';
+export type {
+  AsyncQueryState,
+  UseAsyncQueryOptions,
+  UseAsyncQueryResult,
+} from './AsyncState/use-async-query';
+export { useOnlineStatus } from './AsyncState/use-online-status';
