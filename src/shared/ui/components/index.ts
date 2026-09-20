@@ -9,7 +9,8 @@
  * 批次 3a 是模态浮层（Modal / ConfirmDialog），批次 3b 是抽屉与全局提示通道
  * （Drawer / ToastProvider / useToast），批次 4 是页面状态
  * （EmptyState / LoadingState + Skeleton / ErrorState），UI-004 是异步取数
- * （AsyncState / useAsyncQuery）与离线提示（OfflineBanner / useOnlineStatus）。
+ * （AsyncState / useAsyncQuery）与离线提示（OfflineBanner / useOnlineStatus），
+ * IAM-002 补 `Switch`（设置页的开关）。
  *
  * **浮层基建（`_internal/overlay`）刻意不出现在这里**：它是这几个组件共用的
  * 实现细节，不是对外 API（§2.4 明确「不对外导出通用浮层框架」）。
@@ -44,6 +45,8 @@ export { Select } from './Select/Select';
 export type { SelectProps } from './Select/Select';
 export { Skeleton } from './LoadingState/Skeleton';
 export type { SkeletonProps } from './LoadingState/Skeleton';
+export { Switch } from './Switch/Switch';
+export type { SwitchProps } from './Switch/Switch';
 export { Tabs } from './Tabs/Tabs';
 export type { TabItem, TabsProps } from './Tabs/Tabs';
 export { Textarea } from './Textarea/Textarea';

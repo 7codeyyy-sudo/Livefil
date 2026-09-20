@@ -44,6 +44,15 @@ const EXPECTED_COLOR_TOKENS = {
   '--color-success-border': 'rgba(45, 138, 91, 0.24)',
   '--color-warning-border': 'rgba(183, 121, 31, 0.24)',
   '--color-danger-border': 'rgba(192, 57, 43, 0.24)',
+
+  /* §2.1 分类色族（v0.17，随 IAM-003 的生活领域收编）：与状态语义色分家，
+     只收编主色值一档。数据侧存的是语义 key，不是这些色值。 */
+  '--color-cat-blue': '#3b6fd9',
+  '--color-cat-green': '#2f8f6c',
+  '--color-cat-amber': '#b98328',
+  '--color-cat-violet': '#7a56c2',
+  '--color-cat-teal': '#1f8a8f',
+  '--color-cat-rose': '#c25670',
 } as const;
 
 /** §2.4「只允许这两处阴影」。 */
@@ -183,7 +192,7 @@ const tokensSource = readFileSync(TOKENS_FILE, 'utf8');
 const tokens = parseCustomProperties(tokensSource);
 
 describe('设计令牌 · 颜色', () => {
-  it('21 个颜色令牌全部存在且取值与规范语义一致', () => {
+  it('27 个颜色令牌全部存在且取值与规范语义一致', () => {
     const mismatches = findTokenMismatches(
       tokens,
       EXPECTED_COLOR_TOKENS,
@@ -191,10 +200,10 @@ describe('设计令牌 · 颜色', () => {
     );
 
     expect(mismatches).toEqual([]);
-    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(21);
+    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(27);
   });
 
-  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3」', () => {
+  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3 + 分类色 6」', () => {
     const names = Object.keys(EXPECTED_COLOR_TOKENS);
     // 判据必须限定到三个状态色：基础语义色里本来就有 `--color-border`（分隔线），
     // 用 `endsWith('-border')` 会把它也算成状态边框，于是基础色少一个、边框多一个。
@@ -202,14 +211,21 @@ describe('设计令牌 · 颜色', () => {
     const derived = names.filter((name) =>
       /-(soft|placeholder|on-accent|focus-ring|overlay)$/.test(name),
     );
-    const base = names.filter((name) => !borders.includes(name) && !derived.includes(name));
+    // 分类色是 v0.17 新增的独立一族（`--color-cat-*`）。它必须从「基础语义色」
+    // 里排除出去，否则 base 会变成 15——而 base 的 9 是可枚举、可解释的，
+    // 混入一族只为特定功能服务的颜色会让那个数字失去意义。
+    const categorical = names.filter((name) => name.startsWith('--color-cat-'));
+    const base = names.filter(
+      (name) => !borders.includes(name) && !derived.includes(name) && !categorical.includes(name),
+    );
 
-    // 计数写死在这里是有意的：§2.4 把「9 + 9 + 3」定为契约，
+    // 计数写死在这里是有意的：§2.4 把令牌分组定为契约，
     // 将来若增减令牌，这条会强迫改动者回来确认总数，而不是悄悄漂移。
     expect(base).toHaveLength(9);
     expect(derived).toHaveLength(9);
     expect(borders).toHaveLength(3);
-    expect(names).toHaveLength(21);
+    expect(categorical).toHaveLength(6);
+    expect(names).toHaveLength(27);
   });
 
   it('状态色柔和底按 8% alpha 推导，accent-soft 保留原型定值', () => {
