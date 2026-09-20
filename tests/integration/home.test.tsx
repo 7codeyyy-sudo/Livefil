@@ -11,8 +11,9 @@
  * 原先渲染的是 `app/page.tsx`（FND-001 的占位首页）。而 `/` 从 UI-003 起
  * 重定向到 `/today`，那个占位页已不再渲染任何内容——它现在是个存根。
  *
- * 冒烟用例因此改指向今日占位页：它测的是**测试链路**是否通，不是某一页的
+ * 冒烟用例因此改指向今日页：它测的是**测试链路**是否通，不是某一页的
  * 内容，所以换一个"确实会渲染东西"的组件即可，无需为它保留一个假页面。
+ * （UI-004 起今日页本身也从占位页变成了取数状态页，下面的第二条断言随之更新。）
  * 「`/` 确实会重定向到 `/today`」由浏览器端用例验证
  * （`tests/e2e/home.spec.ts`），那才是能真实观察重定向的地方——
  * 在 jsdom 里调用 `redirect()` 只会抛出框架内部信号，断言它等于把测试
@@ -30,9 +31,15 @@ describe('页面冒烟', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('今日');
   });
 
-  it('明确标出「建设中」，不伪造内容', () => {
+  it('渲染真实状态区，而不是「建设中」占位', () => {
     render(<TodayPage />);
 
-    expect(screen.getByText('建设中')).toBeInTheDocument();
+    // UI-004 起今日页是**真实状态页**（客户端取数 + 四态容器），不再是占位页。
+    // 反向断言「没有建设中」正是这次交付的内容：占位被真实状态取代。
+    expect(screen.queryByText('建设中')).toBeNull();
+
+    // 初始必为加载态——取数尚未返回。这条不依赖网络结果，所以在 jsdom 里稳定：
+    // 请求失败或成功都发生在 effect 之后，而首次渲染一定是 loading。
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
   });
 });

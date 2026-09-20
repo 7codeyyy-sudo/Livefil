@@ -9,6 +9,8 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { stubTaskQueryAsEmpty } from './support/api-stub';
+
 test('根路径重定向到今日页', async ({ page }) => {
   await page.goto('/');
 
@@ -27,6 +29,11 @@ test('健康检查接口可通过真实 HTTP 访问', async ({ request }) => {
 });
 
 test('页面不产生控制台错误', async ({ page }) => {
+  // 今日页按 §4.7 用真实端点取数（UI-004）。本批没有业务端点，不拦截的话
+  // 浏览器会记录一条 resource error——那是「数据源还没接上」的预期表现，
+  // 与本用例要断言的「页面没有 JS 错误」不是一回事。
+  await stubTaskQueryAsEmpty(page);
+
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') {

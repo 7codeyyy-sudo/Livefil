@@ -14,6 +14,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { stubTaskQueryAsEmpty } from './support/api-stub';
+
 /** 读取 `:root` 上的自定义属性（浏览器返回的是声明值，未做数值解析）。 */
 async function readToken(page: Page, name: string): Promise<string> {
   return page.evaluate(
@@ -105,6 +107,11 @@ test('页面内边距随视口收敛（断点覆盖真实生效）', async ({ pa
 });
 
 test('令牌生效的同时没有引入控制台错误', async ({ page }) => {
+  // 从 UI-004 起首页会按 §4.7 用真实端点取数，而本批没有业务端点——
+  // 不接住那条请求，浏览器会记一条 resource error，掩盖掉这条用例真正
+  // 要找的东西（样式解析或脚本错误）。
+  await stubTaskQueryAsEmpty(page);
+
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') {

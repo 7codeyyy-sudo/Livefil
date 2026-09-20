@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { OfflineBanner } from '@/shared/ui/components';
+
 import { MobileNavDrawer } from '../MobileNavDrawer/MobileNavDrawer';
 import { Sidebar } from '../Sidebar/Sidebar';
 import { Topbar } from '../Topbar/Topbar';
@@ -50,6 +52,11 @@ export function AppShell({ pageActions, children }: AppShellProps) {
 
       <div className={styles.main}>
         <Topbar isNavOpen={isNavOpen} onOpenNav={openNav} pageActions={pageActions} />
+
+        {/* 离线横幅：内容区顶部、页面内容之上（§4.7）。它刻意不是浮层——
+            在文档流里意味着页面内容会被顺势下推，而不是被盖住。 */}
+        <OfflineBanner />
+
         <main className={styles.page} data-app-page="true">
           {children}
         </main>
