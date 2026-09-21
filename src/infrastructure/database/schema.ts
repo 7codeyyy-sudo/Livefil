@@ -13,5 +13,25 @@
  * 只导出表与行类型；不导出 `drizzle-kit` 的任何东西（它是构建期工具，
  * 不该出现在应用运行时的依赖图里）。
  */
-export { lifeAreas, users } from '../../../drizzle/schema.ts';
-export type { LifeAreaRow, NewLifeAreaRow, NewUserRow, UserRow } from '../../../drizzle/schema.ts';
+export {
+  actions,
+  goals,
+  idempotencyKeys,
+  lifeAreas,
+  tasks,
+  users,
+} from '../../../drizzle/schema.ts';
+export type {
+  ActionRow,
+  GoalRow,
+  IdempotencyKeyRow,
+  LifeAreaRow,
+  NewActionRow,
+  NewGoalRow,
+  NewIdempotencyKeyRow,
+  NewLifeAreaRow,
+  NewTaskRow,
+  NewUserRow,
+  TaskRow,
+  UserRow,
+} from '../../../drizzle/schema.ts';

@@ -1,0 +1,114 @@
+/**
+ * 收件箱样式（UI-005，《UI 页面规范》v0.19 §5）。
+ *
+ * 纪律：颜色 / 时长 / 字号 / 圆角 / 层级只引用令牌；间距与行布局是布局量，
+ * 按需写字面量（与 Tabs 34px 同一口径）。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.quickAdd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 批量操作条（§4.8）：选中 ≥1 时出现在列表正上方，不投射顶栏。 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.selectedCount {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.loadMoreRow {
+  display: flex;
+  justify-content: center;
+}
+
+.loadMoreError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 手机：行内三动作收窄为图标位不现实（IconButton 无文字可读性差），
+   保持三按钮但允许换行（§3.2 窄屏不隐藏功能）。
+   断点值直接写像素：CSS 变量无法用于 @media 条件，项目既定做法。 */
+@media (max-width: 767px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .rowActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

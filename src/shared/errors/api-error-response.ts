@@ -91,6 +91,9 @@ export function toErrorResponse(error: unknown, requestId: string): ApiResult<Ap
  * @param data 业务数据。
  * @param requestId 当前请求的 request ID。
  * @param now 服务端时间；显式传入便于测试固定时间。
+ * @param extraMeta 追加到 `meta` 的字段（分页端点的 `nextCursor` / `hasMore`，
+ *   见《接口文档》§1.3）。键与既有 meta 冲突时以这里为准——调用方显式给的东西
+ *   比"默认必须有"更接近意图。
  * @returns 状态码固定为 200 的响应。
  * @throws {TypeError} `requestId` 为空或 `now` 为无效日期时抛出。
  */
@@ -98,6 +101,7 @@ export function toSuccessResponse<TData>(
   data: TData,
   requestId: string,
   now: Date = new Date(),
+  extraMeta?: Readonly<Record<string, unknown>>,
 ): ApiResult<ApiSuccessBody<TData>> {
   assertRequestIdPresent(requestId);
 
@@ -109,7 +113,11 @@ export function toSuccessResponse<TData>(
     status: 200,
     body: Object.freeze({
       data,
-      meta: Object.freeze({ requestId, serverTime: now.toISOString() }),
+      meta: Object.freeze({
+        requestId,
+        serverTime: now.toISOString(),
+        ...(extraMeta ?? {}),
+      }),
     }),
   });
 }

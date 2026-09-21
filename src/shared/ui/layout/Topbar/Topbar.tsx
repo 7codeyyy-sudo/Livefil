@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { Button, IconButton } from '@/shared/ui/components';
@@ -39,14 +40,14 @@ export type TopbarProps = {
  *    不参与最大宽度约束，宽屏下它的右边缘与页面区右边缘并不重合。
  *    这里让顶栏内容落在同一个 1200px 容器里，操作按钮与页面内容右对齐。
  *
- * ## 「＋ 快速添加」为什么是个没有 `onClick` 的按钮
+ * ## 「＋ 快速添加」的行为
  *
- * 它的行为（打开快速添加面板）属 TASK-002。本批只交付入口：标签完整保留、
- * 可见、可聚焦、**不 disable**——禁用态会让它在视觉上像"功能坏了"，
- * 而它其实是"功能还没接"。代码侧不留空函数：没有 `onClick` 就是没有行为，
- * 比一个什么都不做的回调更诚实。
+ * UI-005 起接上真行为（UI v0.19 §5 定档）：跳转 `/inbox` 并以 hash 聚焦
+ * 快速添加输入框。此前它是无 onClick 的挂空入口（行为属 TASK-002，
+ * 当时不存在）；PageActions 岛机制继续挂账，本批不实现。
  */
 export function Topbar({ isNavOpen, onOpenNav, pageActions }: TopbarProps) {
+  const router = useRouter();
   return (
     <header className={styles.topbar}>
       <div className={styles.inner}>
@@ -65,7 +66,16 @@ export function Topbar({ isNavOpen, onOpenNav, pageActions }: TopbarProps) {
             <div className={styles.pageActions}>{pageActions}</div>
           )}
 
-          <Button variant="primary" data-variant="quick-add">
+          <Button
+            variant="primary"
+            data-variant="quick-add"
+            onClick={() => {
+              // TASK-002 的接线（UI v0.19 §5 定档）：跳到收件箱并聚焦快速添加
+              // 输入框——hash 是页面里输入框容器的 id，不由路由消费。
+              // 不走 PageActions 岛（该机制继续挂账）。
+              router.push('/inbox#quick-add');
+            }}
+          >
             ＋ 快速添加
           </Button>
 

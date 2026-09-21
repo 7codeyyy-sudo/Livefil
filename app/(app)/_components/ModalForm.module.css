@@ -1,0 +1,16 @@
+/* 弹窗内表单的公共布局（UI-005；两个弹窗共用，落 _components 避免复制）。 */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}

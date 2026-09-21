@@ -1,42 +1,166 @@
 'use client';
 
-import { Skeleton } from '@/shared/ui/components';
+import { useState } from 'react';
 
-import { PageQuerySection } from '../_components/PageQuerySection';
-import stateStyles from '../_components/StatePage.module.css';
-import { GOALS_QUERY } from '../_lib/queries';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  Skeleton,
+  useCursorListQuery,
+  useToast,
+} from '@/shared/ui/components';
 
-/** 与「目标卡片列表」同形的轮廓：两个块，各带一行标题与一行说明。 */
-function GoalsSkeleton() {
+import { ApiRequestError, sendJson } from '../_lib/api-client';
+import { makeGoalsQueryFn, type GoalItem } from '../_lib/queries';
+import styles from './GoalsPanel.module.css';
+
+/**
+ * 目标页（UI-006，《UI 页面规范》v0.18 §5）。
+ *
+ * 列表给出名称与**双进度**的摘要（结果进度随手改、行动进度由行动汇总）；
+ * 每行进详情（`/goals/[goalId]`，独立路由——可直链、可刷新）。
+ * 新建目标走页内的最小表单（名称必填，其余在详情里补）。
+ */
+export function GoalsPanel() {
+  const { state, refetch } = useCursorListQuery<GoalItem>({
+    queryKey: ['goals'],
+    queryFn: makeGoalsQueryFn(),
+  });
+
   return (
-    <div className={stateStyles.skeleton}>
-      <Skeleton width="45%" />
-      <Skeleton width="85%" />
-      <Skeleton width="35%" />
-      <Skeleton width="75%" />
-    </div>
+    <section className={styles.section}>
+      <CreateGoalForm onCreated={refetch} />
+      <GoalList state={state} onRetry={refetch} />
+    </section>
   );
 }
 
-/**
- * 目标页的取数区（UI-004）。
- *
- * 目标的创建与编辑属 GOAL-001，列表与详情属 UI-006，都还没交付。所以空态的
- * 描述只讲清**目标是什么、想清楚才有用**这件事——它是一个真实的认知步骤，
- * 不需要任何按钮就能做；而「新建目标」按钮要等 GOAL-001。
- */
-export function GoalsPanel() {
+type GoalListState = ReturnType<typeof useCursorListQuery<GoalItem>>['state'];
+
+function GoalList({
+  state,
+  onRetry,
+}: {
+  readonly state: GoalListState;
+  readonly onRetry: () => void;
+}) {
+  if (state.status === 'loading') {
+    return (
+      <div className={styles.skeleton}>
+        <Skeleton />
+        <Skeleton width="85%" />
+      </div>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <ErrorState
+        title="目标没能加载"
+        description="数据没能取回来。可以先重试。"
+        action={
+          <Button variant="primary" onClick={onRetry}>
+            重试
+          </Button>
+        }
+      />
+    );
+  }
+  if (state.items.length === 0) {
+    return (
+      <EmptyState
+        title="还没有目标"
+        description="在上面写下你想改变的一件事，给它一个可衡量的结果。"
+      />
+    );
+  }
   return (
-    <PageQuerySection
-      query={GOALS_QUERY}
-      errorTitle="目标没能加载"
-      errorDescription="数据没能取回来。可以先重试。"
-      skeleton={<GoalsSkeleton />}
-      empty={{
-        title: '还没有目标',
-        description: '目标是一段时期里想推进的方向。先想清楚要改变什么，再把它拆成能落地的行动。',
+    <ul className={styles.list}>
+      {state.items.map((goal) => (
+        <li key={goal.id} className={styles.row}>
+          <a className={styles.rowLink} href={`/goals/${goal.id}`}>
+            <span className={styles.rowName}>{goal.name}</span>
+            <GoalProgressSummary goal={goal} />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 结果进度的摘要（有 target 时给比值，没有就只给当前值；不自动判完成）。 */
+function GoalProgressSummary({ goal }: { readonly goal: GoalItem }) {
+  const metric = goal.resultMetric;
+  if (metric === null || (metric.current === null && metric.target === null)) {
+    return <span className={styles.rowMeta}>还没有记录结果进度</span>;
+  }
+  const current = metric.current === null ? '—' : String(metric.current);
+  const target = metric.target === null ? null : String(metric.target);
+  return (
+    <span className={styles.rowMeta}>
+      结果进度：{current}
+      {target === null ? '' : ` / ${target}`}
+      {metric.unit === null ? '' : ` ${metric.unit}`}
+    </span>
+  );
+}
+
+function CreateGoalForm({ onCreated }: { readonly onCreated: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const submit = async () => {
+    const trimmed = name.trim();
+    if (trimmed === '') {
+      return;
+    }
+    setCreating(true);
+    try {
+      await sendJson('POST', '/api/v1/goals', {
+        name: trimmed,
+        ...(targetDate === '' ? {} : { targetDate }),
+      });
+      setName('');
+      setTargetDate('');
+      toast.success('目标已创建');
+      onCreated();
+    } catch (error) {
+      toast.error(error instanceof ApiRequestError ? error.message : '创建失败，请稍后重试');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <form
+      className={styles.createForm}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
       }}
-      renderSuccess={() => null}
-    />
+    >
+      <Input
+        label="新建目标"
+        placeholder="例如：三个月内能跑 5 公里"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+        }}
+      />
+      <Input
+        label="目标日期（可选）"
+        type="date"
+        value={targetDate}
+        onChange={(event) => {
+          setTargetDate(event.target.value);
+        }}
+      />
+      <Button type="submit" variant="primary" loading={creating}>
+        创建目标
+      </Button>
+    </form>
   );
 }

@@ -36,6 +36,7 @@ import packageJson from './package.json';
 
 import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
+import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
 import { DEFAULT_LIFE_AREAS } from '@/modules/life-areas/domain/default-life-areas.ts';
 import type { LifeAreaRepository } from '@/modules/life-areas/domain/life-area-repository.ts';
 import type { LifeAreaSeed } from '@/modules/life-areas/domain/life-area.ts';
@@ -43,6 +44,13 @@ import { createLifeAreaRepository } from '@/modules/life-areas/infrastructure/li
 import type { SessionTokenService } from '@/modules/identity/domain/session-token.ts';
 import type { UserRepository } from '@/modules/identity/domain/user-repository.ts';
 import { createUserRepository } from '@/modules/identity/infrastructure/user-repository.drizzle.ts';
+import type { GoalRepository, ActionRepository } from '@/modules/goals/domain/goal-repository.ts';
+import {
+  createActionRepository,
+  createGoalRepository,
+} from '@/modules/goals/infrastructure/goal-repository.drizzle.ts';
+import type { TaskRepository } from '@/modules/tasks/domain/task-repository.ts';
+import { createTaskRepository } from '@/modules/tasks/infrastructure/task-repository.drizzle.ts';
 import { createAuditLogger, type AuditLogger } from '@/shared/telemetry/audit-event.ts';
 import { serverEnv } from '@/shared/validation/env.server.ts';
 
@@ -100,12 +108,28 @@ export function getAuditLogger(): AuditLogger {
 export function getRepositories(): {
   readonly users: UserRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly tasks: TaskRepository;
+  readonly goals: GoalRepository;
+  readonly actions: ActionRepository;
 } {
   const db = getDatabaseClient().db;
   return {
     users: createUserRepository(db),
     lifeAreas: createLifeAreaRepository(db),
+    tasks: createTaskRepository(db),
+    goals: createGoalRepository(db),
+    actions: createActionRepository(db),
   };
+}
+
+/**
+ * 幂等存储单例（TASK-001 / DB §4.15）。
+ *
+ * 返回的端口类型在 `app/_lib/idempotency.ts`（消费方所有）——组合根在这里做
+ * 结构赋值检查，基础设施不必为了满足消费方的接口而反向 import。
+ */
+export function getIdempotencyStore() {
+  return createIdempotencyStore(getDatabaseClient().db);
 }
 
 /** 进程退出前关闭连接池（测试与脚本用；route handler 不需要调用）。 */

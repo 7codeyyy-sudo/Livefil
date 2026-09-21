@@ -1,0 +1,84 @@
+/**
+ * Checkbox 样式（UI-005，《UI 页面规范》v0.19 §4.8）。
+ *
+ * 纪律与 Switch 相同：只引用设计令牌；18×18 的盒尺寸是**布局量**
+ * （与 Switch 轨道 40×24 同口径写字面量——单文件单消费者，不为它造令牌）。
+ * 「跟随 Input」体现为同一组边框 / 表面 / 圆角令牌，而不是复制 Input 的尺寸。
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.root:has(.input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 焦点环画在盒上（§7，与 Button/Switch 同款几何：3px / 2px 是几何量）。 */
+.input:focus-visible + .box {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 原生 input 保留在文档流里承担交互与语义，视觉由 .box 承担：
+   opacity 而非 display:none——读屏与键盘行为不受影响。 */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.root:hover .input:not(:disabled) + .box {
+  border-color: var(--color-text-secondary);
+}
+
+/* 选中与半选同用近黑底：两者都是"这个框已经参与选择"的表达，
+   区分交给勾形与横线。 */
+.input:checked + .box,
+.input:indeterminate + .box {
+  border-color: var(--color-primary-surface);
+  background-color: var(--color-primary-surface);
+}
+
+.mark {
+  width: 12px;
+  height: 12px;
+  stroke: var(--color-on-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 默认两个图形都不显示；由伪类选择切换。 */
+.check,
+.dash {
+  opacity: 0;
+}
+
+.input:checked + .box .check {
+  opacity: 1;
+}
+
+.input:indeterminate + .box .dash {
+  opacity: 1;
+}
