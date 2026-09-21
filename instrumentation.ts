@@ -18,4 +18,13 @@ export async function register(): Promise<void> {
 
   // 只输出结论，不输出任何环境变量取值（开发环境规范 §4）。
   console.log('[livefil] 服务端环境变量校验通过。');
+
+  // 《详细设计说明书》§8.3「分层必填」：`AUTH_SECRET` 在根校验里是 optional
+  // （health、styleguide、CI 不依赖它），必填约束落在这里——**装配期创建签名器**，
+  // 缺密钥时进程启动即失败，而不是等到第一个请求要签会话时才发现。
+  //
+  // 数据库连接不在启动期强制：它是按需建立的（首个用到数据的请求），
+  // 且"数据库暂时不可达"应当表现为那次请求失败，而不是让整个服务起不来。
+  const { getSessionTokenService } = await import('./composition-root');
+  getSessionTokenService();
 }

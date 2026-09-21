@@ -1,0 +1,31 @@
+/**
+ * 偏好分区样式（IAM-002，《UI 页面规范》v0.16 §5）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+/* 常驻说明（如 AI 同意与开关的关系）。用辅助档字号与次级文字色：
+   它是解释，不是警告——用状态色会让读者以为出了问题。 */
+.hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+/* 用户试图打开 AI 开关但还没同意时的提示。这里用警示语义：
+   它描述的是一次**被拒绝的操作**，用户需要知道"刚才那下为什么没生效"。 */
+.prompt {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-warning-soft);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}

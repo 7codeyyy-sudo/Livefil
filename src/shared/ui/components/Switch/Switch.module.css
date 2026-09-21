@@ -1,0 +1,75 @@
+/**
+ * Switch 样式（IAM-002，《UI 页面规范》v0.16 §5）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * 几何量（轨道 40×24、滑块 20×20、内缩 2px、位移 16px）是**布局量**，与
+ * Tabs 的 34px 同口径写字面量：它们只在文件里出现一次，也没有第二个消费者，
+ * 为它们各造一枚令牌会把「需要才落」这条规则反过来用。
+ */
+
+.root {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  text-align: start;
+  cursor: pointer;
+}
+
+/* 焦点必须清晰可见（§7），写法与 Button 一致：outline 不参与布局、
+   不会被相邻元素遮住；3px / 2px 是几何量，不是颜色令牌。 */
+.root:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.root:disabled {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  /* 丸形是「端帽完全圆化」形态，不是第四档几何圆角（§2.4）。 */
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.root[aria-checked='true'] .track {
+  /* 开启态取主按钮的近黑，而不是强调色蓝：蓝在本项目里只用于状态、进度
+     与焦点（§2.1），把它用在开关上会让「这个开关被聚焦了吗」变得难分辨。 */
+  background-color: var(--color-primary-surface);
+}
+
+.root:disabled .track {
+  opacity: 0.5;
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  /* `50%` 是扫描放行值（端帽完全圆化）。 */
+  border-radius: 50%;
+  background-color: var(--color-surface);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.root[aria-checked='true'] .thumb {
+  transform: translateX(16px);
+}

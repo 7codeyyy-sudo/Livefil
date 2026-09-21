@@ -14,6 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
@@ -23,6 +24,30 @@ import { PATHS, PROJECT_ROOT, formatPath } from '../../scripts/env/paths.mjs';
 
 /** 非法取值，用于验证启动/构建阶段必须明确失败。 */
 const INVALID_LOG_LEVEL = 'verbose';
+
+/**
+ * 「合法环境」的显式取值——每条需要合法环境的用例都以此为基础，不再裸继承宿主环境。
+ *
+ * ## 为什么必须显式给出
+ *
+ * 这些用例原先是 `env: { ...process.env }`，绿不绿取决于**跑的那台机器上有没有
+ * 未入库的 `.env.local`**。实测把它移开后，构建 / `next start` / `next dev` 三条
+ * 全部变红。验收脚本的价值恰恰是「在任何一台机器上给出同样的判定」，把结论建立在
+ * 开发机的本地状态上，等于让门禁在最需要它的场景（新机器、CI）失效。
+ *
+ * Phase 2 起这一点变得必须：本地会话签名器要求 `AUTH_SECRET`（§8.3 装配期失败），
+ * 缺它 `next start` 直接起不来——而这正是本脚本要断言「合法环境下服务可启动」的场景。
+ *
+ * ## 为什么 AUTH_SECRET 用运行时随机值而不是字面量
+ *
+ * 仓库是 Public，连「测试专用密钥」这类字面量都不该落盘；随机生成同时让本机与 CI
+ * 走**完全同一条路径**（不依赖任何一侧额外注入），判定因此一致。签名器只要求长度
+ * ≥ 32，64 个十六进制字符恒成立。
+ */
+const LEGAL_ENV = {
+  LOG_LEVEL: 'info',
+  AUTH_SECRET: randomBytes(32).toString('hex'),
+};
 
 /** 单次外部命令的最长等待时间，避免脚本在异常时无限挂起。 */
 const COMMAND_TIMEOUT_MS = 180_000;
@@ -159,14 +184,14 @@ test('项目根目录与 Next 可执行文件已就绪', () => {
 });
 
 test('合法环境变量下构建成功', async () => {
-  const { code, output } = await runOnce(['build']);
+  const { code, output } = await runOnce(['build'], { env: LEGAL_ENV });
 
   assert.equal(code, 0, `构建应成功，实际退出码 ${code}\n${output}`);
 });
 
 test('合法环境变量下服务可启动且首页可用', async () => {
   const port = await findFreePort();
-  const server = startServer(['start', '--port', String(port)]);
+  const server = startServer(['start', '--port', String(port)], { env: LEGAL_ENV });
   try {
     const { status, body } = await waitForHomePage(port);
 
@@ -185,7 +210,7 @@ test('合法环境变量下服务可启动且首页可用', async () => {
 
 test('开发服务器可启动且首页可用', async () => {
   const port = await findFreePort();
-  const server = startServer(['dev', '--port', String(port)]);
+  const server = startServer(['dev', '--port', String(port)], { env: LEGAL_ENV });
   try {
     const { status, body } = await waitForHomePage(port);
 
@@ -203,8 +228,11 @@ test('开发服务器可启动且首页可用', async () => {
 
 test('非法环境变量下服务启动失败且指明变量名', async () => {
   const port = await findFreePort();
+  // 以「合法环境」为底再叠加非法取值：让失败**只**来自被断言的那一项。
+  // 否则当宿主环境恰好缺 AUTH_SECRET 时，服务会先因别的原因挂掉，
+  // 用例也许仍绿，但绿的原因不是它声称要验证的那个。
   const server = startServer(['start', '--port', String(port)], {
-    env: { LOG_LEVEL: INVALID_LOG_LEVEL },
+    env: { ...LEGAL_ENV, LOG_LEVEL: INVALID_LOG_LEVEL },
   });
   try {
     // 服务不应就绪；等待进程自行失败退出。
@@ -226,7 +254,9 @@ test('非法环境变量下服务启动失败且指明变量名', async () => {
 });
 
 test('非法环境变量下构建失败且指明变量名', async () => {
-  const { code, output } = await runOnce(['build'], { env: { LOG_LEVEL: INVALID_LOG_LEVEL } });
+  const { code, output } = await runOnce(['build'], {
+    env: { ...LEGAL_ENV, LOG_LEVEL: INVALID_LOG_LEVEL },
+  });
 
   assert.notEqual(code, 0, '非法环境变量下构建应以非零退出码结束');
   assert.match(output, /LOG_LEVEL/, '错误信息应指明出错的变量名');

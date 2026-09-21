@@ -1,0 +1,70 @@
+/**
+ * 设置分区外壳样式（IAM-002，《UI 页面规范》v0.16 §5）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  /* 标题与徽章之间用 `space-between` 会把徽章推到右边缘，离标题很远。
+     左对齐紧挨着更好：徽章修饰的正是它左边那个标题。 */
+  justify-content: flex-start;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+}
+
+/* 控件区：单列纵向排列，间距比分区内的其它间距略大，让"一组字段"看起来是一组。 */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  /* 保存按钮靠右：它是这一区的**唯一**高强调动作（§4.1），放在右下角是
+     表单的通行位置，扫视时也好找。 */
+  justify-content: flex-end;
+}
+
+.error {
+  /* 错误文案占据剩余空间，于是按钮始终在最右侧，不会因为错误出现/消失而横跳。 */
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--color-danger);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}

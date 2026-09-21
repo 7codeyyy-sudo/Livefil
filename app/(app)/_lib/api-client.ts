@@ -46,6 +46,7 @@ export type ApiEnvelope<T> = {
  *
  * @param path 版本化路径（如 `/api/v1/tasks`）。同源相对路径，无需拼 base URL。
  * @param signal 调用方的中止信号，来自 `useAsyncQuery`。
+ * @throws {ApiRequestError} 非 2xx、响应不是合法 JSON、或信封结构不符时。
  */
 export async function fetchJson<T>(path: string, signal: AbortSignal): Promise<ApiEnvelope<T>> {
   const response = await fetch(path, {
@@ -53,16 +54,83 @@ export async function fetchJson<T>(path: string, signal: AbortSignal): Promise<A
     headers: { accept: 'application/json' },
   });
 
+  return readEnvelope<T>(response);
+}
+
+/** 写操作的方法（本批用到的那三个）。 */
+export type MutationMethod = 'POST' | 'PATCH' | 'DELETE';
+
+/**
+ * 发一次写请求并返回信封（IAM-002 / IAM-003 的设置与领域保存）。
+ *
+ * ## 为什么**没有** `signal` 参数
+ *
+ * 读请求会随组件卸载而作废（`useAsyncQuery` 的 AbortController），写请求不会：
+ * 「保存」一旦发出去，用户离开页面并不改变它该完成这个事实——中止它反而会留下
+ * 一个「不知道有没有保存成功」的状态。所以写请求只用超时兜住真正的挂起。
+ *
+ * ## 为什么错误要带上状态码
+ *
+ * `PATCH /me` 的 409 是**乐观并发冲突**，它不是"保存失败"，而是"你手上的版本
+ * 已经过时了"，界面需要给出不同的处置（提示重新加载而不是让用户再点一次）。
+ * 只给一句 message 的话，调用方只能靠比对文案来分辨，那是注定会漂移的。
+ *
+ * @throws {ApiRequestError} 非 2xx、响应不是合法 JSON、或信封结构不符时。
+ */
+export async function sendJson<T>(
+  method: MutationMethod,
+  path: string,
+  body?: unknown,
+): Promise<ApiEnvelope<T>> {
+  const hasBody = body !== undefined;
+
+  const response = await fetch(path, {
+    method,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    headers: {
+      accept: 'application/json',
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
+  });
+
+  return readEnvelope<T>(response);
+}
+
+/**
+ * 请求失败。
+ *
+ * `status` 用来区分「可以再试一次」与「必须先解决某个状态」（409 冲突、
+ * 422 校验失败）。没有它的话，界面只能对所有失败一视同仁地提示"保存失败"，
+ * 而用户按提示重试一百次也不会成功。
+ */
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
+/** 把一个响应读成信封；失败一律转成 `ApiRequestError`。 */
+async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   if (!response.ok) {
-    throw new Error(await readFailureMessage(response));
+    throw new ApiRequestError(await readFailureMessage(response), response.status);
   }
 
-  const body: unknown = await response.json();
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    // 2xx 但不是 JSON：这是契约违约，不是"接口没数据"。混作一谈会让一个坏掉的
+    // 端点看起来像"这里什么都没有"。
+    throw new ApiRequestError('服务端响应不是合法的 JSON', response.status);
+  }
 
   if (!isEnvelope(body)) {
-    // 响应形状不对属于**契约违约**，不能当成空数据悄悄放过：那会让一个坏掉的
-    // 端点看起来像「这里什么都没有」，而这正是最难排查的一类问题。
-    throw new Error('服务端响应格式不符合约定');
+    throw new ApiRequestError('服务端响应格式不符合约定', response.status);
   }
 
   return body as ApiEnvelope<T>;
