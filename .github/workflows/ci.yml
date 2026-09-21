@@ -20,6 +20,16 @@ env:
   # 这里再显式指定一次作双保险，使 CI 不受任何环境级 registry 配置影响。
   NPM_CONFIG_REGISTRY: https://registry.npmjs.org
 
+  # 会话签名密钥（《详细设计》§8.3「分层必填」）。它在根 env 校验里是 optional，
+  # 但 `next start` / `next dev` 启动时 instrumentation.ts 会装配会话签名器，
+  # 缺它则进程启动即失败——CI 里任何要启动服务的步骤都需要它。
+  # 本地由被 git 忽略的 .env.local 提供，CI 无该文件，故在此注入。
+  #   - browser-e2e：Playwright 的 webServer 直接依赖这里。
+  #   - ci-gate：fnd-001 已自带「合法环境」取值（见该脚本 LEGAL_ENV），
+  #     对它是冗余但无害，保留只为两个 job 运行时环境一致。
+  # 值仅是 CI 临时会话用的测试常量，不是任何环境的真实密钥。
+  AUTH_SECRET: ci-test-only-session-secret-0123456789abcdef
+
 jobs:
   ci-gate:
     name: ci-gate
@@ -100,12 +110,6 @@ jobs:
 
       # 用例经真实 HTTP 验证 requestId 头回写与统一 JSON 404，
       # 是 FND-005 错误结构在运行系统里的唯一兜底证据。
-      #
-      # AUTH_SECRET 是必须的：`next start` 会加载 instrumentation.ts，
-      # 它在启动期装配会话签名器（《详细设计》§8.3「装配期失败」），
-      # 缺密钥时进程直接退出，Playwright 的 webServer 会一直等到超时。
-      # 这里注入的仅是 CI 临时会话用的测试常量，不是任何环境的真实密钥。
+      # 启动服务所需的 AUTH_SECRET 由 workflow 级 env 统一提供（见文件顶部）。
       - name: 浏览器端 E2E
         run: npm run test:browser
-        env:
-          AUTH_SECRET: ci-browser-e2e-test-secret-0123456789abcdef
