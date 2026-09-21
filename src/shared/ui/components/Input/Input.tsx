@@ -1,7 +1,7 @@
 'use client';
 
 import { useId } from 'react';
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, Ref } from 'react';
 
 import styles from './Input.module.css';
 
@@ -12,9 +12,14 @@ export type InputProps = {
   readonly error?: string | undefined;
   /** 辅助说明，常驻显示在标签下方。 */
   readonly hint?: string | undefined;
-} & Omit<InputHTMLAttributes<HTMLInputElement>, 'className' | 'id'>;
+  /**
+   * 聚焦内层 `input`（UI-005：顶栏「＋快速添加」落页后聚焦输入框）。
+   * React 19 里 `ref` 是普通 prop，但类型上不会随 `Omit` 带过来，这里显式声明。
+   */
+  readonly ref?: Ref<HTMLInputElement>;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'className' | 'id' | 'ref'>;
 
-export function Input({ label, error, hint, ...rest }: InputProps) {
+export function Input({ label, error, hint, ref, ...rest }: InputProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -42,6 +47,7 @@ export function Input({ label, error, hint, ...rest }: InputProps) {
 
       <input
         {...rest}
+        ref={ref}
         id={id}
         className={styles.input}
         aria-invalid={error !== undefined}

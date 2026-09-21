@@ -41,6 +41,13 @@ test.describe('页面状态（UI-004）', () => {
     // 真链接：有 href，而不是一个靠 onClick 跳转的按钮。
     await expect(action).toHaveAttribute('href', '/inbox');
 
+    // 收件箱自 UI-005 起是真实页面：游标分页信封（data.items + meta 游标），
+    // 与今日页占位的数组信封不同形。后注册的路由优先生效——在点击**之前**
+    // 注册，否则收件箱挂载后的首个请求仍会拿到上面的数组信封。
+    await page.route(TASKS_ENDPOINT, (route) =>
+      fulfillJson(route, { data: { items: [] }, meta: { nextCursor: null, hasMore: false } }),
+    );
+
     await action.click();
     await expect(page).toHaveURL(/\/inbox$/);
     // 收件箱路由同样是真实可达的状态页。

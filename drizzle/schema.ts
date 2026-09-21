@@ -23,10 +23,13 @@ import {
   bigint,
   boolean,
   char,
+  date,
   index,
   integer,
+  jsonb,
   pgTable,
   smallint,
+  text,
   time,
   timestamp,
   uniqueIndex,
@@ -150,8 +153,140 @@ export const lifeAreas = pgTable(
   ],
 );
 
+/**
+ * 目标表（§4.3）。
+ *
+ * `result_metric` 是「结果进度」（手动维护），与由行动状态汇总的「行动进度」
+ * 分别存储、分别展示（SRS FR-023）；服务端不据 current/target 自动判定完成。
+ */
+export const goals = pgTable(
+  'goals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
+    name: varchar('name', { length: 160 }).notNull(),
+    /** 理由属敏感内容：不进日志原文（接口文档 §5）。 */
+    reason: text('reason'),
+    /** active / completed / paused / abandoned（§4.3）。 */
+    status: varchar('status', { length: 24 }).default('active').notNull(),
+    /** `date` 列存日历日本身（YYYY-MM-DD），无时区语义——"目标截止到哪一天"不是瞬时。 */
+    startDate: date('start_date', { mode: 'string' }),
+    targetDate: date('target_date', { mode: 'string' }),
+    resultMetric: jsonb('result_metric'),
+    ...commonColumns(),
+  },
+  (table) => [index('goals_user_status_idx').on(table.userId, table.status)],
+);
+
+/**
+ * 目标行动表（§4.4）。
+ *
+ * 行动挂在目标下；删除为软删（`deleted_at`），并在同事务把关联任务的
+ * `action_id` 置空（`goal_id` 保留、任务不删）——见 GOAL-001。
+ */
+export const actions = pgTable(
+  'actions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    goalId: uuid('goal_id')
+      .notNull()
+      .references(() => goals.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 160 }).notNull(),
+    minimumVersion: varchar('minimum_version', { length: 160 }),
+    /** 结构由调用方给定（如 { period: 'week', count: 3 }），服务端只存不解释。 */
+    targetFrequency: jsonb('target_frequency'),
+    estimatedMinutes: integer('estimated_minutes'),
+    /** active / completed / paused（§4.4）。 */
+    status: varchar('status', { length: 24 }).default('active').notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [index('actions_user_goal_idx').on(table.userId, table.goalId)],
+);
+
+/**
+ * 任务表（§4.5）。
+ *
+ * 状态流转的**唯一权威**是《数据库设计》§4.5 的完整合法流转表（含反向/重开），
+ * 以 `src/modules/tasks/domain/task.ts` 里与之同源导出的矩阵在应用层判定；
+ * 删除不经状态值，直接置 `deleted_at`（软删）。
+ */
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
+    goalId: uuid('goal_id').references(() => goals.id, { onDelete: 'set null' }),
+    actionId: uuid('action_id').references(() => actions.id, { onDelete: 'set null' }),
+    title: varchar('title', { length: 240 }).notNull(),
+    /** inbox / planned / in_progress / completed / partial / deferred / skipped / archived。 */
+    status: varchar('status', { length: 24 }).default('inbox').notNull(),
+    estimatedMinutes: integer('estimated_minutes'),
+    minimumVersion: varchar('minimum_version', { length: 160 }),
+    /** `date` 列存日历日本身（YYYY-MM-DD）——"截止到哪一天"不是瞬时，时区只影响日界计算。 */
+    dueDate: date('due_date', { mode: 'string' }),
+    recurrenceRule: jsonb('recurrence_rule'),
+    /** manual / ai / import。AI 只能产草稿，正式行恒为 manual（本批无 AI 写入）。 */
+    source: varchar('source', { length: 24 }).default('manual').notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('tasks_user_status_updated_idx').on(table.userId, table.status, table.updatedAt),
+    index('tasks_user_due_idx').on(table.userId, table.dueDate),
+    index('tasks_user_deleted_idx').on(table.userId, table.deletedAt),
+  ],
+);
+
+/**
+ * 写操作幂等识别表（§4.15）。
+ *
+ * 支撑接口文档 §1.1 的 `Idempotency-Key`：首次请求先占行（processing）再执行业务，
+ * 完成后存响应快照；同 key 的重试**重放**首次结果（409 `IDEMPOTENCY_REPLAY`），
+ * 同 key 但请求体指纹不同视为客户端错误（400）。唯一约束 `(user_id, key)` 是
+ * 并发占位的硬保证——行锁对"尚不存在的行"无能为力，与 users_single_local_unique 同理。
+ */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    key: varchar('key', { length: 128 }).notNull(),
+    /** 请求体指纹（sha-256 hex）。同 key 不同指纹＝客户端把同一个键用在了不同操作上。 */
+    requestHash: varchar('request_hash', { length: 64 }).notNull(),
+    /** 首次成功响应的快照，重放时返回。 */
+    responseSnapshot: jsonb('response_snapshot'),
+    /** processing / completed（§4.15）。 */
+    status: varchar('status', { length: 16 }).default('processing').notNull(),
+    ...commonColumns(),
+  },
+  (table) => [
+    uniqueIndex('idempotency_keys_user_key_unique').on(table.userId, table.key),
+    index('idempotency_keys_created_idx').on(table.createdAt),
+  ],
+);
+
 /** 表行类型，供仓储实现使用。 */
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type LifeAreaRow = typeof lifeAreas.$inferSelect;
 export type NewLifeAreaRow = typeof lifeAreas.$inferInsert;
+export type GoalRow = typeof goals.$inferSelect;
+export type NewGoalRow = typeof goals.$inferInsert;
+export type ActionRow = typeof actions.$inferSelect;
+export type NewActionRow = typeof actions.$inferInsert;
+export type TaskRow = typeof tasks.$inferSelect;
+export type NewTaskRow = typeof tasks.$inferInsert;
+export type IdempotencyKeyRow = typeof idempotencyKeys.$inferSelect;
+export type NewIdempotencyKeyRow = typeof idempotencyKeys.$inferInsert;

@@ -72,6 +72,9 @@ const EXPECTED_INFRASTRUCTURE_AREAS = [
   'ai-providers',
   'notifications',
   'cache',
+  // Phase 3（TASK-001）：写操作幂等识别的存储（`idempotency_keys` 表，DB §4.15）。
+  // 它是跨 tasks/goals 的横切关注点，且 Phase 5 同步会复用，值得独立成目录。
+  'idempotency',
 ];
 
 const ARCHITECTURE_DIR = path.join(PROJECT_ROOT, 'tests', 'unit', 'architecture');

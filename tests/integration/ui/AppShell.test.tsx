@@ -28,6 +28,10 @@ const router = vi.hoisted(() => ({ pathname: '/today' }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => router.pathname,
+  // 顶栏「＋快速添加」（UI-005 起）用 `useRouter().push('/inbox#quick-add')`
+  // 接线；集成层不给真路由，只保证 hook 存在——push 的行为由浏览器端
+  // （phase3-ui.spec）覆盖。
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 /**

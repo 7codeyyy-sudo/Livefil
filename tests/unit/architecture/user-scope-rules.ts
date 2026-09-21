@@ -136,8 +136,11 @@ export function findUnscopedQueries(files: readonly ScopedSourceFile[]): UserSco
 
     // 粗粒度补充：查询点数不应少于 where 数。漏写整个 `.where(` 时，
     // 上面的循环根本看不到那个查询，这条能把那种情况抓住。
+    // `Buffer.from(` 是已知的非查询误报（base64url 游标编解码），显式剔除——
+    // 否则每个用了游标分页的仓储都要为它加豁免。
     const querySites =
-      countOccurrences(file.content, '.from(') +
+      countOccurrences(file.content, '.from(') -
+      countOccurrences(file.content, 'Buffer.from(') +
       countOccurrences(file.content, '.update(') +
       countOccurrences(file.content, '.delete(');
 
