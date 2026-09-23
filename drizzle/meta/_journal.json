@@ -15,6 +15,13 @@
       "when": 1789966723447,
       "tag": "0001_perpetual_captain_america",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790039660168,
+      "tag": "0002_robust_komodo",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -235,7 +236,14 @@ export const tasks = pgTable(
     /** `date` 列存日历日本身（YYYY-MM-DD）——"截止到哪一天"不是瞬时，时区只影响日界计算。 */
     dueDate: date('due_date', { mode: 'string' }),
     recurrenceRule: jsonb('recurrence_rule'),
-    /** manual / ai / import。AI 只能产草稿，正式行恒为 manual（本批无 AI 写入）。 */
+    /**
+     * 物化实例溯源（DB §4.5，Phase 4 起启用）：带 recurrence_rule 的行是模板，
+     * 展开出的实例行指向模板。模板行自身为 NULL。
+     */
+    templateId: uuid('template_id').references((): AnyPgColumn => tasks.id, {
+      onDelete: 'cascade',
+    }),
+    /** manual / ai / import / recurrence（Phase 4：物化实例）。 */
     source: varchar('source', { length: 24 }).default('manual').notNull(),
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     ...commonColumns(),
@@ -244,6 +252,13 @@ export const tasks = pgTable(
     index('tasks_user_status_updated_idx').on(table.userId, table.status, table.updatedAt),
     index('tasks_user_due_idx').on(table.userId, table.dueDate),
     index('tasks_user_deleted_idx').on(table.userId, table.deletedAt),
+    /**
+     * 实例展开的幂等硬保证（DB §4.5）：同一模板同一日历日只可能有一行实例。
+     * 部分唯一——模板行（template_id 为 NULL）不参与该约束。
+     */
+    uniqueIndex('tasks_template_due_unique')
+      .on(table.userId, table.templateId, table.dueDate)
+      .where(sql`template_id is not null`),
   ],
 );
 
@@ -290,3 +305,168 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type NewTaskRow = typeof tasks.$inferInsert;
 export type IdempotencyKeyRow = typeof idempotencyKeys.$inferSelect;
 export type NewIdempotencyKeyRow = typeof idempotencyKeys.$inferInsert;
+
+/* ------------------------------------------------------------------ */
+/* Phase 4（DB §4.6/4.7/4.8/4.16/4.17）                                */
+/* ------------------------------------------------------------------ */
+
+/** 时间块（DB §4.6）：UTC 存储时刻 + `timezone` 列保留解释语义。 */
+export const scheduleBlocks = pgTable(
+  'schedule_blocks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
+    actionId: uuid('action_id').references(() => actions.id, { onDelete: 'cascade' }),
+    /** 例程展开溯源（DB §4.6，Phase 4 起启用）。 */
+    routineId: uuid('routine_id').references(() => routines.id, { onDelete: 'cascade' }),
+    routineStepId: uuid('routine_step_id').references(() => routineSteps.id, {
+      onDelete: 'cascade',
+    }),
+    startsAtUtc: timestamp('starts_at_utc', { withTimezone: true, mode: 'date' }).notNull(),
+    endsAtUtc: timestamp('ends_at_utc', { withTimezone: true, mode: 'date' }).notNull(),
+    timezone: varchar('timezone', { length: 64 }).notNull(),
+    /** manual / suggested / imported / routine。 */
+    source: varchar('source', { length: 24 }).default('manual').notNull(),
+    /** planned / active / completed / adjusted / cancelled。 */
+    status: varchar('status', { length: 24 }).default('planned').notNull(),
+    /** none / warning / confirmed。 */
+    conflictState: varchar('conflict_state', { length: 24 }).default('none').notNull(),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('schedule_blocks_user_window_idx').on(table.userId, table.startsAtUtc, table.endsAtUtc),
+  ],
+);
+
+/** 例程定义（DB §4.7）：recurrence_rule 结构同 tasks（§4.5 最小规则）。 */
+export const routines = pgTable('routines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 160 }).notNull(),
+  recurrenceRule: jsonb('recurrence_rule').notNull(),
+  /** `HH:MM` 本地锚点；安排例程时各步顺序展开的默认起点。 */
+  anchorTime: varchar('anchor_time', { length: 5 }),
+  timezone: varchar('timezone', { length: 64 }).notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+  ...commonColumns(),
+});
+
+/** 例程步骤（DB §4.7）：`(routine_id, position)` 唯一且从 0 连续。 */
+export const routineSteps = pgTable(
+  'routine_steps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    routineId: uuid('routine_id')
+      .notNull()
+      .references(() => routines.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 240 }).notNull(),
+    position: integer('position').notNull(),
+    estimatedMinutes: integer('estimated_minutes'),
+    minimumVersion: varchar('minimum_version', { length: 160 }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [uniqueIndex('routine_steps_position_unique').on(table.routineId, table.position)],
+);
+
+/**
+ * 执行记录（DB §4.8）：**追加式**——无 version、无更新端点，重复提交靠
+ * Idempotency-Key（§7）；历史快照语义（名称/时长随后续改名不失真）由
+ * 各列在写入时刻的取值承载。
+ */
+export const executionLogs = pgTable(
+  'execution_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    actionId: uuid('action_id').references(() => actions.id, { onDelete: 'set null' }),
+    scheduleBlockId: uuid('schedule_block_id').references(() => scheduleBlocks.id, {
+      onDelete: 'set null',
+    }),
+    /** completed / minimum_completed / partial / deferred / skipped。 */
+    status: varchar('status', { length: 24 }).notNull(),
+    plannedMinutes: integer('planned_minutes'),
+    actualMinutes: integer('actual_minutes'),
+    reasonCode: varchar('reason_code', { length: 40 }),
+    note: text('note'),
+    /** low / medium / high。 */
+    energyLevel: varchar('energy_level', { length: 16 }),
+    moodScore: smallint('mood_score'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('execution_logs_user_time_idx').on(table.userId, table.occurredAt),
+    index('execution_logs_user_task_time_idx').on(table.userId, table.taskId, table.occurredAt),
+  ],
+);
+
+/**
+ * 固定事项（DB §4.16）：单次事项 / 重复模板 / 重复实例三形态——
+ * `recurrence_rule` 非空即模板，`template_id` 非空即实例。
+ */
+export const fixedCommitments = pgTable(
+  'fixed_commitments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 240 }).notNull(),
+    templateId: uuid('template_id').references((): AnyPgColumn => fixedCommitments.id, {
+      onDelete: 'cascade',
+    }),
+    /** 实例行的归属日历日；模板行 NULL。 */
+    localDate: date('local_date', { mode: 'string' }),
+    startsAtUtc: timestamp('starts_at_utc', { withTimezone: true, mode: 'date' }),
+    endsAtUtc: timestamp('ends_at_utc', { withTimezone: true, mode: 'date' }),
+    /** `HH:MM` 本地钟点；仅模板行有。 */
+    startsAtLocal: varchar('starts_at_local', { length: 5 }),
+    durationMinutes: integer('duration_minutes').notNull(),
+    timezone: varchar('timezone', { length: 64 }).notNull(),
+    recurrenceRule: jsonb('recurrence_rule'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('fixed_commitments_user_date_idx').on(table.userId, table.localDate),
+    index('fixed_commitments_user_window_idx').on(table.userId, table.startsAtUtc, table.endsAtUtc),
+    uniqueIndex('fixed_commitments_template_date_unique')
+      .on(table.userId, table.templateId, table.localDate)
+      .where(sql`template_id is not null`),
+  ],
+);
+
+/** 恢复模式手动态（DB §4.17）：每用户一行，upsert 即并发口径。 */
+export const recoveryStates = pgTable('recovery_states', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').notNull(),
+  since: timestamp('since', { withTimezone: true, mode: 'date' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
+export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;
+export type RoutineRow = typeof routines.$inferSelect;
+export type RoutineStepRow = typeof routineSteps.$inferSelect;
+export type ExecutionLogRow = typeof executionLogs.$inferSelect;
+export type FixedCommitmentRow = typeof fixedCommitments.$inferSelect;
+export type RecoveryStateRow = typeof recoveryStates.$inferSelect;

@@ -38,6 +38,37 @@ export async function stubTaskQueryAsEmpty(page: Page): Promise<void> {
       body: JSON.stringify(EMPTY_TASKS_ENVELOPE),
     }),
   );
+  /**
+   * 今日页自 UI-007 起走 `GET /today` 聚合——数据源迁移后这里必须一并 stub，
+   * 否则真实请求在本地 500 / 在 CI 因无 DATABASE_URL 必红（审查重要 7，
+   * 按 tokens 用例注释的原意：stub 数据源而不是给 CI 加数据库）。
+   */
+  await page.route('**/api/v1/today*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          date: '2026-01-01',
+          currentAction: null,
+          blocks: [],
+          fixedCommitments: [],
+          unscheduledTasks: [],
+          routines: [],
+          habits: [],
+          load: {
+            fixedMinutes: 0,
+            plannedMinutes: 0,
+            completedMinutes: 0,
+            availableMinutes: 960,
+            overloaded: false,
+          },
+          recovery: { manual: false, since: null, autoTriggered: false, suggestions: [] },
+        },
+        meta: { requestId: 'stub' },
+      }),
+    }),
+  );
 }
 
 /**

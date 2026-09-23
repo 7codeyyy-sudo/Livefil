@@ -22,17 +22,26 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { ToastProvider } from '@/shared/ui/components';
 import TodayPage from '../../app/(app)/today/page';
 
 describe('页面冒烟', () => {
   it('页面标题渲染为一级标题', () => {
-    render(<TodayPage />);
+    render(
+      <ToastProvider>
+        <TodayPage />
+      </ToastProvider>,
+    );
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('今日');
   });
 
   it('渲染真实状态区，而不是「建设中」占位', () => {
-    render(<TodayPage />);
+    render(
+      <ToastProvider>
+        <TodayPage />
+      </ToastProvider>,
+    );
 
     // UI-004 起今日页是**真实状态页**（客户端取数 + 四态容器），不再是占位页。
     // 反向断言「没有建设中」正是这次交付的内容：占位被真实状态取代。

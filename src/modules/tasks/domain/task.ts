@@ -92,8 +92,14 @@ export interface Task {
   /** 日历日（YYYY-MM-DD），日界的时区语义由展示层处理。 */
   readonly dueDate: string | null;
   readonly recurrenceRule: unknown;
-  readonly source: 'manual' | 'ai' | 'import';
+  readonly source: 'manual' | 'ai' | 'import' | 'recurrence';
   readonly deletedAt: string | null;
+  /**
+   * 创建时刻（ISO）。不对外透出（DTO 层过滤），但重复任务的实例展开需要它：
+   * `interval > 1` 的规则必须有一个稳定锚点日——模板的创建日即最自然的锚点
+   * （DB §4.5 冻结口径：展开从锚点数起）。
+   */
+  readonly createdAt: string;
   readonly version: number;
 }
 
