@@ -73,6 +73,12 @@ export interface ActionRepository {
    * 任务不删）——否则任务会指向一个已删除的行动，详情无法解析。
    */
   softDelete(userId: string, actionId: string): Promise<boolean>;
+
+  /**
+   * 习惯（FR-030，2026-09-21 冻结口径）：active 目标下带 `target_frequency`
+   * 的行动——无独立 habits 表。/today 的 `doneToday` 由执行记录另行判定。
+   */
+  listHabitActions(userId: string): Promise<readonly Action[]>;
 }
 
 /** 由行动状态汇总出行动进度（纯函数，供用例与详情聚合复用）。 */

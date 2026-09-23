@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 
 import { ManageTaskUseCase } from '@/modules/tasks/application/manage-task.ts';
+import { materializeRecurringTasks } from '@/modules/scheduling/application/materialize';
 import {
   createTaskSchema,
   listTasksQuerySchema,
@@ -46,6 +47,15 @@ export const GET = createApiRouteHandler(
       listTasksQuerySchema,
       Object.fromEntries(request.nextUrl.searchParams),
     );
+    // DB §4.5 冻结：from/to 窗口查询触发重复任务物化（幂等靠唯一约束）。
+    if (typeof query.from === 'string' && typeof query.to === 'string') {
+      await materializeRecurringTasks(
+        session.userId,
+        query.from,
+        query.to,
+        getRepositories().tasks,
+      );
+    }
     const page = await useCase().list(session.userId, query);
 
     const { status, body } = toSuccessResponse(

@@ -45,6 +45,7 @@ function makeTask(overrides: Partial<Task> = {}): Writable<Task> {
     recurrenceRule: null,
     source: 'manual',
     deletedAt: null,
+    createdAt: '2026-09-01T00:00:00.000Z',
     version: 1,
     ...overrides,
   };
@@ -145,6 +146,21 @@ function fakeTaskRepository(
         updated.push(current);
       }
       return updated;
+    },
+    async listRecurringTemplates() {
+      return [];
+    },
+    async findByTemplateAndDate() {
+      return null;
+    },
+    async createRecurrenceInstance() {
+      throw new Error('not used in this suite');
+    },
+    async listUnscheduledOn() {
+      return [];
+    },
+    async findByIds() {
+      return [];
     },
     async attachAction(_userId, taskId, links) {
       const task = rows.find((t) => t.id === taskId);

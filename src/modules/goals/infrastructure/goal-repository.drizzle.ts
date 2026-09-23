@@ -5,7 +5,7 @@
  * 拆开只会复制这些私有细节。行动进度（`summarizeActionProgress`）是领域层
  * 的纯函数——这里只负责把行动行交给它。
  */
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import type { Database } from '@/infrastructure/database/client.ts';
 import {
@@ -322,6 +322,24 @@ export function createActionRepository(db: Database): ActionRepository {
         await tx.update(tasks).set({ actionId: null }).where(eq(tasks.actionId, actionId));
         return true;
       });
+    },
+
+    async listHabitActions(userId) {
+      const rows = await db
+        .select({ action: actions })
+        .from(actions)
+        .innerJoin(goals, eq(actions.goalId, goals.id))
+        // 习惯＝active 目标下带 target_frequency 的行动（冻结口径，无独立表）。
+        .where(
+          and(
+            eq(actions.userId, userId),
+            isNull(actions.deletedAt),
+            eq(goals.status, 'active'),
+            isNotNull(actions.targetFrequency),
+          ),
+        )
+        .orderBy(asc(actions.createdAt), asc(actions.id));
+      return rows.map((row) => toAction(row.action));
     },
   } satisfies ActionRepository;
 }

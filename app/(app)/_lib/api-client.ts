@@ -57,8 +57,8 @@ export async function fetchJson<T>(path: string, signal: AbortSignal): Promise<A
   return readEnvelope<T>(response);
 }
 
-/** 写操作的方法（本批用到的那三个）。 */
-export type MutationMethod = 'POST' | 'PATCH' | 'DELETE';
+/** 写操作的方法（本批用到的那四个；PUT 用于恢复模式单行 upsert）。 */
+export type MutationMethod = 'POST' | 'PATCH' | 'DELETE' | 'PUT';
 
 /**
  * 发一次写请求并返回信封（IAM-002 / IAM-003 的设置与领域保存）。
@@ -81,8 +81,10 @@ export async function sendJson<T>(
   method: MutationMethod,
   path: string,
   body?: unknown,
+  options?: { readonly headers?: Readonly<Record<string, string>> },
 ): Promise<ApiEnvelope<T>> {
   const hasBody = body !== undefined;
+  const extraHeaders = options?.headers ?? {};
 
   const response = await fetch(path, {
     method,
@@ -90,6 +92,7 @@ export async function sendJson<T>(
     headers: {
       accept: 'application/json',
       ...(hasBody ? { 'content-type': 'application/json' } : {}),
+      ...extraHeaders,
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });

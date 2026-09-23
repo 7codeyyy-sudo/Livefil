@@ -51,6 +51,20 @@ import {
 } from '@/modules/goals/infrastructure/goal-repository.drizzle.ts';
 import type { TaskRepository } from '@/modules/tasks/domain/task-repository.ts';
 import { createTaskRepository } from '@/modules/tasks/infrastructure/task-repository.drizzle.ts';
+import type { ScheduleBlockRepository } from '@/modules/scheduling/domain/schedule-block-repository.ts';
+import { createScheduleBlockRepository } from '@/modules/scheduling/infrastructure/schedule-block-repository.drizzle.ts';
+import type { FixedCommitmentRepository } from '@/modules/scheduling/domain/fixed-commitment-repository.ts';
+import { createFixedCommitmentRepository } from '@/modules/scheduling/infrastructure/fixed-commitment-repository.drizzle.ts';
+import type {
+  ExecutionLogRepository,
+  RecoveryStateRepository,
+} from '@/modules/execution/domain/execution-repository.ts';
+import {
+  createExecutionLogRepository,
+  createRecoveryStateRepository,
+} from '@/modules/execution/infrastructure/execution-repositories.drizzle.ts';
+import type { RoutineRepository } from '@/modules/routines/domain/routine-repository.ts';
+import { createRoutineRepository } from '@/modules/routines/infrastructure/routine-repository.drizzle.ts';
 import { createAuditLogger, type AuditLogger } from '@/shared/telemetry/audit-event.ts';
 import { serverEnv } from '@/shared/validation/env.server.ts';
 
@@ -111,6 +125,11 @@ export function getRepositories(): {
   readonly tasks: TaskRepository;
   readonly goals: GoalRepository;
   readonly actions: ActionRepository;
+  readonly scheduleBlocks: ScheduleBlockRepository;
+  readonly fixedCommitments: FixedCommitmentRepository;
+  readonly executionLogs: ExecutionLogRepository;
+  readonly recoveryStates: RecoveryStateRepository;
+  readonly routines: RoutineRepository;
 } {
   const db = getDatabaseClient().db;
   return {
@@ -119,6 +138,11 @@ export function getRepositories(): {
     tasks: createTaskRepository(db),
     goals: createGoalRepository(db),
     actions: createActionRepository(db),
+    scheduleBlocks: createScheduleBlockRepository(db),
+    fixedCommitments: createFixedCommitmentRepository(db),
+    executionLogs: createExecutionLogRepository(db),
+    recoveryStates: createRecoveryStateRepository(db),
+    routines: createRoutineRepository(db),
   };
 }
 

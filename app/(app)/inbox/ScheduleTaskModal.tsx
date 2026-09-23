@@ -25,6 +25,8 @@ export type ScheduleTaskModalProps = {
 export function ScheduleTaskModal({ taskIds, onClose, onDone }: ScheduleTaskModalProps) {
   const [dueDate, setDueDate] = useState('');
   const [lifeAreaId, setLifeAreaId] = useState('');
+  const [startAtLocal, setStartAtLocal] = useState('09:00');
+  const [durationMinutes, setDurationMinutes] = useState('30');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -43,6 +45,37 @@ export function ScheduleTaskModal({ taskIds, onClose, onDone }: ScheduleTaskModa
         dueDate: dueDate === '' ? null : dueDate,
         lifeAreaId: lifeAreaId === '' ? null : lifeAreaId,
       });
+      // 阻塞 2 修正：安排必须同时产生时间块（否则时间线永远为空）。
+      // 多选时为每个任务建一个同起点顺延的块；单选即一块。
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const blockDate = dueDate === '' ? new Date().toISOString().slice(0, 10) : dueDate;
+      const duration = Math.max(1, Number(durationMinutes) || 30);
+      let cursorMinutes = 0;
+      for (const taskId of taskIds) {
+        const startMinutes = startAtLocal.split(':');
+        const baseMinutes = Number(startMinutes[0]) * 60 + Number(startMinutes[1] ?? 0);
+        const toHHMM = (total: number) =>
+          `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+        // 审查 8：本地墙钟必须带时区偏移，否则服务端按部署机时区解析会错点。
+        const offset = new Date().getTimezoneOffset();
+        const sign = offset <= 0 ? '+' : '-';
+        const abs = Math.abs(offset);
+        const offsetSuffix =
+          sign +
+          String(Math.floor(abs / 60)).padStart(2, '0') +
+          ':' +
+          String(abs % 60).padStart(2, '0');
+        const startsAt = `${blockDate}T${toHHMM(baseMinutes + cursorMinutes)}:00${offsetSuffix}`;
+        const endsAt = `${blockDate}T${toHHMM(baseMinutes + cursorMinutes + duration)}:00${offsetSuffix}`;
+        await sendJson('POST', '/api/v1/schedule-blocks', {
+          taskId,
+          startsAt,
+          endsAt,
+          timezone: timeZone,
+          source: 'manual',
+        });
+        cursorMinutes += duration;
+      }
       onDone(taskIds.length);
     } catch (error) {
       setErrorMessage(error instanceof ApiRequestError ? error.message : '安排失败，请稍后重试');
@@ -75,6 +108,23 @@ export function ScheduleTaskModal({ taskIds, onClose, onDone }: ScheduleTaskModa
           value={dueDate}
           onChange={(event) => {
             setDueDate(event.target.value);
+          }}
+        />
+        <Input
+          label="开始时间"
+          type="time"
+          value={startAtLocal}
+          onChange={(event) => {
+            setStartAtLocal(event.target.value);
+          }}
+        />
+        <Input
+          label="时长（分钟）"
+          type="number"
+          min={1}
+          value={durationMinutes}
+          onChange={(event) => {
+            setDurationMinutes(event.target.value);
           }}
         />
         <Select

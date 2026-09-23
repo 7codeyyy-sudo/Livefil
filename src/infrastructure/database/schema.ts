@@ -15,14 +15,22 @@
  */
 export {
   actions,
+  executionLogs,
+  fixedCommitments,
   goals,
   idempotencyKeys,
   lifeAreas,
+  recoveryStates,
+  routineSteps,
+  routines,
+  scheduleBlocks,
   tasks,
   users,
 } from '../../../drizzle/schema.ts';
 export type {
   ActionRow,
+  ExecutionLogRow,
+  FixedCommitmentRow,
   GoalRow,
   IdempotencyKeyRow,
   LifeAreaRow,
@@ -30,8 +38,13 @@ export type {
   NewGoalRow,
   NewIdempotencyKeyRow,
   NewLifeAreaRow,
+  NewScheduleBlockRow,
   NewTaskRow,
   NewUserRow,
+  RecoveryStateRow,
+  RoutineRow,
+  RoutineStepRow,
+  ScheduleBlockRow,
   TaskRow,
   UserRow,
 } from '../../../drizzle/schema.ts';

@@ -7,10 +7,10 @@
  * - **排序键固定 `created_at desc`**（同上，不开放排序参数），游标是
  *   `(created_at, id)` 的不透明编码——同一毫秒可能有多行，只用时间做游标会跳行。
  */
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '@/infrastructure/database/client.ts';
-import { tasks, type TaskRow } from '@/infrastructure/database/schema.ts';
+import { scheduleBlocks, tasks, type TaskRow } from '@/infrastructure/database/schema.ts';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errors/app-error.ts';
 
 import { assertTaskTransition, TASK_STATUSES, type Task, type TaskStatus } from '../domain/task.ts';
@@ -39,6 +39,7 @@ function toTask(row: TaskRow): Task {
     recurrenceRule: row.recurrenceRule,
     source: row.source as Task['source'],
     deletedAt: row.deletedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
     version: row.version,
   };
 }
@@ -308,6 +309,98 @@ export function createTaskRepository(db: Database): TaskRepository {
         }
         return toTask(next);
       });
+    },
+
+    /* ---- Phase 4：重复任务物化 ---- */
+
+    async listRecurringTemplates(userId) {
+      const rows = await db
+        .select()
+        .from(tasks)
+        // 实例行的 recurrence_rule 为 NULL，`is not null` 同时过滤掉它们。
+        .where(and(eq(tasks.userId, userId), notDeleted, isNotNull(tasks.recurrenceRule)))
+        .orderBy(asc(tasks.createdAt));
+      return rows.map(toTask);
+    },
+
+    async findByTemplateAndDate(userId, templateId, dueDate) {
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.userId, userId),
+            eq(tasks.templateId, templateId),
+            eq(tasks.dueDate, dueDate),
+          ),
+        )
+        .limit(1);
+      return rows[0] === undefined ? null : toTask(rows[0]);
+    },
+
+    async createRecurrenceInstance(userId, template, dueDate) {
+      const inserted = await db
+        .insert(tasks)
+        .values({
+          userId,
+          templateId: template.id,
+          lifeAreaId: template.lifeAreaId,
+          goalId: template.goalId,
+          actionId: template.actionId,
+          title: template.title,
+          // 冻结口径：实例 planned、rule 置 null、source='recurrence'，
+          // 其余字段继承模板（实例＝当时的字段快照）。
+          status: 'planned',
+          estimatedMinutes: template.estimatedMinutes,
+          minimumVersion: template.minimumVersion,
+          dueDate,
+          recurrenceRule: null,
+          source: 'recurrence',
+        })
+        .onConflictDoNothing()
+        .returning();
+      const row = inserted[0];
+      if (row === undefined) {
+        // 并发展开撞了唯一约束：幂等语义，回读既有实例。
+        const existing = await this.findByTemplateAndDate(userId, template.id, dueDate);
+        if (existing === null) {
+          throw new ConflictError('重复任务实例创建冲突');
+        }
+        return existing;
+      }
+      return toTask(row);
+    },
+
+    async listUnscheduledOn(userId, date, limit) {
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.userId, userId),
+            eq(tasks.status, 'planned'),
+            notDeleted,
+            isNotNull(tasks.dueDate),
+            // 含过期：due ≤ date 正是要把拖期任务浮上来（FR-030 overdue 标记）。
+            lte(tasks.dueDate, date),
+            // 当日已有未取消时间块的不算"未安排"。
+            sql`not exists (select 1 from ${scheduleBlocks} sb where sb.task_id = ${tasks.id} and sb.status <> 'cancelled')`,
+          ),
+        )
+        .orderBy(asc(tasks.dueDate), asc(tasks.createdAt))
+        .limit(limit);
+      return rows.map(toTask);
+    },
+
+    async findByIds(userId, ids) {
+      if (ids.length === 0) {
+        return [];
+      }
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(and(eq(tasks.userId, userId), inArray(tasks.id, [...ids]), notDeleted));
+      return rows.map(toTask);
     },
   } satisfies TaskRepository;
 }

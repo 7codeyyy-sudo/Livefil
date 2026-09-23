@@ -87,4 +87,27 @@ export interface TaskRepository {
     taskId: string,
     links: { readonly goalId: string; readonly actionId: string },
   ): Promise<Task>;
+
+  /* ---- Phase 4：重复任务物化（DB §4.5 冻结口径） ---- */
+
+  /** 全部带 `recurrence_rule` 的未删除模板（实例行 rule 为 null，天然不在此列）。 */
+  listRecurringTemplates(userId: string): Promise<readonly Task[]>;
+
+  /** 展开幂等的回读：同模板同日历日是否已有实例。 */
+  findByTemplateAndDate(userId: string, templateId: string, dueDate: string): Promise<Task | null>;
+
+  /**
+   * 创建物化实例行：`template_id` 溯源、rule 置 null、`planned`、
+   * `source='recurrence'`，其余字段继承模板（实例＝当时的字段快照）。
+   */
+  createRecurrenceInstance(userId: string, template: Task, dueDate: string): Promise<Task>;
+
+  /**
+   * 今日聚合（FR-030）的「未安排」：`planned`、`due_date ≤ date`（含过期）、
+   * 且当日没有未取消时间块的任务实例，按 dueDate 升序、上限由调用方给（50）。
+   */
+  listUnscheduledOn(userId: string, date: string, limit: number): Promise<readonly Task[]>;
+
+  /** 批量按 id 读取（今日聚合给建议拼标题用；顺序不保证，缺失的跳过）。 */
+  findByIds(userId: string, ids: readonly string[]): Promise<readonly Task[]>;
 }
