@@ -61,6 +61,42 @@ export async function fetchJson<T>(path: string, signal: AbortSignal): Promise<A
 export type MutationMethod = 'POST' | 'PATCH' | 'DELETE' | 'PUT';
 
 /**
+ * 一条没能送达的本地写操作（SYNC-003，《UI 页面规范》v0.20 §4.9.1 的时机 ④）。
+ *
+ * 字段与 `pending_operations` 的一条记录同源：本客户端只负责说清「用户刚才想改
+ * 什么」，是否入队、怎么推送由同步层决定。
+ */
+export interface SyncWriteDescriptor {
+  /** 契约里的单数 snake_case 类型名（`task` / `schedule_block` …）。 */
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly operationType: 'create' | 'update' | 'delete';
+  /** 期望的服务端版本（CAS 依据）；请求体里没有 `version` 时为 `null`。 */
+  readonly baseVersion: number | null;
+  /** 待写入的实体字段。 */
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * 本地写操作的接收方（由 `sync-runtime` 接线）。
+ *
+ * 端口定义在**消费方**这里而不是同步模块里，理由与 `app/_lib/idempotency.ts`
+ * 相同：本文件不该为了一个回调去依赖模块内部，接线发生在调用方。
+ */
+export type SyncWriteSink = (descriptor: SyncWriteDescriptor) => Promise<void>;
+
+let syncWriteSink: SyncWriteSink | null = null;
+
+/**
+ * 接线本地写操作的接收方；传 `null` 卸载。
+ *
+ * 未接线时本模块的行为与 SYNC-003 之前**逐字节一致**（失败照常抛出，什么都不记）。
+ */
+export function setSyncWriteSink(sink: SyncWriteSink | null): void {
+  syncWriteSink = sink;
+}
+
+/**
  * 发一次写请求并返回信封（IAM-002 / IAM-003 的设置与领域保存）。
  *
  * ## 为什么**没有** `signal` 参数
@@ -76,6 +112,8 @@ export type MutationMethod = 'POST' | 'PATCH' | 'DELETE' | 'PUT';
  * 只给一句 message 的话，调用方只能靠比对文案来分辨，那是注定会漂移的。
  *
  * @throws {ApiRequestError} 非 2xx、响应不是合法 JSON、或信封结构不符时。
+ * @throws {Error} 请求根本没送出去时（网络中断、超时、被中止）——此时原始错误
+ *   原样抛出，另外**尽力**把这条编辑交给同步层入队（见 `enqueueFailedWrite`）。
  */
 export async function sendJson<T>(
   method: MutationMethod,
@@ -86,18 +124,143 @@ export async function sendJson<T>(
   const hasBody = body !== undefined;
   const extraHeaders = options?.headers ?? {};
 
-  const response = await fetch(path, {
-    method,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-    headers: {
-      accept: 'application/json',
-      ...(hasBody ? { 'content-type': 'application/json' } : {}),
-      ...extraHeaders,
-    },
-    ...(hasBody ? { body: JSON.stringify(body) } : {}),
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+      headers: {
+        accept: 'application/json',
+        ...(hasBody ? { 'content-type': 'application/json' } : {}),
+        ...extraHeaders,
+      },
+      ...(hasBody ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (error) {
+    // 请求**没有到达服务端**（网络中断 / 超时 / 传输层错误）：服务端没有给出任何
+    // 结论，这条编辑只存在于本地。交给同步层入队，否则用户的改动就此消失。
+    //
+    // 判据是"抛出的不是 `ApiRequestError`"：一旦拿到了任何 HTTP 响应（含 4xx/5xx），
+    // 服务端已经明确答复，界面会以错误态呈现、用户可自行重试。此时再入队会把一条
+    // 已知被拒的操作塞进队列，且与 §4.9.1 状态 4 的触发条件（**推送**请求本身失败）
+    // 不是一回事。
+    await enqueueFailedWrite(method, path, body);
+    throw error;
+  }
 
   return readEnvelope<T>(response);
+}
+
+/**
+ * 尽力把一条送不出去的写请求交给同步层。
+ *
+ * 同步层未接线、路径不在可同步集合内、或入队本身失败（隐私模式、配额耗尽）时
+ * 都静默跳过：这几种情况的共同点是"原始错误才是调用方要看到的那一个"，
+ * 在这里抛出的任何东西都会把真正的原因盖掉。
+ */
+async function enqueueFailedWrite(
+  method: MutationMethod,
+  path: string,
+  body: unknown,
+): Promise<void> {
+  const sink = syncWriteSink;
+  if (sink === null) {
+    return;
+  }
+
+  const descriptor = describeFailedWrite(method, path, body);
+  if (descriptor === null) {
+    return;
+  }
+
+  try {
+    await sink(descriptor);
+  } catch {
+    // 见函数说明：入队失败不改变"这次请求失败了"这个事实。
+  }
+}
+
+/**
+ * 写端点集合 → 同步实体类型（snake_case 单数，与《接口文档》§12 同口径）。
+ *
+ * 刻意是一张**白名单**而不是从路径反推类型名：路径里的 `schedule-blocks` 与
+ * 实体类型 `schedule_block` 之间没有机械的转换规则，猜错的后果是把操作记到
+ * 一个服务端不认识的类型上（逐条 `rejected`）。同时白名单天然把
+ * `/api/v1/sync/**`（push / resolve 自己）排除在外——同步层的请求绝不该被
+ * 自己再入队一遍。
+ */
+const SYNC_ENTITY_BY_COLLECTION: Readonly<Record<string, string>> = {
+  tasks: 'task',
+  goals: 'goal',
+  actions: 'action',
+  routines: 'routine',
+  'schedule-blocks': 'schedule_block',
+  'fixed-commitments': 'fixed_commitment',
+  'life-areas': 'life_area',
+};
+
+/** 可入队的路径形态：`/api/v1/<集合>/<实体 uuid>`，且**没有**更深的子路径。 */
+const ENTITY_WRITE_PATH =
+  /^\/api\/v1\/([^/]+)\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$/;
+
+/**
+ * 方法 → 操作类型。
+ *
+ * 只有「改一个已存在的实体」与「删一个已存在的实体」两种形态可入队：
+ * `POST` 大多是创建或子资源动作（`/tasks/{id}/archive`、`/tasks/batch`），
+ * 它要成功才拿得到新 id、失败则没有可入队的实体——本批不猜。
+ */
+const OPERATION_BY_METHOD: Readonly<Record<string, 'update' | 'delete'>> = {
+  PATCH: 'update',
+  PUT: 'update',
+  DELETE: 'delete',
+};
+
+/** 一次失败的写请求 → 同步描述；形态不可入队时返回 `null`。 */
+function describeFailedWrite(
+  method: MutationMethod,
+  path: string,
+  body: unknown,
+): SyncWriteDescriptor | null {
+  const operationType = OPERATION_BY_METHOD[method];
+  if (operationType === undefined) {
+    return null;
+  }
+
+  const matched = ENTITY_WRITE_PATH.exec(path);
+  if (matched === null) {
+    return null;
+  }
+  const [, collection, entityId] = matched;
+  if (collection === undefined || entityId === undefined) {
+    return null;
+  }
+
+  const entityType = SYNC_ENTITY_BY_COLLECTION[collection];
+  if (entityType === undefined) {
+    return null;
+  }
+
+  if (operationType === 'delete') {
+    // `DELETE` 没有请求体（本项目的删除端点都不带 body），因此既没有版本可做
+    // CAS，也没有字段可写；实体本身由服务端按 id 找到。
+    return { entityType, entityId, operationType, baseVersion: null, payload: {} };
+  }
+
+  const fields = isRecord(body) ? body : {};
+  const { version, ...payload } = fields;
+  return {
+    entityType,
+    entityId,
+    operationType,
+    baseVersion: typeof version === 'number' ? version : null,
+    payload,
+  };
+}
+
+/** 是否为可逐键读取的普通对象（数组与 `null` 都不算）。 */
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
