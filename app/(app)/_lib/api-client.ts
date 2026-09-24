@@ -144,7 +144,13 @@ export async function sendJson<T>(
     // 服务端已经明确答复，界面会以错误态呈现、用户可自行重试。此时再入队会把一条
     // 已知被拒的操作塞进队列，且与 §4.9.1 状态 4 的触发条件（**推送**请求本身失败）
     // 不是一回事。
-    await enqueueFailedWrite(method, path, body);
+    //
+    // **本地新建**（白名单集合的 POST）是个例外：它入队后能当场合成一个"成功"信封
+    // 返回给调用方（id 由客户端生成），使界面不必为离线态分叉出另一套失败分支。
+    const offlineResult = await enqueueFailedWrite(method, path, body);
+    if (offlineResult !== null) {
+      return offlineResult as ApiEnvelope<T>;
+    }
     throw error;
   }
 
@@ -157,27 +163,33 @@ export async function sendJson<T>(
  * 同步层未接线、路径不在可同步集合内、或入队本身失败（隐私模式、配额耗尽）时
  * 都静默跳过：这几种情况的共同点是"原始错误才是调用方要看到的那一个"，
  * 在这里抛出的任何东西都会把真正的原因盖掉。
+ *
+ * @returns 本地新建成功入队时，返回一个可当作成功结果的信封（调用方据此走既有
+ *   成功分支）；其余形态返回 `null`，由 `sendJson` 抛出原始错误。
  */
 async function enqueueFailedWrite(
   method: MutationMethod,
   path: string,
   body: unknown,
-): Promise<void> {
+): Promise<ApiEnvelope<unknown> | null> {
   const sink = syncWriteSink;
   if (sink === null) {
-    return;
+    return null;
   }
 
-  const descriptor = describeFailedWrite(method, path, body);
-  if (descriptor === null) {
-    return;
+  const outcome = describeFailedWrite(method, path, body);
+  if (outcome === null) {
+    return null;
   }
 
   try {
-    await sink(descriptor);
+    await sink(outcome.descriptor);
   } catch {
     // 见函数说明：入队失败不改变"这次请求失败了"这个事实。
+    return null;
   }
+
+  return outcome.offlineResult;
 }
 
 /**
@@ -204,11 +216,18 @@ const ENTITY_WRITE_PATH =
   /^\/api\/v1\/([^/]+)\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$/;
 
 /**
- * 方法 → 操作类型。
+ * 创建请求的路径形态：`/api/v1/<集合>`，**没有**实体 id 也没有子路径。
  *
- * 只有「改一个已存在的实体」与「删一个已存在的实体」两种形态可入队：
- * `POST` 大多是创建或子资源动作（`/tasks/{id}/archive`、`/tasks/batch`），
- * 它要成功才拿得到新 id、失败则没有可入队的实体——本批不猜。
+ * 只匹配"面向集合本身"的 POST；`/api/v1/tasks/batch`、`/api/v1/tasks/{id}/archive`
+ * 这类子资源/批量动作都带更深路径，天然落不进这里（它们是动作而非实体创建）。
+ */
+const COLLECTION_WRITE_PATH = /^\/api\/v1\/([^/]+)$/;
+
+/**
+ * 方法 → 操作类型（「改一个已存在的实体」与「删一个已存在的实体」）。
+ *
+ * `POST` 不在此表：创建请求的路径形态不同（没有实体 id），由
+ * `describeFailedCreate` 单独处理——它要先替客户端把新实体的 id 生成出来。
  */
 const OPERATION_BY_METHOD: Readonly<Record<string, 'update' | 'delete'>> = {
   PATCH: 'update',
@@ -216,12 +235,26 @@ const OPERATION_BY_METHOD: Readonly<Record<string, 'update' | 'delete'>> = {
   DELETE: 'delete',
 };
 
+/** 一次失败的写请求 → 同步描述 + 可选的离线成功信封。 */
+interface FailedWriteOutcome {
+  readonly descriptor: SyncWriteDescriptor;
+  /**
+   * 本地新建成功入队后可当场返回给调用方的成功信封；非创建形态为 `null`
+   * （调用方照旧收到原始错误）。
+   */
+  readonly offlineResult: ApiEnvelope<unknown> | null;
+}
+
 /** 一次失败的写请求 → 同步描述；形态不可入队时返回 `null`。 */
 function describeFailedWrite(
   method: MutationMethod,
   path: string,
   body: unknown,
-): SyncWriteDescriptor | null {
+): FailedWriteOutcome | null {
+  if (method === 'POST') {
+    return describeFailedCreate(path, body);
+  }
+
   const operationType = OPERATION_BY_METHOD[method];
   if (operationType === undefined) {
     return null;
@@ -244,17 +277,62 @@ function describeFailedWrite(
   if (operationType === 'delete') {
     // `DELETE` 没有请求体（本项目的删除端点都不带 body），因此既没有版本可做
     // CAS，也没有字段可写；实体本身由服务端按 id 找到。
-    return { entityType, entityId, operationType, baseVersion: null, payload: {} };
+    return {
+      descriptor: { entityType, entityId, operationType, baseVersion: null, payload: {} },
+      offlineResult: null,
+    };
   }
 
   const fields = isRecord(body) ? body : {};
   const { version, ...payload } = fields;
   return {
-    entityType,
-    entityId,
-    operationType,
-    baseVersion: typeof version === 'number' ? version : null,
-    payload,
+    descriptor: {
+      entityType,
+      entityId,
+      operationType,
+      baseVersion: typeof version === 'number' ? version : null,
+      payload,
+    },
+    offlineResult: null,
+  };
+}
+
+/**
+ * 一次失败的**创建**请求 → 同步描述 + 离线成功信封。
+ *
+ * 与编辑不同，创建没有"已存在的实体"可供入队——服务端此刻还没有这一行，
+ * 新 id 只能由**客户端**生成（服务端 `create` 就用客户端给的 UUID 建行，
+ * 见 `sync-repository.ts`）。因此路径必须"正好是集合本身"（不含 id/子路径），
+ * 否则就不是一次实体创建（如 `POST /tasks/batch` 是动作）。
+ *
+ * 返回的信封与在线创建的成功响应同形（`{ data }`），至少含新 id 与提交的字段，
+ * 让调用方走既有成功分支，不必为离线态分出一套失败处理。
+ */
+function describeFailedCreate(path: string, body: unknown): FailedWriteOutcome | null {
+  const matched = COLLECTION_WRITE_PATH.exec(path);
+  if (matched === null) {
+    return null;
+  }
+  const collection = matched[1];
+  if (collection === undefined) {
+    return null;
+  }
+
+  const entityType = SYNC_ENTITY_BY_COLLECTION[collection];
+  if (entityType === undefined) {
+    return null;
+  }
+
+  const fields = isRecord(body) ? body : {};
+  // `version` 由服务端维护，不进 payload（创建时也不存在期望版本）。
+  const { version: _version, ...payload } = fields;
+  const entityId = crypto.randomUUID();
+
+  return {
+    descriptor: { entityType, entityId, operationType: 'create', baseVersion: null, payload },
+    // 形状对齐在线成功：`id` 用客户端生成的实体 id，`version` 本地从 0 起算，
+    // 其余为提交的字段（服务端后续填的默认值不在客户端可知范围内）。
+    offlineResult: { data: { id: entityId, version: 0, ...payload } },
   };
 }
 

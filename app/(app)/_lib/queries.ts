@@ -20,6 +20,8 @@
  */
 
 import { fetchJson, type ApiEnvelope } from './api-client';
+import { getSyncClient } from './sync-runtime';
+import type { LocalEntityView } from '@/modules/sync/application/sync-client.ts';
 
 /**
  * 列表项的最小形状。
@@ -200,21 +202,85 @@ function readCursorPage<T>(envelope: ApiEnvelope<{ readonly items: readonly T[] 
 /**
  * 收件箱分页取数（`GET /tasks?status=inbox`，UI v0.19 §5 冻结口径：
  * 安排→planned、归档→archived 即离开列表）。
+ *
+ * ## 合并本地待同步项（离线续用）
+ *
+ * 断网时 `GET` 拿不到数据，页面的取数原语会落错误态；而用户此时在收件箱里
+ * **离线新建**的任务只存在于本地（`pending_operations` + `entity_snapshots`）。
+ * 这里把「本地新建、尚未推送成功」的任务并进首页结果，使离线瞬间也能看到刚记的
+ * 那一条，且整页不因首页请求失败而变成错误态（详设 §5.4.3「已打开页面断网续用」）。
+ *
+ * 去重依据是 `id`：客户端生成的实体 UUID 就是服务端 `create` 落行的主键，恢复
+ * 联网、推送成功、快照转 `synced` 之后，服务端返回行与本地项同 `id` 只留一条，
+ * 不会出现重复。
  */
 export function makeInboxQueryFn(): (
   signal: AbortSignal,
   cursor: string | null,
 ) => Promise<CursorPage<TaskItem>> {
-  return (signal, cursor) => {
+  return async (signal, cursor) => {
+    // 只有首页需要合并/兜底；「加载更多」的 cursor 语义与本地项无关。
+    const local = cursor === null ? await readLocalInboxTasks() : [];
+
     const params = new URLSearchParams({ status: 'inbox', limit: '20' });
     if (cursor !== null) {
       params.set('cursor', cursor);
     }
-    return fetchJson<{ readonly items: readonly TaskItem[] }>(
-      `/api/v1/tasks?${params.toString()}`,
-      signal,
-    ).then(readCursorPage);
+
+    try {
+      const page = await fetchJson<{ readonly items: readonly TaskItem[] }>(
+        `/api/v1/tasks?${params.toString()}`,
+        signal,
+      ).then(readCursorPage);
+      if (local.length === 0) {
+        return page;
+      }
+      const remoteIds = new Set(page.items.map((item) => item.id));
+      return {
+        ...page,
+        items: [...local.filter((item) => !remoteIds.has(item.id)), ...page.items],
+      };
+    } catch (error) {
+      // 首页失败但本地有离线新建：以本地项作为这一页，避免整页落错误态。
+      // 其余情况（无本地项 / 加载更多失败）照旧抛出，由取数原语分层处理。
+      if (cursor === null && local.length > 0) {
+        return { items: local, nextCursor: null, hasMore: false };
+      }
+      throw error;
+    }
   };
+}
+
+/** 读本地新建、尚未推送成功的任务；读不出来时退回空列表（不阻塞列表取数）。 */
+async function readLocalInboxTasks(): Promise<readonly TaskItem[]> {
+  try {
+    const locals = await getSyncClient().listPendingLocals('task');
+    return locals.map(toInboxTaskItem);
+  } catch {
+    return [];
+  }
+}
+
+/** 本地快照 payload → 收件箱行（缺字段按任务创建默认值兜底）。 */
+function toInboxTaskItem(view: LocalEntityView): TaskItem {
+  const { payload } = view;
+  return {
+    id: view.id,
+    title: readString(payload.title) ?? '未命名任务',
+    status: readString(payload.status) ?? 'inbox',
+    dueDate: readString(payload.dueDate),
+    estimatedMinutes:
+      typeof payload.estimatedMinutes === 'number' ? payload.estimatedMinutes : null,
+    minimumVersion: readString(payload.minimumVersion),
+    lifeAreaId: readString(payload.lifeAreaId),
+    goalId: readString(payload.goalId),
+    version: 0,
+  };
+}
+
+/** 取一个非空字符串字段；缺失或类型不符时返回 `null`。 */
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
 }
 
 /** 目标列表取数（`GET /goals`，活跃目标优先的选择器与列表共用一条）。 */

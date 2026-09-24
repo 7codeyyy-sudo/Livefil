@@ -111,6 +111,22 @@ export interface PendingOperationPatch {
   readonly conflictServerPayload?: Readonly<Record<string, unknown>> | null | undefined;
 }
 
+/**
+ * 把一条本地快照标记为「已被服务端确认」的入参（push 成功后调用）。
+ *
+ * `create` 的本地快照在入队时是 `pending`（本地改动尚未确认）；推送成功后必须
+ * 把它转成 `synced` 并写入服务端版本，否则这条快照会永远挡住该实体的后续拉取
+ * （`applyRemoteChange` 对 `pending` 一律 `ignored`），形成一条永不更新的本地孤儿。
+ */
+export interface SnapshotConfirmInput {
+  readonly entityType: string;
+  readonly entityId: string;
+  /** 服务端在 push 结果里返回的新版本。 */
+  readonly version: number;
+  /** 确认时刻（毫秒），作为快照的 `changeAt`。 */
+  readonly changeAt: number;
+}
+
 /** 拉取游标记录。 */
 export interface SyncCursorRecord {
   readonly id: string;
@@ -205,6 +221,17 @@ export interface LocalStore {
 
   /** 写入（或整体替换）一条实体快照。 */
   putSnapshot(record: EntitySnapshotRecord): Promise<void>;
+
+  /** 列出某一实体类型的全部实体快照（供列表渲染本地未同步项）。 */
+  listSnapshots(entityType: string): Promise<readonly EntitySnapshotRecord[]>;
+
+  /**
+   * 把一条 `pending` 快照标记为 `synced` 并写入确认版本。
+   *
+   * 快照不存在、或已经是 `synced` 时**静默忽略**：一次 push 会确认多种操作，
+   * 只有本地新建（`create`）才在本地留过 `pending` 快照，其余操作没有快照可确认。
+   */
+  markSnapshotSynced(input: SnapshotConfirmInput): Promise<void>;
 
   /** 应用一条远端变更（幂等 upsert；墓碑则清理本地行，含父级级联）。 */
   applyRemoteChange(change: RemoteChangeInput): Promise<ApplyRemoteChangeOutcome>;

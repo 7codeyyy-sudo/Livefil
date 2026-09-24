@@ -335,6 +335,38 @@ export function createIndexedDbLocalStore(): LocalStore {
       });
     },
 
+    async listSnapshots(entityType): Promise<readonly EntitySnapshotRecord[]> {
+      const database = await db();
+      return await runInTransaction(database, [SNAPSHOT_STORE_NAME], 'readonly', async (tx) => {
+        const index = storeOf(tx, SNAPSHOT_STORE_NAME).index('by_entityType');
+        // 同 `readAll`：`getAll()` 的请求类型是 `any[]`，让 T 随请求推导。
+        const value = await wrapRequest(index.getAll(entityType));
+        return Array.isArray(value) ? (value as EntitySnapshotRecord[]) : [];
+      });
+    },
+
+    async markSnapshotSynced({ entityType, entityId, version, changeAt }): Promise<void> {
+      const database = await db();
+      await runInTransaction(database, [SNAPSHOT_STORE_NAME], 'readwrite', async (tx) => {
+        const current = await readRecord<EntitySnapshotRecord>(tx, SNAPSHOT_STORE_NAME, [
+          entityType,
+          entityId,
+        ]);
+        // 不存在或已确认：没有需要确认的本地改动，静默忽略（见端口说明）。
+        if (current === null || current.syncState !== 'pending') {
+          return;
+        }
+        await wrapRequest(
+          storeOf(tx, SNAPSHOT_STORE_NAME).put({
+            ...current,
+            version,
+            changeAt,
+            syncState: 'synced',
+          }),
+        );
+      });
+    },
+
     async applyRemoteChange(change: RemoteChangeInput): Promise<ApplyRemoteChangeOutcome> {
       const database = await db();
       return await runInTransaction(

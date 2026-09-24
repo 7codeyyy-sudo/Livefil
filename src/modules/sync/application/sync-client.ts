@@ -143,6 +143,17 @@ export interface SyncWriteInput {
   readonly payload: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * 一条**本地新建、尚未被服务端确认**的实体（供页面把离线新建立刻渲染出来）。
+ *
+ * 只透出列表渲染需要的最小形状（`id` + 实体字段），不带 `syncState` 等内部状态：
+ * 页面消费的是「有一条本地待同步的实体」，不是快照的存储细节。
+ */
+export interface LocalEntityView {
+  readonly id: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
 /** 「查看详情」列表里的一行。 */
 export interface SyncRejectedView {
   readonly id: string;
@@ -277,7 +288,37 @@ export class SyncClient {
       conflictServerVersion: null,
       conflictServerPayload: null,
     });
+
+    // 本地新建：服务端还没有这行，必须先把实体落进本地快照，列表才有东西可渲染
+    // （离线瞬间即显示该项）。记 `pending` 是契约口径——本地改动尚未被服务端确认，
+    // pull 的同实体变更不得覆盖它（NFR-REL-004）；确认由 `#applyPushResult` 收口。
+    if (input.operationType === 'create') {
+      await this.#store.putSnapshot({
+        entityType: input.entityType,
+        entityId: input.entityId,
+        version: 0,
+        deleted: false,
+        payload: input.payload,
+        changeAt: this.#now(),
+        syncState: 'pending',
+      });
+    }
+
     await this.refresh();
+  }
+
+  /**
+   * 列出某实体类型下**本地新建、尚未推送成功**的实体。
+   *
+   * 页面用它把离线新建的项并进列表，从而在断网时也「立刻看到自己刚记的那一条」。
+   * 推送成功后快照转为 `synced`（见 `#applyPushResult`），这些项自然从列表里退出，
+   * 由服务端返回的同一 `id` 行接管（客户端 UUID 即服务端主键，不会出现重复行）。
+   */
+  async listPendingLocals(entityType: string): Promise<readonly LocalEntityView[]> {
+    const snapshots = await this.#store.listSnapshots(entityType);
+    return snapshots
+      .filter((snapshot) => snapshot.syncState === 'pending' && !snapshot.deleted)
+      .map((snapshot) => ({ id: snapshot.entityId, payload: snapshot.payload }));
   }
 
   /**
@@ -378,6 +419,15 @@ export class SyncClient {
       case 'applied':
       case 'already_applied':
         await this.#store.removeOperation(operation.operationId);
+        // 服务端已确认这条操作：把本地新建的 `pending` 快照转为 `synced` 并写入
+        // 服务端版本，否则它会永远挡住该实体的后续拉取（见端口 `markSnapshotSynced`）。
+        // 非 `create` 操作没有本地快照，端口实现会静默忽略。
+        await this.#store.markSnapshotSynced({
+          entityType: operation.entityType,
+          entityId: operation.entityId,
+          version: result.version,
+          changeAt: this.#now(),
+        });
         return;
       case 'conflict':
         await this.#store.updateOperation(operation.operationId, {

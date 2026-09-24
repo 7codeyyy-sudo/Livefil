@@ -56,6 +56,22 @@ export function createMemoryLocalStore(): LocalStore {
       return Promise.resolve();
     },
 
+    listSnapshots(entityType): Promise<readonly EntitySnapshotRecord[]> {
+      return Promise.resolve(
+        [...snapshots.values()].filter((row) => row.entityType === entityType),
+      );
+    },
+
+    markSnapshotSynced({ entityType, entityId, version, changeAt }): Promise<void> {
+      const key = snapshotKey(entityType, entityId);
+      const current = snapshots.get(key);
+      if (current === undefined || current.syncState !== 'pending') {
+        return Promise.resolve();
+      }
+      snapshots.set(key, { ...current, version, changeAt, syncState: 'synced' });
+      return Promise.resolve();
+    },
+
     applyRemoteChange(change: RemoteChangeInput): Promise<ApplyRemoteChangeOutcome> {
       if (change.deleted) {
         for (const childType of childEntityTypesOf(change.entityType)) {
