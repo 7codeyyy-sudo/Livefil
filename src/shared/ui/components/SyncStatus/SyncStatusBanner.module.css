@@ -1,0 +1,134 @@
+/**
+ * 同步横幅样式（SYNC-002，《UI 页面规范》v0.20 §4.9.1）。
+ *
+ * ## 沿用 §4.7 的既有视觉
+ *
+ * 底色、宽度上限、左右内边距与字号**逐条沿用** `OfflineBanner.module.css`：
+ * §4.9.1 明确「除下表所列的边框令牌与内容/按钮外，容器其余视觉沿用 §4.7
+ * 既有实现不变」。因此这里与那份样式是**同源的两份**（而不是 import 一份）：
+ * 两个组件分属不同状态、会各自演进（离线态没有按钮，待同步态有），
+ * 共享一份 CSS Module 只会让任何一方的改动都变成对另一方的隐性影响。
+ *
+ * ## 唯一的视觉差异是边框令牌
+ *
+ * `--color-warning-border`（待同步/同步中/暂时失败）↔ `--color-danger-border`
+ * （被拒绝/冲突待处理）。两者都是既有令牌，本节零新增令牌。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+.banner {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-warning-border);
+}
+
+/* 需要用户介入的两态：边框换 danger 语义色。整面红底仍然不做——
+   它会在页面顶部长期挂着一条刺眼的色带（与 §1「安静、克制」冲突）。 */
+.banner[data-tone='danger'] {
+  border-bottom-color: var(--color-danger-border);
+}
+
+/* 与顶栏、页面区共用同一个最大宽度容器：横幅文字的左右边界因此与页面内容
+   对齐，而不是贴着主内容列的两边（那样在宽屏下会明显错位）。 */
+.inner {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: min(var(--layout-max-width), 100%);
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-page-x);
+  color: var(--color-text-primary);
+  /* 辅助档字号：它是状态说明，不是页面内容。 */
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* `<p>` 自带上下 margin，不清掉横幅会比预期高一倍。 */
+.message {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}
+
+/* 1.25em 跟着字号走：不硬编码像素，也不必为一个图标新造尺寸令牌（Toast 同法）。 */
+.icon {
+  flex: none;
+  width: 1.25em;
+  height: 1.25em;
+  color: var(--color-danger);
+}
+
+/* 操作区推到右端：文案长度会随计数变化，固定列宽会让按钮左右乱跳。 */
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-left: auto;
+}
+
+/* ---- 「查看详情」弹层里的逐行列表（§4.9.1 状态 5） ---- */
+
+.detailsList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detailsItem {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.detailsName {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.detailsReason {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+/* ---- 「冲突弹层」里的两版摘要（§4.9.2 第 3 条） ---- */
+
+.versionCard {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.versionHeading {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.versionMeta {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.versionLine {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+/* 单条处理失败的就地错误行：danger 图标是这一行**唯一**的红色（§4.6 单点红原则）。 */
+.errorRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.errorText {
+  margin: 0;
+  color: var(--color-text-primary);
+}

@@ -10,7 +10,8 @@
  * （Drawer / ToastProvider / useToast），批次 4 是页面状态
  * （EmptyState / LoadingState + Skeleton / ErrorState），UI-004 是异步取数
  * （AsyncState / useAsyncQuery）与离线提示（OfflineBanner / useOnlineStatus），
- * IAM-002 补 `Switch`（设置页的开关）。
+ * IAM-002 补 `Switch`（设置页的开关），SYNC-002 补同步状态横幅与冲突弹层
+ * （`SyncStatusBanner` / `ConflictDialog`，《UI 页面规范》v0.20 §4.9）。
  *
  * **浮层基建（`_internal/overlay`）刻意不出现在这里**：它是这几个组件共用的
  * 实现细节，不是对外 API（§2.4 明确「不对外导出通用浮层框架」）。
@@ -60,6 +61,18 @@ export type { ToastAction, ToastApi, ToastOptions, ToastVariant } from './Toast/
 export { AsyncState } from './AsyncState/AsyncState';
 export type { AsyncStateProps } from './AsyncState/AsyncState';
 export { OfflineBanner } from './AsyncState/OfflineBanner';
+export { ConflictDialog } from './SyncStatus/ConflictDialog';
+export type {
+  ConflictDialogProps,
+  ConflictFieldView,
+  ConflictVersionView,
+} from './SyncStatus/ConflictDialog';
+export { SyncStatusBanner } from './SyncStatus/SyncStatusBanner';
+export type {
+  SyncBannerItem,
+  SyncStatusBannerProps,
+  SyncStatusBannerState,
+} from './SyncStatus/SyncStatusBanner';
 export { useAsyncQuery } from './AsyncState/use-async-query';
 export type {
   AsyncQueryState,

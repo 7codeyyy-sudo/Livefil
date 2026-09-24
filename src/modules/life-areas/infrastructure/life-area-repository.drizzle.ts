@@ -8,6 +8,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/infrastructure/database/client.ts';
 import { lifeAreas, type LifeAreaRow } from '@/infrastructure/database/schema.ts';
 import { ConflictError, InvariantError, NotFoundError } from '@/shared/errors/app-error.ts';
+import { hasPostgresErrorCode } from '@/shared/errors/postgres-error.ts';
 
 import {
   assertReorderCoversActiveSet,
@@ -20,15 +21,6 @@ import type { LifeAreaRepository, ListLifeAreasOptions } from '../domain/life-ar
 
 /** PostgreSQL 的唯一约束冲突。 */
 const UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { readonly code?: unknown }).code === UNIQUE_VIOLATION
-  );
-}
 
 /** 行 → 领域实体。`color_key` 若不是已知 key（有人绕过应用写库），明确报错而不是放行。 */
 function toLifeArea(row: LifeAreaRow): LifeArea {
@@ -55,7 +47,7 @@ function toLifeArea(row: LifeAreaRow): LifeArea {
  * 索引唯一，索引之外的一切都是尽力而为。
  */
 function rethrowNameConflict(error: unknown, name: string): never {
-  if (isUniqueViolation(error)) {
+  if (hasPostgresErrorCode(error, UNIQUE_VIOLATION)) {
     throw new ConflictError(`已存在同名的未归档领域：${name}`);
   }
   throw error;

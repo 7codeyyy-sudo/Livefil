@@ -166,6 +166,44 @@ const LOGGING_CHANNEL_RULES = {
 };
 
 /**
+ * IndexedDB 禁访（SYNC-002）。
+ *
+ * IndexedDB 只允许出现在**唯一**一处：`src/modules/sync/infrastructure/local-store.indexeddb.ts`。
+ * 它是「本地怎么持久化」这个问题的全部答案，其余任何位置（页面、路由、表现层、
+ * 共享 UI）直接碰它都会绕开 `LocalStore` 端口——而端口正是「单测与 SSR 走内存
+ * 实现」这条保证的载体：某处一旦自己 `indexedDB.open(...)`，那一处就再也无法在
+ * jsdom 与 Node 里被验证，离开浏览器就崩。
+ *
+ * 与被覆盖的三个层次（`app/**`、模块表现层、共享 UI）相比，允许的那一处落在
+ * **模块基础设施**层——因此这里显式写出 `ignores`：让"只有一个例外"这件事在
+ * 配置里看得见，而不是让读者自己去推断 glob 是否恰好没覆盖到它。
+ *
+ * 选择器针对 `Identifier` 而不是某个成员表达式：`window.indexedDB`、
+ * `globalThis.indexedDB`、以及类型位置上的 `IDBDatabase` 都能一并命中，
+ * 而逐个写法列举的做法永远列不完。
+ */
+const INDEXED_DB_ACCESS_RULES = {
+  files: [
+    'app/**/*.{ts,tsx}',
+    'src/modules/*/presentation/**/*.{ts,tsx}',
+    'src/shared/ui/**/*.{ts,tsx}',
+  ],
+  ignores: ['src/modules/sync/infrastructure/local-store.indexeddb.ts'],
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector:
+          'Identifier[name=/^(indexedDB|IDBKeyRange|IDBDatabase|IDBTransaction|IDBObjectStore|IDBRequest|IDBValidKey|IDBFactory)$/]',
+        message:
+          '不得直接访问 IndexedDB：本地持久化必须经 LocalStore 端口' +
+          '（《详细设计说明书》§5.4）。唯一例外是 local-store.indexeddb.ts 适配器。',
+      },
+    ],
+  },
+};
+
+/**
  * Flat config 导出的完整配置。
  *
  * 刻意赋给具名常量后再导出（而不是直接 `export default [...]`）：
@@ -179,6 +217,7 @@ const config = [
   { rules: PROJECT_RULES },
   LAYER_BOUNDARY_RULES,
   LOGGING_CHANNEL_RULES,
+  INDEXED_DB_ACCESS_RULES,
   prettierCompat,
 ];
 

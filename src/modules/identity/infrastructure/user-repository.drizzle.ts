@@ -9,6 +9,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/infrastructure/database/client.ts';
 import { lifeAreas, users, type UserRow } from '@/infrastructure/database/schema.ts';
 import { ConflictError, InvariantError, NotFoundError } from '@/shared/errors/app-error.ts';
+import { hasPostgresErrorCode } from '@/shared/errors/postgres-error.ts';
 
 import type { EnsureLocalUserResult, UserRepository } from '../domain/user-repository.ts';
 import type { LocalUserSeedArea, User, UserMode, UserSettingsPatch } from '../domain/user.ts';
@@ -31,15 +32,6 @@ const LOCAL_MODE = 'local';
  * 该去改哪个开关。也不读服务端时区：那描述的是服务器在哪，不是用户在哪。
  */
 const INITIAL_TIMEZONE = 'Asia/Shanghai';
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { readonly code?: unknown }).code === UNIQUE_VIOLATION
-  );
-}
 
 /**
  * 把 `users.mode` 归一为领域枚举。
@@ -144,7 +136,7 @@ export function createUserRepository(db: Database): UserRepository {
           return { user: toUser(created), created: true };
         });
       } catch (error) {
-        if (!isUniqueViolation(error)) {
+        if (!hasPostgresErrorCode(error, UNIQUE_VIOLATION)) {
           throw error;
         }
         // 并发首启：另一个事务刚创建了本地用户。`SELECT ... FOR UPDATE` 对空结果集

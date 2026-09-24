@@ -144,6 +144,8 @@ export const lifeAreas = pgTable(
   },
   (table) => [
     index('life_areas_user_sort_idx').on(table.userId, table.sortOrder),
+    // 同步增量拉取（DB §4.18.1(4)）：keyset 扫描按 `(user_id, change_at, id)`。
+    index('life_areas_user_updated_idx').on(table.userId, table.updatedAt, table.id),
     // 约束「同一用户未归档领域名称唯一」（§4.2）。
     // 必须是**部分**唯一索引：`WHERE is_archived = false` 让归档项不参与唯一性，
     // 否则「归档了『健康』之后就再也不能新建同名领域」——而归档的语义恰恰是
@@ -179,7 +181,11 @@ export const goals = pgTable(
     resultMetric: jsonb('result_metric'),
     ...commonColumns(),
   },
-  (table) => [index('goals_user_status_idx').on(table.userId, table.status)],
+  (table) => [
+    index('goals_user_status_idx').on(table.userId, table.status),
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('goals_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
 );
 
 /**
@@ -208,7 +214,11 @@ export const actions = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     ...commonColumns(),
   },
-  (table) => [index('actions_user_goal_idx').on(table.userId, table.goalId)],
+  (table) => [
+    index('actions_user_goal_idx').on(table.userId, table.goalId),
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('actions_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
 );
 
 /**
@@ -250,6 +260,9 @@ export const tasks = pgTable(
   },
   (table) => [
     index('tasks_user_status_updated_idx').on(table.userId, table.status, table.updatedAt),
+    // 同步增量拉取的 keyset 索引（DB §4.18.1(4)，PD-20260923-004 裁定 3）：
+    // `tasks_user_status_updated_idx` 第二列是 status，keyset 的 `(change_at, id)` 用不上它。
+    index('tasks_user_updated_idx').on(table.userId, table.updatedAt, table.id),
     index('tasks_user_due_idx').on(table.userId, table.dueDate),
     index('tasks_user_deleted_idx').on(table.userId, table.deletedAt),
     /**
@@ -292,6 +305,51 @@ export const idempotencyKeys = pgTable(
   ],
 );
 
+/**
+ * 同步冲突记录表（DB §4.14，Phase 5 落地）。
+ *
+ * `push` 的乐观并发校验（CAS）失败时写入一行，返回给客户端由用户二选
+ * （`keep_server` / `keep_local`）。它与 `idempotency_keys` 职责无重叠：
+ * 前者记「冲突了什么」，后者记「这个操作是否已处理过」。
+ *
+ * **部分唯一索引 `sync_conflicts_pending_unique` 是 `conflictId` 稳定的硬保证**：
+ * 同一实体的重复冲突不再新建行，而是命中同一行，客户端拿到的 `conflictId` 不变。
+ * 已解决的行（`status <> 'pending'`）不参与唯一性，因此同一实体再次冲突时可以
+ * 另起一行——这正是「历史冲突可追溯」与「当前待处理冲突唯一」两个需求的交点。
+ *
+ * `local_payload_json` 可空：客户端未提供本地 payload 时（例如仅版本号不匹配的
+ * 探测型提交）只记版本不记内容。
+ */
+export const syncConflicts = pgTable(
+  'sync_conflicts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 实体类型（`task` / `goal` / …），取值同 pull 的 `entityType`。 */
+    entityType: varchar('entity_type', { length: 32 }).notNull(),
+    entityId: uuid('entity_id').notNull(),
+    /** 本地待同步版本；客户端未提供时为 NULL。 */
+    localVersion: bigint('local_version', { mode: 'number' }),
+    serverVersion: bigint('server_version', { mode: 'number' }).notNull(),
+    /** 本地待同步 payload；客户端未提供时为 NULL。 */
+    localPayloadJson: jsonb('local_payload_json'),
+    /** 服务端当前 payload（用户二选时展示给对方）。 */
+    serverPayloadJson: jsonb('server_payload_json').notNull(),
+    /** `pending` / `resolved`。 */
+    status: varchar('status', { length: 16 }).default('pending').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('sync_conflicts_user_status_idx').on(table.userId, table.status),
+    uniqueIndex('sync_conflicts_pending_unique')
+      .on(table.userId, table.entityType, table.entityId)
+      .where(sql`status = 'pending'`),
+  ],
+);
+
 /** 表行类型，供仓储实现使用。 */
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
@@ -305,6 +363,8 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type NewTaskRow = typeof tasks.$inferInsert;
 export type IdempotencyKeyRow = typeof idempotencyKeys.$inferSelect;
 export type NewIdempotencyKeyRow = typeof idempotencyKeys.$inferInsert;
+export type SyncConflictRow = typeof syncConflicts.$inferSelect;
+export type NewSyncConflictRow = typeof syncConflicts.$inferInsert;
 
 /* ------------------------------------------------------------------ */
 /* Phase 4（DB §4.6/4.7/4.8/4.16/4.17）                                */
@@ -338,24 +398,33 @@ export const scheduleBlocks = pgTable(
   },
   (table) => [
     index('schedule_blocks_user_window_idx').on(table.userId, table.startsAtUtc, table.endsAtUtc),
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('schedule_blocks_user_updated_idx').on(table.userId, table.updatedAt, table.id),
   ],
 );
 
 /** 例程定义（DB §4.7）：recurrence_rule 结构同 tasks（§4.5 最小规则）。 */
-export const routines = pgTable('routines', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
-  name: varchar('name', { length: 160 }).notNull(),
-  recurrenceRule: jsonb('recurrence_rule').notNull(),
-  /** `HH:MM` 本地锚点；安排例程时各步顺序展开的默认起点。 */
-  anchorTime: varchar('anchor_time', { length: 5 }),
-  timezone: varchar('timezone', { length: 64 }).notNull(),
-  deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
-  ...commonColumns(),
-});
+export const routines = pgTable(
+  'routines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
+    name: varchar('name', { length: 160 }).notNull(),
+    recurrenceRule: jsonb('recurrence_rule').notNull(),
+    /** `HH:MM` 本地锚点；安排例程时各步顺序展开的默认起点。 */
+    anchorTime: varchar('anchor_time', { length: 5 }),
+    timezone: varchar('timezone', { length: 64 }).notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('routines_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
+);
 
 /** 例程步骤（DB §4.7）：`(routine_id, position)` 唯一且从 0 连续。 */
 export const routineSteps = pgTable(
@@ -375,7 +444,11 @@ export const routineSteps = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     ...commonColumns(),
   },
-  (table) => [uniqueIndex('routine_steps_position_unique').on(table.routineId, table.position)],
+  (table) => [
+    uniqueIndex('routine_steps_position_unique').on(table.routineId, table.position),
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('routine_steps_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
 );
 
 /**
@@ -410,6 +483,8 @@ export const executionLogs = pgTable(
   (table) => [
     index('execution_logs_user_time_idx').on(table.userId, table.occurredAt),
     index('execution_logs_user_task_time_idx').on(table.userId, table.taskId, table.occurredAt),
+    // 同步增量拉取（DB §4.18.1(4)）：追加式表无 `updated_at`，以 `created_at` 为变更时刻。
+    index('execution_logs_user_created_idx').on(table.userId, table.createdAt, table.id),
   ],
 );
 
@@ -443,6 +518,8 @@ export const fixedCommitments = pgTable(
   (table) => [
     index('fixed_commitments_user_date_idx').on(table.userId, table.localDate),
     index('fixed_commitments_user_window_idx').on(table.userId, table.startsAtUtc, table.endsAtUtc),
+    // 同步增量拉取（DB §4.18.1(4)）。
+    index('fixed_commitments_user_updated_idx').on(table.userId, table.updatedAt, table.id),
     uniqueIndex('fixed_commitments_template_date_unique')
       .on(table.userId, table.templateId, table.localDate)
       .where(sql`template_id is not null`),

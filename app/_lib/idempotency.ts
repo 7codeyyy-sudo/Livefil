@@ -57,6 +57,16 @@ export interface HandlerResult {
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 /**
+ * 同步 push 的**保留前缀**（《接口文档》§12.1.1）。
+ *
+ * 批量 push 用 `key = "sync:" + operationId` 在同一张表上做**逐条**幂等。若普通写
+ * 端点也能用这个前缀，一个客户端生成的普通键就可能撞进同步的键空间：撞上之后
+ * 两条路径对"命中已完成记录"的处理完全相反（单请求 409 重放 vs 逐条 `already_applied`），
+ * 故障现象会变得极难解释。所以这里直接拒绝该前缀。
+ */
+const SYNC_RESERVED_PREFIX = 'sync:';
+
+/**
  * 在幂等保护下执行一个写操作。
  *
  * @param request 当前请求（取 `Idempotency-Key` 头与指纹用的方法/路径）。
@@ -83,6 +93,9 @@ export async function withIdempotency(
     throw new ValidationError(
       `Idempotency-Key 不能超过 ${String(IDEMPOTENCY_KEY_MAX_LENGTH)} 个字符`,
     );
+  }
+  if (key.startsWith(SYNC_RESERVED_PREFIX)) {
+    throw new ValidationError(`Idempotency-Key 不得使用保留前缀「${SYNC_RESERVED_PREFIX}」`);
   }
 
   // 指纹 = 方法 + 路径 + 请求负载。键相同而指纹不同的请求是客户端把同一个键
