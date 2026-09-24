@@ -24,6 +24,7 @@ export {
   routineSteps,
   routines,
   scheduleBlocks,
+  syncConflicts,
   tasks,
   users,
 } from '../../../drizzle/schema.ts';
@@ -39,12 +40,14 @@ export type {
   NewIdempotencyKeyRow,
   NewLifeAreaRow,
   NewScheduleBlockRow,
+  NewSyncConflictRow,
   NewTaskRow,
   NewUserRow,
   RecoveryStateRow,
   RoutineRow,
   RoutineStepRow,
   ScheduleBlockRow,
+  SyncConflictRow,
   TaskRow,
   UserRow,
 } from '../../../drizzle/schema.ts';
