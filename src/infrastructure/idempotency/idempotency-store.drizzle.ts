@@ -13,18 +13,10 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/infrastructure/database/client.ts';
 import { idempotencyKeys } from '@/infrastructure/database/schema.ts';
 import { ValidationError } from '@/shared/errors/app-error.ts';
+import { hasPostgresErrorCode } from '@/shared/errors/postgres-error.ts';
 
 /** PostgreSQL 的唯一约束冲突。 */
 const UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { readonly code?: unknown }).code === UNIQUE_VIOLATION
-  );
-}
 
 /** 占位结果的三种形态——编排层据此决定"执行业务"还是"返回重放/冲突"。 */
 export type IdempotencyClaim =
@@ -53,7 +45,7 @@ export function createIdempotencyStore(db: Database) {
         await db.insert(idempotencyKeys).values({ userId, key, requestHash });
         return { outcome: 'claimed' };
       } catch (error) {
-        if (!isUniqueViolation(error)) {
+        if (!hasPostgresErrorCode(error, UNIQUE_VIOLATION)) {
           throw error;
         }
       }

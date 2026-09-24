@@ -16,6 +16,7 @@
 import { and, eq, sql, type SQL } from 'drizzle-orm';
 
 import type { Database } from '@/infrastructure/database/client.ts';
+import { hasPostgresErrorCode } from '@/shared/errors/postgres-error.ts';
 
 import type {
   SyncApplyOperation,
@@ -34,15 +35,6 @@ import {
 
 /** PostgreSQL 的外键约束冲突。 */
 const FOREIGN_KEY_VIOLATION = '23503';
-
-function isForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { readonly code?: unknown }).code === FOREIGN_KEY_VIOLATION
-  );
-}
 
 function rejected(reason: string): SyncApplyOutcome {
   return { outcome: 'rejected', reason };
@@ -120,7 +112,7 @@ async function createEntity(
       .onConflictDoNothing()
       .returning();
   } catch (error) {
-    if (isForeignKeyViolation(error)) {
+    if (hasPostgresErrorCode(error, FOREIGN_KEY_VIOLATION)) {
       return rejected('关联实体不存在，请先同步其上游实体');
     }
     throw error;
