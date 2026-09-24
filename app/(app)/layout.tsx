@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
+import { SyncStatusContainer } from './_components/SyncStatusContainer';
+
 /**
  * 应用外壳路由组 `(app)` 的布局（UI-003）。
  *
@@ -20,7 +22,10 @@ import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
  *
  * 状态（导航抽屉开合）在客户端组件 `AppShell` 里，`children` 只是被透传，
  * 六个占位页因此保持服务端渲染。
+ *
+ * 同步状态横幅（SYNC-002）同理：它是客户端组件，但作为 `syncBanner` 插槽
+ * 传给 `AppShell`——外壳不与同步模块耦合，六态的唯一挂载点仍在这里。
  */
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+  return <AppShell syncBanner={<SyncStatusContainer />}>{children}</AppShell>;
 }

@@ -65,6 +65,11 @@ import {
 } from '@/modules/execution/infrastructure/execution-repositories.drizzle.ts';
 import type { RoutineRepository } from '@/modules/routines/domain/routine-repository.ts';
 import { createRoutineRepository } from '@/modules/routines/infrastructure/routine-repository.drizzle.ts';
+import type { SyncConflictRepository } from '@/modules/sync/domain/sync-conflict.ts';
+import type { SyncApplyPort, SyncRepository } from '@/modules/sync/domain/sync-repository.ts';
+import { createSyncApplyPort } from '@/modules/sync/infrastructure/sync-apply.drizzle.ts';
+import { createSyncConflictRepository } from '@/modules/sync/infrastructure/sync-conflict-repository.drizzle.ts';
+import { createSyncRepository } from '@/modules/sync/infrastructure/sync-repository.drizzle.ts';
 import { createAuditLogger, type AuditLogger } from '@/shared/telemetry/audit-event.ts';
 import { serverEnv } from '@/shared/validation/env.server.ts';
 
@@ -113,11 +118,15 @@ export function getAuditLogger(): AuditLogger {
 }
 
 /**
- * 仓储集合。
+ * 仓储与同步端口集合。
  *
  * 返回类型显式写出来（而不是让 TS 从两个 `create*Repository` 的返回推断）：仓储
  * 的具体类型里带着 Drizzle 的行类型，把它暴露给调用方等于把持久化细节漏出去。
  * 显式标注成领域端口后，**实现替换不会改变调用方的类型**——这正是端口存在的意义。
+ *
+ * `sync` / `syncApply` / `syncConflicts` 是同步模块的三个端口（读变更、写操作、
+ * 冲突记录）。它们与"仓储"同处一个集合，是因为装配方式完全一样（都由
+ * `getDatabaseClient()` 的同一个连接池构造），而不是因为它们共享生命周期。
  */
 export function getRepositories(): {
   readonly users: UserRepository;
@@ -130,6 +139,9 @@ export function getRepositories(): {
   readonly executionLogs: ExecutionLogRepository;
   readonly recoveryStates: RecoveryStateRepository;
   readonly routines: RoutineRepository;
+  readonly sync: SyncRepository;
+  readonly syncApply: SyncApplyPort;
+  readonly syncConflicts: SyncConflictRepository;
 } {
   const db = getDatabaseClient().db;
   return {
@@ -143,6 +155,9 @@ export function getRepositories(): {
     executionLogs: createExecutionLogRepository(db),
     recoveryStates: createRecoveryStateRepository(db),
     routines: createRoutineRepository(db),
+    sync: createSyncRepository(db),
+    syncApply: createSyncApplyPort(db),
+    syncConflicts: createSyncConflictRepository(db),
   };
 }
 

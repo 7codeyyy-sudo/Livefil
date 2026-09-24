@@ -1,8 +1,10 @@
 'use client';
 
 import { useId } from 'react';
+import type { ReactNode } from 'react';
 
 import { Button } from '../Button/Button';
+import type { ButtonVariant } from '../Button/Button';
 import { OverlayShell } from '../_internal/overlay';
 
 import styles from './ConfirmDialog.module.css';
@@ -36,6 +38,49 @@ export type ConfirmDialogProps = {
   readonly destructive?: boolean | undefined;
   /** 操作进行中：两个按钮都禁用，避免重复提交。 */
   readonly pending?: boolean | undefined;
+  /**
+   * 标题与说明正文之间的附加内容（如冲突弹层的两版摘要）。
+   *
+   * **纯粹是插槽**：不传时一行 DOM 都不多，因此既有调用点的渲染逐字节不变
+   * （SYNC-004 的加性扩展原则——公共组件不为一个新消费者改变既有行为）。
+   */
+  readonly descriptionSlot?: ReactNode | undefined;
+  /**
+   * 说明正文与按钮组之间的附加内容。
+   *
+   * 与 `descriptionSlot` 分开而不是合成一个：两者的**位置语义**不同——
+   * 前者是"正文的一部分"，后者是"就地插入的失败提示"（§4.9.2 第 7 条要求
+   * 错误行位于正文下方、不关闭弹层）。
+   */
+  readonly errorSlot?: ReactNode | undefined;
+  /**
+   * 取消与确认之间的附加按钮（如冲突弹层的「保留服务器版本」）。
+   *
+   * 放在这两枚之间是刻意的：左起依次是"退出 / 中间选项 / 最终决定"，
+   * 与 §4.1 的强调梯度（低强调 → secondary → primary）一一对应。
+   */
+  readonly extraAction?:
+    | {
+        readonly label: string;
+        readonly onClick: () => void;
+        readonly disabled?: boolean | undefined;
+      }
+    | undefined;
+  /**
+   * 取消按钮的强调级，默认 `secondary`。
+   *
+   * 存在的理由：冲突弹层要三枚按钮（低强调「稍后处理」/ secondary / primary），
+   * 而取消位必须让给"最安全的退出路径"（§4.9.2 第 5 条）。默认值与 `Button`
+   * 的默认一致，不传时渲染结果与改动前完全相同。
+   */
+  readonly cancelVariant?: ButtonVariant | undefined;
+  /**
+   * 初始焦点的落点，缺省沿用 `destructive` 的既有规则（危险操作落「取消」）。
+   *
+   * 冲突弹层需要"非危险、但初始焦点仍在取消位"这一组合——两枚覆盖性选择都
+   * 不可逆，起点应放在最安全的退出路径上（§4.9.2 第 5 条）。
+   */
+  readonly initialFocus?: 'cancel' | 'confirm' | undefined;
 };
 
 /**
@@ -66,9 +111,18 @@ export function ConfirmDialog({
   cancelLabel = '取消',
   destructive = false,
   pending = false,
+  descriptionSlot,
+  errorSlot,
+  extraAction,
+  cancelVariant,
+  initialFocus,
 }: ConfirmDialogProps) {
   const titleId = useId();
   const descriptionId = useId();
+
+  // 不传 `initialFocus` 时表达式与改动前逐字相同（`destructive` 的三元），
+  // 因此既有调用点的焦点行为不受影响。
+  const focusCancel = initialFocus === undefined ? destructive : initialFocus === 'cancel';
 
   return (
     <OverlayShell
@@ -79,23 +133,39 @@ export function ConfirmDialog({
       role="alertdialog"
       labelledBy={titleId}
       describedBy={descriptionId}
-      initialFocusSelector={destructive ? CANCEL_SELECTOR : undefined}
+      initialFocusSelector={focusCancel ? CANCEL_SELECTOR : undefined}
       panelClassName={styles.panel}
     >
       <h2 id={titleId} className={styles.title}>
         {title}
       </h2>
 
+      {descriptionSlot === undefined ? null : (
+        <div className={styles.descriptionSlot}>{descriptionSlot}</div>
+      )}
+
       <p id={descriptionId} className={styles.description}>
         {description}
       </p>
 
+      {errorSlot === undefined ? null : <div className={styles.errorSlot}>{errorSlot}</div>}
+
       <div className={styles.actions}>
         {/* 取消在前、确认在后：LTR 阅读顺序下「危险的那一个」在最后，
             与 §4.1「每组操作最多一个高强调主按钮」也一致。 */}
-        <Button {...CANCEL_ATTRIBUTE} onClick={onCancel} disabled={pending}>
+        <Button
+          {...CANCEL_ATTRIBUTE}
+          variant={cancelVariant ?? 'secondary'}
+          onClick={onCancel}
+          disabled={pending}
+        >
           {cancelLabel}
         </Button>
+        {extraAction === undefined ? null : (
+          <Button onClick={extraAction.onClick} disabled={extraAction.disabled === true}>
+            {extraAction.label}
+          </Button>
+        )}
         <Button variant={destructive ? 'danger' : 'primary'} onClick={onConfirm} loading={pending}>
           {confirmLabel}
         </Button>

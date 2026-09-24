@@ -65,6 +65,14 @@
   line-height: var(--line-height-body);
 }
 
+/* 附加插槽（SYNC-004 冲突弹层用）。两者只提供纵向堆叠，不定义新的几何与间距
+   层级——它们仍是面板 grid 的一个子项，因此与标题/正文共享同一套 gap。 */
+.descriptionSlot,
+.errorSlot {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .actions {
   display: flex;
   gap: var(--space-2);

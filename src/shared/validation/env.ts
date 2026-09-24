@@ -39,6 +39,15 @@ const SUPPORTED_DATABASE_PROTOCOLS = ['postgres:', 'postgresql:'];
 const AUTH_SECRET_MIN_LENGTH = 32;
 
 /**
+ * 同步增量拉取的默认安全滞后窗口（毫秒，SYNC-001）。
+ *
+ * 「只返回提交满 5 秒的变更」是规避永久漏读的手段（《接口文档》§12.1.2、
+ * 《数据库设计文档》§4.18）：事务的 `change_at` 取自语句执行时刻，而提交时刻更晚，
+ * 客户端若已把游标推到那条尚未可见的 `change_at` 之后，就会永久跳过它。
+ */
+const DEFAULT_SYNC_PULL_LAG_MS = 5000;
+
+/**
  * 判断字符串是否为受支持的数据库连接串。
  *
  * `new URL` 解析失败属于预期内的非法输入，显式返回 false；
@@ -123,6 +132,21 @@ const serverEnvSchema = z
         message: `AUTH_SECRET 长度至少为 ${AUTH_SECRET_MIN_LENGTH} 个字符`,
       })
       .optional(),
+    /**
+     * 同步拉取的安全滞后窗口（毫秒，SYNC-001）。
+     *
+     * 与其余变量同样「提供即校验、不提供不报错」：缺省时用
+     * {@link DEFAULT_SYNC_PULL_LAG_MS}。写成字符串再转数字，是因为环境变量本身
+     * 只有字符串形态——用 `z.coerce.number()` 会把 `'5s'`、`''`、`' 12 '` 一并
+     * 悄悄接受（`Number('')` 是 0），而一个把滞后窗口设成 0 的部署恰恰会打开漏读窗口。
+     */
+    SYNC_PULL_LAG_MS: z
+      .string()
+      .refine((value) => /^\d+$/.test(value), {
+        message: 'SYNC_PULL_LAG_MS 必须是非负整数（毫秒），且不能为空',
+      })
+      .transform((value) => Number(value))
+      .optional(),
     AI_PROVIDER: notEmptyString('AI_PROVIDER').optional(),
     AI_API_KEY: notEmptyString('AI_API_KEY').optional(),
   })
@@ -150,6 +174,8 @@ export interface ServerEnv {
   readonly authSecret: string | undefined;
   readonly aiProvider: string;
   readonly aiApiKey: string | undefined;
+  /** 同步拉取的安全滞后窗口（毫秒）。缺省 5000。 */
+  readonly syncPullLagMs: number;
 }
 
 /** 环境变量校验失败。`issues` 每项形如「变量名: 原因」，不含变量取值。 */
@@ -195,5 +221,6 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     authSecret: parsed.AUTH_SECRET,
     aiProvider: parsed.AI_PROVIDER ?? DEFAULT_AI_PROVIDER,
     aiApiKey: parsed.AI_API_KEY,
+    syncPullLagMs: parsed.SYNC_PULL_LAG_MS ?? DEFAULT_SYNC_PULL_LAG_MS,
   });
 }
