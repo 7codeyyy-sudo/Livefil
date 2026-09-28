@@ -1,47 +1,60 @@
 'use client';
 
-import { Skeleton } from '@/shared/ui/components';
+import { useState } from 'react';
 
-import { PageQuerySection } from '../_components/PageQuerySection';
-import stateStyles from '../_components/StatePage.module.css';
-import { REVIEW_QUERY } from '../_lib/queries';
+import { Button } from '@/shared/ui/components';
 
-/** 与「日复盘」同形的轮廓：一行标题 + 三行正文。 */
-function ReviewSkeleton() {
-  return (
-    <div className={stateStyles.skeleton}>
-      <Skeleton width="35%" />
-      <Skeleton />
-      <Skeleton width="85%" />
-      <Skeleton width="60%" />
-    </div>
-  );
-}
+import { DailyReviewSection } from './DailyReviewSection';
+import { WeeklyReviewSection } from './WeeklyReviewSection';
+
+import styles from './ReviewPanel.module.css';
+
+/** 两个分段（B0：默认日复盘）。 */
+type Segment = 'daily' | 'weekly';
 
 /**
- * 复盘页的取数区（UI-004）。
+ * 复盘页（`/review`，REVIEW-001~003，《UI 页面规范》§5 B0~B4）。
  *
- * ## 空判据与另外四页不同
+ * ## 分段为什么是用 `aria-pressed` 的两枚 Button
  *
- * 日复盘返回的是**单个对象而不是列表**，所以空态不能靠「数组长度为 0」判断。
- * `REVIEW_QUERY.isEmpty` 把它定义为 `data === null`——「这天还没复盘」是
- * **成功但没有内容**，与「取数失败」必须分开：只有失败才走错误态。
+ * B0 明文「不新建 Tab 组件范式」：分段在这里只是**同一路由内的视图切换**，不是
+ * 导航——两段共用页头、共用「这一周/这一天」的上下文，拆成 Tab 组件要连带引入
+ * roving tabindex、方向键切换、面板关联一整套语义，而它的收益在只有两项时为零。
+ * 视觉上的「选中态」（surface-soft 底 + text-primary）由容器 CSS 按
+ * `[aria-pressed='true']` 给（`Button` 不接收 `className`，也不该为这一处开口子）。
  *
- * ⚠️ 接口文档目前没有写明「当日无复盘」的响应形状（见 `_lib/queries.ts` 的
- * 记债）。本批按 `data: null` 实现，若 SYNC-001 最终定为别的形状，改那一处判据即可。
+ * ## 切换为什么是卸载而不是隐藏
+ *
+ * 两段各自取数、各自有草稿状态。切换即卸载，回来时是新的一次取数——这与
+ * 「日复盘的已保存内容来自服务端」相合，也避免了两段同时挂着请求。
  */
 export function ReviewPanel() {
+  const [segment, setSegment] = useState<Segment>('daily');
+
   return (
-    <PageQuerySection
-      query={REVIEW_QUERY}
-      errorTitle="复盘没能加载"
-      errorDescription="数据没能取回来。可以先重试。"
-      skeleton={<ReviewSkeleton />}
-      empty={{
-        title: '这天还没有复盘',
-        description: '复盘用几分钟记下今天的进展和卡点，过段时间回看能看出自己的节奏。',
-      }}
-      renderSuccess={() => null}
-    />
+    <div className={styles.panel}>
+      <div className={styles.segments} role="group" aria-label="复盘类型">
+        <Button
+          variant="ghost"
+          aria-pressed={segment === 'daily'}
+          onClick={() => {
+            setSegment('daily');
+          }}
+        >
+          日复盘
+        </Button>
+        <Button
+          variant="ghost"
+          aria-pressed={segment === 'weekly'}
+          onClick={() => {
+            setSegment('weekly');
+          }}
+        >
+          周复盘
+        </Button>
+      </div>
+
+      {segment === 'daily' ? <DailyReviewSection /> : <WeeklyReviewSection />}
+    </div>
   );
 }

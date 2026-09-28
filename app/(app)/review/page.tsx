@@ -6,11 +6,12 @@ import { ReviewPanel } from './ReviewPanel';
 export const metadata: Metadata = { title: '复盘' };
 
 /**
- * 复盘页（`/review`）。
+ * 复盘页（`/review`，REVIEW-001~003）。
  *
- * 本批（UI-004）只交付状态；日复盘与周复盘的填写与汇总属 REVIEW 系列任务。
- * 这一页的空判据与另外四页不同（返回的是单个对象而非列表），细节见
- * `ReviewPanel` 与 `_lib/queries.ts`。
+ * 服务端只给页头与分段容器：日复盘 / 周复盘各自取数、各自持有草稿（见
+ * `ReviewPanel` 的说明）。这一页的空判据与另外四页不同（日复盘返回的是单个
+ * 对象而非列表，且 `data: null` 表示"这天没填写"而非空列表），细节在
+ * `DailyReviewSection` 与 `_lib/review-api.ts` 里。
  */
 export default function ReviewPage() {
   return (

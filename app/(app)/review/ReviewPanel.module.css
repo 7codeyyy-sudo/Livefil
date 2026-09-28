@@ -1,0 +1,142 @@
+/**
+ * 复盘页样式（B0 骨架 + B1 日复盘，《UI 页面规范》§5 B0~B1）。
+ *
+ * 纪律：颜色 / 时长 / 字号 / 圆角 / 层级只引用令牌；间距与行布局是布局量，
+ * 按需写字面量（与 InboxPanel、ExpensesPanel 同一口径）。
+ * 时长与金额列一律 tabular-nums（B0 明文）。
+ *
+ * 分段选中态写在容器上（`.segments button[aria-pressed='true']`）：`Button`
+ * 不接收 `className`，也不该为这一处开一个口子——它是「当前项」的视觉表达，
+ * 属于容器对子元素状态的样式化，而不是按钮自身的强调级。
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.segments {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.segments button[aria-pressed='true'] {
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+/* 只读事实摘要区块：比表单轻一档的底，表明"这段不可编辑"。 */
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.blockLabel {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.factRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  overflow-wrap: anywhere;
+}
+
+.hint a {
+  color: var(--color-accent);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.status {
+  margin: 0;
+  color: var(--color-success);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.energy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.energyOptions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.energyOptions button[aria-pressed='true'] {
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.skipped {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
