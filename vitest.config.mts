@@ -41,7 +41,8 @@ const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 /** 路径别名，等价于 `tsconfig.json` 中的 `paths`。 */
 const ALIAS = Object.freeze({
   '@': path.join(PROJECT_ROOT, 'src'),
-});
+  app: path.join(PROJECT_ROOT, 'app'),
+} as const);
 
 export default defineConfig({
   test: {

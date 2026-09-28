@@ -70,7 +70,21 @@ test('迁移在空库上建出两张表与全部索引', async () => {
   );
   assert.deepEqual(
     tables.rows.map((row) => row.table_name),
-    ['life_areas', 'users'],
+    [
+      'actions',
+      'execution_logs',
+      'fixed_commitments',
+      'goals',
+      'idempotency_keys',
+      'life_areas',
+      'recovery_states',
+      'routine_steps',
+      'routines',
+      'schedule_blocks',
+      'sync_conflicts',
+      'tasks',
+      'users',
+    ],
   );
 
   const indexes = await pool.query(
@@ -78,8 +92,36 @@ test('迁移在空库上建出两张表与全部索引', async () => {
   );
   const names = indexes.rows.map((row) => row.indexname);
   for (const expected of [
+    'actions_user_goal_idx',
+    'actions_user_updated_idx',
+    'execution_logs_user_created_idx',
+    'execution_logs_user_task_time_idx',
+    'execution_logs_user_time_idx',
+    'fixed_commitments_template_date_unique',
+    'fixed_commitments_user_date_idx',
+    'fixed_commitments_user_updated_idx',
+    'fixed_commitments_user_window_idx',
+    'goals_user_status_idx',
+    'goals_user_updated_idx',
+    'idempotency_keys_created_idx',
+    'idempotency_keys_user_key_unique',
     'life_areas_user_active_name_unique',
     'life_areas_user_sort_idx',
+    'life_areas_user_updated_idx',
+    'routine_steps_position_unique',
+    'routine_steps_user_updated_idx',
+    'routines_user_updated_idx',
+    'schedule_blocks_user_updated_idx',
+    'schedule_blocks_user_window_idx',
+    'sync_conflicts_pending_unique',
+    'sync_conflicts_user_status_idx',
+    'tasks_template_due_unique',
+    'tasks_user_deleted_idx',
+    'tasks_user_due_idx',
+    'tasks_user_status_updated_idx',
+    'tasks_user_updated_idx',
+    'users_email_unique',
+    'users_mode_idx',
     'users_single_local_unique',
   ]) {
     assert.ok(names.includes(expected), `迁移后应存在索引 ${expected}`);
