@@ -540,6 +540,98 @@ export const recoveryStates = pgTable('recovery_states', {
     .$onUpdate(() => new Date()),
 });
 
+/* ------------------------------------------------------------------ */
+/* Phase 6+7（DB §4.9 / §4.10）                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 支出分类（DB §4.9，Phase 6 落地）。
+ *
+ * `sort_order` 是 §4.9 于 2026-09-28 补入的列（RD-20260928-004 §五披露 E）：FR-051
+ * 要求 9 个默认分类按固定顺序展示、新分类追加末位——缺列则顺序不可稳定复现。
+ *
+ * **不设 `deleted_at`**：停用＝置 `is_archived`（FR-051「停用不删历史」），本批无
+ * 删除入口。不留无写入路径的死列——这是预审裁定 C.4 采 B 的直接结论，也是 Phase 5
+ * `life_areas` 那列为 NULL 的教训。
+ */
+export const expenseCategories = pgTable(
+  'expense_categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 60 }).notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    isDefault: boolean('is_default').default(false).notNull(),
+    isArchived: boolean('is_archived').default(false).notNull(),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('expense_categories_user_sort_idx').on(table.userId, table.sortOrder),
+    // 约束「同一用户未停用分类名称唯一」（§4.9）：部分唯一，停用项不占名字。
+    uniqueIndex('expense_categories_user_active_name_unique')
+      .on(table.userId, table.name)
+      .where(sql`is_archived = false`),
+  ],
+);
+
+/**
+ * 开销（DB §4.10，Phase 6 落地）。
+ *
+ * **金额取 `bigint` 的 `bigint` 驱动模式**，而不是既有 `version` 用的 `number` 模式：
+ * `number` 模式在回读时经 `Number()` 转换，超过 2^53 的金额会丢精度——那正是「零浮点
+ * 金额」铁律要防的事。域对象、DTO、同步 payload 一律用**字符串**承载金额，仓储在
+ * 边界上做 `bigint ↔ string` 转换，任何环节都不得出现 `Number()`。
+ *
+ * `goal_id` 与 `action_id` **两列独立可空、可同时有值**（RD-20260928-004 §四披露 D）：
+ * 选中行动时同时落父目标；`groupBy=goal` 因此是单列过滤、无需 JOIN `actions`，
+ * 与 `tasks` 两列并存的口径一致。
+ */
+export const expenses = pgTable(
+  'expenses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * 分类为 NOT NULL，故不能 `set null`。选 `restrict`：分类只有停用、没有删除
+     * 入口，该约束当前零成本；真出现删除路径时它会**报错**（fail-loud），而不是
+     * 静默带走历史开销。
+     */
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => expenseCategories.id, { onDelete: 'restrict' }),
+    lifeAreaId: uuid('life_area_id').references(() => lifeAreas.id, { onDelete: 'set null' }),
+    goalId: uuid('goal_id').references(() => goals.id, { onDelete: 'set null' }),
+    actionId: uuid('action_id').references(() => actions.id, { onDelete: 'set null' }),
+    amountMinor: bigint('amount_minor', { mode: 'bigint' }).notNull(),
+    currencyCode: char('currency_code', { length: 3 }).notNull(),
+    /** `date` 列存日历日本身（YYYY-MM-DD）——「这笔记在哪一天」不是瞬时。 */
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    paymentMethod: varchar('payment_method', { length: 40 }),
+    /** 备注按敏感内容对待：不进普通日志（接口文档 §9）。 */
+    note: text('note'),
+    /** manual / ai_draft / import。 */
+    source: varchar('source', { length: 24 }).default('manual').notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    ...commonColumns(),
+  },
+  (table) => [
+    index('expenses_user_occurred_idx').on(table.userId, table.occurredOn),
+    index('expenses_user_category_occurred_idx').on(
+      table.userId,
+      table.categoryId,
+      table.occurredOn,
+    ),
+    index('expenses_user_goal_idx').on(table.userId, table.goalId),
+    // 同步增量拉取（DB §4.18.4）：§4.10 原文三索引均不含 updated_at，支撑不了
+    // `(changeAt, id)` keyset 扫描——缺此则 pull 退化为全表扫描。
+    index('expenses_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
+);
+
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;
 export type RoutineRow = typeof routines.$inferSelect;
@@ -547,3 +639,7 @@ export type RoutineStepRow = typeof routineSteps.$inferSelect;
 export type ExecutionLogRow = typeof executionLogs.$inferSelect;
 export type FixedCommitmentRow = typeof fixedCommitments.$inferSelect;
 export type RecoveryStateRow = typeof recoveryStates.$inferSelect;
+export type ExpenseCategoryRow = typeof expenseCategories.$inferSelect;
+export type NewExpenseCategoryRow = typeof expenseCategories.$inferInsert;
+export type ExpenseRow = typeof expenses.$inferSelect;
+export type NewExpenseRow = typeof expenses.$inferInsert;
