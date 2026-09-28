@@ -11,10 +11,17 @@
  *   `(occurred_on, created_at, id)` 的不透明编码——同一毫秒可能有多行，
  *   只用时间做游标会跳行。
  */
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 
 import type { Database } from '@/infrastructure/database/client.ts';
-import { expenses, type ExpenseRow, type NewExpenseRow } from '@/infrastructure/database/schema.ts';
+import {
+  expenseCategories,
+  expenses,
+  goals,
+  lifeAreas,
+  type ExpenseRow,
+  type NewExpenseRow,
+} from '@/infrastructure/database/schema.ts';
 import { ConflictError, InvariantError, NotFoundError } from '@/shared/errors/app-error.ts';
 
 import {
@@ -28,6 +35,9 @@ import {
 import type {
   ExpensePage,
   ExpenseRepository,
+  ExpenseSummary,
+  ExpenseSummaryOptions,
+  ExpenseSummaryTotals,
   ListExpensesOptions,
 } from '../domain/expense-repository.ts';
 
@@ -89,6 +99,48 @@ function decodeCursor(
   }
 }
 
+/** 累加器：金额以 `bigint` 相加——字符串只是载体，绝不参与算术。 */
+interface TotalsAccumulator {
+  readonly totalMinor: bigint;
+  readonly count: number;
+}
+
+function addToTotals(
+  bucket: Map<string, TotalsAccumulator>,
+  currencyCode: string,
+  totalMinor: string,
+  count: number,
+): void {
+  const current = bucket.get(currencyCode);
+  bucket.set(currencyCode, {
+    totalMinor: (current?.totalMinor ?? 0n) + BigInt(totalMinor),
+    count: (current?.count ?? 0) + count,
+  });
+}
+
+/** 累加器 → 响应形状：按币种升序，金额转字符串（不回退到 `Number()`）。 */
+function toTotals(bucket: Map<string, TotalsAccumulator>): readonly ExpenseSummaryTotals[] {
+  return [...bucket.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([currencyCode, value]) => ({
+      currencyCode,
+      totalMinor: value.totalMinor.toString(),
+      count: value.count,
+    }));
+}
+
+/** 摘要查询的行形状（`SUM(...)::bigint` 与 `COUNT(*)` 都由驱动以字符串回读）。 */
+interface ExpenseSummaryRow {
+  readonly key: string | null;
+  readonly label: string;
+  readonly currencyCode: string;
+  readonly totalMinor: string;
+  readonly count: string;
+}
+
+/** 未关联分组在 Map 里的占位键（真实 uuid 永不等于空串，不会撞车）。 */
+const UNLINKED_BUCKET_KEY = '';
+
 export function createExpenseRepository(db: Database): ExpenseRepository {
   /** 所有查询共用的"未软删"谓词。 */
   const notDeleted = isNull(expenses.deletedAt);
@@ -105,29 +157,31 @@ export function createExpenseRepository(db: Database): ExpenseRepository {
     },
 
     async list(userId: string, options: ListExpensesOptions): Promise<ExpensePage> {
-      const conditions = [eq(expenses.userId, userId), notDeleted];
+      // 作用域谓词**直接写在 where 里**（而不是混进数组），这样"每条查询都带 userId"
+      // 是可以被静态读出来的事实，不依赖阅读者去追数组首项（IAM-004 断言的口径）。
+      const filters: SQL[] = [notDeleted];
       if (options.from !== undefined) {
         // `occurred_on` 是 date 列，日历日字符串可直接比较。
-        conditions.push(sql`${expenses.occurredOn} >= ${options.from}`);
+        filters.push(sql`${expenses.occurredOn} >= ${options.from}`);
       }
       if (options.to !== undefined) {
-        conditions.push(sql`${expenses.occurredOn} <= ${options.to}`);
+        filters.push(sql`${expenses.occurredOn} <= ${options.to}`);
       }
       if (options.categoryId !== undefined) {
-        conditions.push(eq(expenses.categoryId, options.categoryId));
+        filters.push(eq(expenses.categoryId, options.categoryId));
       }
       if (options.lifeAreaId !== undefined) {
-        conditions.push(eq(expenses.lifeAreaId, options.lifeAreaId));
+        filters.push(eq(expenses.lifeAreaId, options.lifeAreaId));
       }
       if (options.goalId !== undefined) {
         // 单列过滤：经行动关联的开销也带着父目标（披露 D），无需 JOIN `actions`。
-        conditions.push(eq(expenses.goalId, options.goalId));
+        filters.push(eq(expenses.goalId, options.goalId));
       }
 
       const cursor = options.cursor === undefined ? null : decodeCursor(options.cursor);
       if (cursor !== null) {
         // 行值比较：三列同步降序，因此整体小于游标即"下一页"，同毫秒多行不会互相跳过。
-        conditions.push(
+        filters.push(
           sql`(${expenses.occurredOn}, ${expenses.createdAt}, ${expenses.id}) < (${cursor.occurredOn}, ${cursor.time}, ${cursor.id})`,
         );
       }
@@ -135,8 +189,7 @@ export function createExpenseRepository(db: Database): ExpenseRepository {
       const rows = await db
         .select()
         .from(expenses)
-        // @user-scope-exempt: 作用域谓词在 conditions 数组首项，恒为 eq(expenses.userId, userId)
-        .where(and(...conditions))
+        .where(and(eq(expenses.userId, userId), ...filters))
         .orderBy(desc(expenses.occurredOn), desc(expenses.createdAt), desc(expenses.id))
         .limit(options.limit + 1);
 
@@ -285,6 +338,97 @@ export function createExpenseRepository(db: Database): ExpenseRepository {
         throw new NotFoundError('开销不存在或未被删除');
       }
       throw new ConflictError('开销已在别处被修改，请刷新后重试');
+    },
+
+    async summarize(userId: string, options: ExpenseSummaryOptions): Promise<ExpenseSummary> {
+      const filters: SQL[] = [notDeleted];
+      if (options.from !== undefined) {
+        filters.push(sql`${expenses.occurredOn} >= ${options.from}`);
+      }
+      if (options.to !== undefined) {
+        filters.push(sql`${expenses.occurredOn} <= ${options.to}`);
+      }
+
+      // 每个分支都是"按分组键 + 币种"的一次聚合：`SUM(...)::bigint` 让结果以整数字符串
+      // 回读（不经 JS number），`COUNT(*)` 的字符串回读在下面用 `Number()` 收口——
+      // 计数是行数，不可能触及 2^53。
+      const totals = {
+        currencyCode: expenses.currencyCode,
+        totalMinor: sql<string>`SUM(${expenses.amountMinor})::bigint`,
+        count: sql<string>`COUNT(*)`,
+      };
+
+      let rows: readonly ExpenseSummaryRow[];
+      if (options.groupBy === 'category') {
+        rows = await db
+          .select({ key: expenses.categoryId, label: expenseCategories.name, ...totals })
+          .from(expenses)
+          // 分类是 NOT NULL，用 inner join；标签按分类的展示顺序排（FR-051 的固定顺序）。
+          .innerJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+          .where(and(eq(expenses.userId, userId), ...filters))
+          .groupBy(expenses.categoryId, expenseCategories.name, expenseCategories.sortOrder)
+          .orderBy(expenseCategories.sortOrder, expenseCategories.name);
+      } else if (options.groupBy === 'lifeArea') {
+        rows = await db
+          .select({
+            key: expenses.lifeAreaId,
+            label: sql<string>`COALESCE(${lifeAreas.name}, '未关联')`,
+            ...totals,
+          })
+          .from(expenses)
+          // left join：未关联的开销归入「未关联」组，而不是从汇总里消失——
+          // 后者会让分组之和与总计对不上，而"总计"是用户最常看的那一行。
+          .leftJoin(lifeAreas, eq(expenses.lifeAreaId, lifeAreas.id))
+          .where(and(eq(expenses.userId, userId), ...filters))
+          .groupBy(expenses.lifeAreaId, lifeAreas.name)
+          .orderBy(sql`COALESCE(${lifeAreas.name}, '未关联')`);
+      } else {
+        rows = await db
+          .select({
+            key: expenses.goalId,
+            label: sql<string>`COALESCE(${goals.name}, '未关联')`,
+            ...totals,
+          })
+          .from(expenses)
+          // `groupBy=goal` 按 `goal_id` 单列分组：经行动关联的开销也带着父目标
+          // （披露 D），因此这里**不需要 JOIN `actions`**，join `goals` 只为取标签。
+          .leftJoin(goals, eq(expenses.goalId, goals.id))
+          .where(and(eq(expenses.userId, userId), ...filters))
+          .groupBy(expenses.goalId, goals.name)
+          .orderBy(sql`COALESCE(${goals.name}, '未关联')`);
+      }
+
+      // Map 的插入顺序即 SQL 的排序结果，因此分组顺序由查询决定，无需二次排序。
+      const groups = new Map<
+        string,
+        {
+          readonly key: string | null;
+          readonly label: string;
+          readonly totals: Map<string, TotalsAccumulator>;
+        }
+      >();
+      const grandTotals = new Map<string, TotalsAccumulator>();
+
+      for (const row of rows) {
+        const bucketKey = row.key ?? UNLINKED_BUCKET_KEY;
+        const group = groups.get(bucketKey) ?? {
+          key: row.key,
+          label: row.label,
+          totals: new Map<string, TotalsAccumulator>(),
+        };
+        addToTotals(group.totals, row.currencyCode, row.totalMinor, Number(row.count));
+        groups.set(bucketKey, group);
+        addToTotals(grandTotals, row.currencyCode, row.totalMinor, Number(row.count));
+      }
+
+      return {
+        groups: [...groups.values()].map((group) => ({
+          key: group.key,
+          label: group.label,
+          totals: toTotals(group.totals),
+        })),
+        grandTotals: toTotals(grandTotals),
+      };
     },
   };
 }

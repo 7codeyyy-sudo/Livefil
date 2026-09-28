@@ -38,6 +38,10 @@ import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
 import { DEFAULT_LIFE_AREAS } from '@/modules/life-areas/domain/default-life-areas.ts';
+import { createExpenseCategoryRepository } from '@/modules/expenses/infrastructure/expense-category-repository.drizzle.ts';
+import { createExpenseRepository } from '@/modules/expenses/infrastructure/expense-repository.drizzle.ts';
+import type { ExpenseCategoryRepository } from '@/modules/expenses/domain/expense-category-repository.ts';
+import type { ExpenseRepository } from '@/modules/expenses/domain/expense-repository.ts';
 import type { LifeAreaRepository } from '@/modules/life-areas/domain/life-area-repository.ts';
 import type { LifeAreaSeed } from '@/modules/life-areas/domain/life-area.ts';
 import { createLifeAreaRepository } from '@/modules/life-areas/infrastructure/life-area-repository.drizzle.ts';
@@ -131,6 +135,8 @@ export function getAuditLogger(): AuditLogger {
 export function getRepositories(): {
   readonly users: UserRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly expenseCategories: ExpenseCategoryRepository;
+  readonly expenses: ExpenseRepository;
   readonly tasks: TaskRepository;
   readonly goals: GoalRepository;
   readonly actions: ActionRepository;
@@ -147,6 +153,8 @@ export function getRepositories(): {
   return {
     users: createUserRepository(db),
     lifeAreas: createLifeAreaRepository(db),
+    expenseCategories: createExpenseCategoryRepository(db),
+    expenses: createExpenseRepository(db),
     tasks: createTaskRepository(db),
     goals: createGoalRepository(db),
     actions: createActionRepository(db),

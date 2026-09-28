@@ -21,6 +21,15 @@ export const EXPENSE_CURRENCY_CODE_LENGTH = 3;
 /** 支付方式长度上限（§4.10 的 `varchar(40)`）。 */
 export const EXPENSE_PAYMENT_METHOD_MAX_LENGTH = 40;
 
+/**
+ * 备注长度上限。
+ *
+ * §4.10 的 `note` 是 `text`（库层无上限），这里补一个**边界上限**：接口是攻击面，
+ * 无上限的文本字段等于把"写一个 10MB 的备注"变成一次合法请求。选 1000 是因为
+ * UI 定位是「一句话备注」（A2），远小于此值，正常输入不会撞到。
+ */
+export const EXPENSE_NOTE_MAX_LENGTH = 1000;
+
 /** 来源取值（§4.10 的 `varchar(24)`）。 */
 export const EXPENSE_SOURCES = ['manual', 'ai_draft', 'import'] as const;
 

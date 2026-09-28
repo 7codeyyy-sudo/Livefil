@@ -32,6 +32,48 @@ export interface ExpensePage {
   readonly hasMore: boolean;
 }
 
+/** 摘要的分组维度（接口文档 §9 `GET /expense-summary`）。 */
+export const EXPENSE_SUMMARY_GROUP_BY = ['category', 'lifeArea', 'goal'] as const;
+
+export type ExpenseSummaryGroupBy = (typeof EXPENSE_SUMMARY_GROUP_BY)[number];
+
+/** 摘要查询条件。 */
+export interface ExpenseSummaryOptions {
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+  readonly groupBy: ExpenseSummaryGroupBy;
+}
+
+/**
+ * 某币种的小计。
+ *
+ * `totalMinor` 与开销金额同一口径（最小货币单位整数字符串）：汇总只是加法，
+ * 换成 `number` 就等于在**最高频的读取路径**上引入丢精度风险。
+ */
+export interface ExpenseSummaryTotals {
+  readonly currencyCode: string;
+  readonly totalMinor: string;
+  readonly count: number;
+}
+
+/** 一个分组。`key` 为 `null` 表示"未关联"（`lifeArea` / `goal` 维度可能出现）。 */
+export interface ExpenseSummaryGroup {
+  readonly key: string | null;
+  readonly label: string;
+  readonly totals: readonly ExpenseSummaryTotals[];
+}
+
+/**
+ * 摘要结果。
+ *
+ * **跨币种分列、不合计**（SRS FR-053、零混币合计）：两组数组都是"每币种一项"，
+ * 刻意不提供任何跨币种单值字段——那个字段一旦存在，客户端迟早会用它。
+ */
+export interface ExpenseSummary {
+  readonly groups: readonly ExpenseSummaryGroup[];
+  readonly grandTotals: readonly ExpenseSummaryTotals[];
+}
+
 export interface ExpenseRepository {
   /** 按 id 读取**未软删**的开销；不存在、已软删或非本人一律 `null`。 */
   findById(userId: string, expenseId: string): Promise<Expense | null>;
@@ -67,4 +109,12 @@ export interface ExpenseRepository {
    * 通用的"复活一切"入口。
    */
   restore(userId: string, expenseId: string, expectedVersion: number): Promise<Expense>;
+
+  /**
+   * 按维度汇总（EXP-004）。已软删不计入；`groupBy=goal` 为 `goal_id` 单列分组。
+   *
+   * 分币种在**查询里就分开**，而不是取回明细再在内存里分：跨币种合计一旦在
+   * 中间态出现过，就总会有人把它泄漏到响应里。
+   */
+  summarize(userId: string, options: ExpenseSummaryOptions): Promise<ExpenseSummary>;
 }
