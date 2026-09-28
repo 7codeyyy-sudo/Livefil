@@ -29,6 +29,8 @@ export const SYNC_ENTITY_TYPES = [
   'schedule_block',
   'fixed_commitment',
   'execution_log',
+  'expense',
+  'review',
 ] as const;
 
 export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number];
@@ -42,7 +44,8 @@ export function isSyncEntityType(value: string): value is SyncEntityType {
  * 一条变更。
  *
  * `deleted` 为真即**墓碑**：行本身仍在（软删 / 取消），客户端据此清理本地行。
- * `life_areas` / `goals` / `execution_logs` 按裁定二没有墓碑语义，`deleted` 恒为 false。
+ * `life_areas` / `goals` / `execution_logs` / `reviews` 按裁定二没有墓碑语义，
+ * `deleted` 恒为 false（`reviews` 无删除入口，见《数据库设计文档》§4.18.4）。
  */
 export interface SyncChange {
   readonly entityType: SyncEntityType;

@@ -11,10 +11,12 @@
  *
  * ## 墓碑的四类（《数据库设计文档》§4.18.1，PD-20260923-004 裁定 2）
  *
- * 1. `deleted_at` 软删：`actions` / `tasks` / `routines` / `routine_steps` / `fixed_commitments`；
+ * 1. `deleted_at` 软删：`actions` / `tasks` / `routines` / `routine_steps` /
+ *    `fixed_commitments` / `expenses`；
  * 2. 状态即墓碑：`schedule_blocks` 的 `status='cancelled'`；
  * 3. 追加式无墓碑：`execution_logs`（只读，`deleted` 恒为 false）；
- * 4. 无删除语义：`life_areas` / `goals`（`deleted` 恒为 false，push 的 delete 判成拒绝）。
+ * 4. 无删除语义：`life_areas` / `goals` / `reviews`（`deleted` 恒为 false，
+ *    push 的 delete 判成拒绝）。
  */
 import { sql, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
@@ -22,9 +24,11 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import {
   actions,
   executionLogs,
+  expenses,
   fixedCommitments,
   goals,
   lifeAreas,
+  reviews,
   routineSteps,
   routines,
   scheduleBlocks,
@@ -271,6 +275,54 @@ export const SYNC_ENTITY_SPECS: readonly SyncEntitySpec[] = [
     deletion: 'unsupported',
     readOnly: true,
   },
+  {
+    entityType: 'expense',
+    table: expenses,
+    idColumn: expenses.id,
+    userIdColumn: expenses.userId,
+    changeAt: sql`coalesce(${expenses.updatedAt}, ${expenses.createdAt})`,
+    changeAtKey: 'updatedAt',
+    versionColumn: expenses.version,
+    deletedOf: softDeleted,
+    // 覆盖 DB §4.10 的全部业务列；`deleted_at` 不列入——删除必须走 delete 操作。
+    writable: {
+      categoryId: expenses.categoryId,
+      lifeAreaId: expenses.lifeAreaId,
+      goalId: expenses.goalId,
+      actionId: expenses.actionId,
+      amountMinor: expenses.amountMinor,
+      currencyCode: expenses.currencyCode,
+      occurredOn: expenses.occurredOn,
+      paymentMethod: expenses.paymentMethod,
+      note: expenses.note,
+      source: expenses.source,
+    },
+    requiredOnCreate: ['categoryId', 'amountMinor', 'currencyCode', 'occurredOn'],
+    deletion: 'soft-delete',
+    readOnly: false,
+  },
+  {
+    entityType: 'review',
+    table: reviews,
+    idColumn: reviews.id,
+    userIdColumn: reviews.userId,
+    changeAt: sql`coalesce(${reviews.updatedAt}, ${reviews.createdAt})`,
+    changeAtKey: 'updatedAt',
+    versionColumn: reviews.version,
+    // 本批无删除入口（「跳过今天」是纯前端行为、不落记录），故 `deleted` 恒为 false。
+    deletedOf: neverDeleted,
+    writable: {
+      reviewType: reviews.reviewType,
+      periodKey: reviews.periodKey,
+      answers: reviews.answers,
+      energyLevel: reviews.energyLevel,
+      snapshot: reviews.snapshot,
+      snapshotSchemaVersion: reviews.snapshotSchemaVersion,
+    },
+    requiredOnCreate: ['reviewType', 'periodKey'],
+    deletion: 'unsupported',
+    readOnly: false,
+  },
 ];
 
 /** 按客户端给出的类型字符串查表；未注册返回 `null`（调用方判成拒绝）。 */
@@ -331,8 +383,15 @@ export type ColumnValuesResult =
 /**
  * 把 payload 归一化成可直接写库的列值。
  *
- * 只做一件"应用层做不到"的事：把 JSON 里的 ISO 时间串还原成 `Date`——时间戳列是
- * `mode: 'date'`，塞字符串会被驱动当字面量处理。其余类型交给数据库与驱动。
+ * 做两件"应用层做不到"的事：
+ *
+ * 1. 把 JSON 里的 ISO 时间串还原成 `Date`——时间戳列是 `mode: 'date'`，塞字符串
+ *    会被驱动当字面量处理；
+ * 2. 把金额串还原成 `bigint`——金额列是 `bigint`（`mode: 'bigint'`），而接口口径
+ *    要求金额**以字符串跨线**（零 float 铁律）。不做这一步的话，非法数字串要到
+ *    数据库才报错，整批 push 会以 500 收场，而不是逐条 `rejected`。
+ *
+ * 其余类型交给数据库与驱动。
  */
 export function buildColumnValues(
   spec: SyncEntitySpec,
@@ -357,6 +416,14 @@ export function buildColumnValues(
         return { ok: false, reason: `字段 ${key} 不是合法的时间` };
       }
       values[key] = parsed;
+      continue;
+    }
+    if (column.dataType === 'bigint' && typeof value === 'string') {
+      try {
+        values[key] = BigInt(value);
+      } catch {
+        return { ok: false, reason: `字段 ${key} 不是合法的整数` };
+      }
       continue;
     }
     values[key] = value;
