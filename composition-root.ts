@@ -69,6 +69,16 @@ import {
 } from '@/modules/execution/infrastructure/execution-repositories.drizzle.ts';
 import type { RoutineRepository } from '@/modules/routines/domain/routine-repository.ts';
 import { createRoutineRepository } from '@/modules/routines/infrastructure/routine-repository.drizzle.ts';
+import type {
+  ReviewAdjustmentApplier,
+  ReviewFactsRepository,
+  ReviewRepository,
+} from '@/modules/reviews/domain/review-repository.ts';
+import { createReviewFactsRepository } from '@/modules/reviews/infrastructure/review-facts.drizzle.ts';
+import {
+  createReviewAdjustmentApplier,
+  createReviewRepository,
+} from '@/modules/reviews/infrastructure/review-repository.drizzle.ts';
 import type { SyncConflictRepository } from '@/modules/sync/domain/sync-conflict.ts';
 import type { SyncApplyPort, SyncRepository } from '@/modules/sync/domain/sync-repository.ts';
 import { createSyncApplyPort } from '@/modules/sync/infrastructure/sync-apply.drizzle.ts';
@@ -145,6 +155,9 @@ export function getRepositories(): {
   readonly executionLogs: ExecutionLogRepository;
   readonly recoveryStates: RecoveryStateRepository;
   readonly routines: RoutineRepository;
+  readonly reviews: ReviewRepository;
+  readonly reviewFacts: ReviewFactsRepository;
+  readonly reviewAdjustments: ReviewAdjustmentApplier;
   readonly sync: SyncRepository;
   readonly syncApply: SyncApplyPort;
   readonly syncConflicts: SyncConflictRepository;
@@ -163,6 +176,9 @@ export function getRepositories(): {
     executionLogs: createExecutionLogRepository(db),
     recoveryStates: createRecoveryStateRepository(db),
     routines: createRoutineRepository(db),
+    reviews: createReviewRepository(db),
+    reviewFacts: createReviewFactsRepository(db),
+    reviewAdjustments: createReviewAdjustmentApplier(db),
     sync: createSyncRepository(db),
     syncApply: createSyncApplyPort(db),
     syncConflicts: createSyncConflictRepository(db),
