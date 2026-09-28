@@ -1,0 +1,126 @@
+/**
+ * 开销页样式（EXP-001~004，《UI 页面规范》§5 A1~A6）。
+ *
+ * 纪律：颜色 / 时长 / 字号 / 圆角 / 层级只引用令牌；间距与行布局是布局量，
+ * 按需写字面量（与 InboxPanel 同一口径）。
+ * 金额列用 tabular-nums（A2：输入框与列表金额列均等宽数字）。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* 「记一笔」固定入口：在筛选条之上，不随列表滚动消失。 */
+.actionsBar {
+  display: flex;
+  align-items: center;
+}
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.clearFilter {
+  display: flex;
+  align-items: flex-end;
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 行主体是整行可点的编辑入口：重置按钮默认样式，保持文本观感。 */
+.rowMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowMain:hover {
+  color: var(--color-text-primary);
+}
+
+.amount {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowMeta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  overflow-wrap: anywhere;
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.loadMoreRow {
+  display: flex;
+  justify-content: center;
+}
+
+.loadMoreError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 手机：行内动作收窄为图标位不现实，保持按钮但允许换行（§3.2 窄屏不隐藏功能）。
+   断点值直接写像素：CSS 变量无法用于 @media 条件，项目既定做法。 */
+@media (max-width: 767px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .rowActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

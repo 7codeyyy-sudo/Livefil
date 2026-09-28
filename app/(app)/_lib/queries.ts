@@ -20,6 +20,7 @@
  */
 
 import { fetchJson, type ApiEnvelope } from './api-client';
+import { buildExpenseQuery, type ExpenseItem, type ExpenseListFilter } from './expense-api';
 import { getSyncClient } from './sync-runtime';
 import type { LocalEntityView } from '@/modules/sync/application/sync-client.ts';
 
@@ -307,4 +308,73 @@ export function fetchLifeAreas(signal: AbortSignal): Promise<readonly LifeAreaIt
   return fetchJson<{ readonly items: readonly LifeAreaItem[] }>('/api/v1/life-areas', signal).then(
     (envelope) => envelope.data.items,
   );
+}
+
+/**
+ * 开销分页取数（`GET /expenses`，EXP-003/004，《接口文档》§9）。
+ *
+ * 与收件箱同一套「合并本地待同步项」的做法（见 `makeInboxQueryFn`）：断网时
+ * 用户在开销页离线新建的那一笔只存在于本地，把它并进首页结果，既让用户立刻
+ * 看到刚记的那一条，也避免整页因首页请求失败而落错误态。去重依据同样是 `id`。
+ *
+ * `filter` 由调用方给出：筛选变更时 `useCursorListQuery` 的 `queryKey` 会变，
+ * 列表因此重置回首屏——本函数只负责按当前筛选取一页。
+ */
+export function makeExpensesQueryFn(
+  filter: ExpenseListFilter,
+): (signal: AbortSignal, cursor: string | null) => Promise<CursorPage<ExpenseItem>> {
+  return async (signal, cursor) => {
+    const local = cursor === null ? await readLocalExpenses() : [];
+
+    try {
+      const page = await fetchJson<{ readonly items: readonly ExpenseItem[] }>(
+        `/api/v1/expenses?${buildExpenseQuery(filter, cursor)}`,
+        signal,
+      ).then(readCursorPage);
+      if (local.length === 0) {
+        return page;
+      }
+      const remoteIds = new Set(page.items.map((item) => item.id));
+      return {
+        ...page,
+        items: [...local.filter((item) => !remoteIds.has(item.id)), ...page.items],
+      };
+    } catch (error) {
+      // 首页失败但本地有离线新建：以本地项作为这一页，避免整页落错误态。
+      if (cursor === null && local.length > 0) {
+        return { items: local, nextCursor: null, hasMore: false };
+      }
+      throw error;
+    }
+  };
+}
+
+/** 读本地新建、尚未推送成功的开销；读不出来时退回空列表（不阻塞列表取数）。 */
+async function readLocalExpenses(): Promise<readonly ExpenseItem[]> {
+  try {
+    const locals = await getSyncClient().listPendingLocals('expense');
+    return locals.map(toLocalExpenseItem);
+  } catch {
+    return [];
+  }
+}
+
+/** 本地快照 payload → 开销行（缺字段按创建默认值兜底；`amountMinor` 本就是字符串）。 */
+function toLocalExpenseItem(view: LocalEntityView): ExpenseItem {
+  const { payload } = view;
+  return {
+    id: view.id,
+    categoryId: readString(payload.categoryId) ?? '',
+    lifeAreaId: readString(payload.lifeAreaId),
+    goalId: readString(payload.goalId),
+    actionId: readString(payload.actionId),
+    amountMinor: readString(payload.amountMinor) ?? '0',
+    currencyCode: readString(payload.currencyCode) ?? 'CNY',
+    occurredOn: readString(payload.occurredOn) ?? localCalendarDate(),
+    paymentMethod: readString(payload.paymentMethod),
+    note: readString(payload.note),
+    source: readString(payload.source) ?? 'manual',
+    deletedAt: null,
+    version: 0,
+  };
 }
