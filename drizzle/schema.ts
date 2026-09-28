@@ -541,7 +541,7 @@ export const recoveryStates = pgTable('recovery_states', {
 });
 
 /* ------------------------------------------------------------------ */
-/* Phase 6+7（DB §4.9 / §4.10）                                        */
+/* Phase 6+7（DB §4.9 / §4.10 / §4.11）                                */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -632,6 +632,88 @@ export const expenses = pgTable(
   ],
 );
 
+/**
+ * 复盘（DB §4.11.1，Phase 7 落地）。
+ *
+ * `(user_id, review_type, period_key)` 是**普通唯一索引**：它同时是日/周复盘的
+ * upsert 键、以及「离线创建日复盘」的去重键（披露 B.2 甲案——客户端生成 uuid，
+ * 同日在线再 PUT 时命中同一行，不重复建行）。
+ *
+ * **不设 `deleted_at`**：本批无删除入口（「跳过今天」是纯前端行为、不落记录），
+ * 故归入同步链路的**无删除语义**类，`deleted` 恒 `false`（DB §4.18.4）。
+ */
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** daily / weekly。 */
+    reviewType: varchar('review_type', { length: 8 }).notNull(),
+    /** daily = 用户时区下的 `YYYY-MM-DD`；weekly = 该周周一的 `YYYY-MM-DD`。 */
+    periodKey: varchar('period_key', { length: 10 }).notNull(),
+    /** 日复盘三问（键可缺省）；周复盘为 null。 */
+    answers: jsonb('answers'),
+    /** low / medium / high。 */
+    energyLevel: varchar('energy_level', { length: 8 }),
+    /** 周复盘结构化快照（§4.11.3）；日复盘为 null。 */
+    snapshot: jsonb('snapshot'),
+    /** 与 `snapshot` 同生共死；当前为 1（§4.11.2 的演进保障）。 */
+    snapshotSchemaVersion: integer('snapshot_schema_version'),
+    ...commonColumns(),
+  },
+  (table) => [
+    uniqueIndex('reviews_user_type_period_unique').on(
+      table.userId,
+      table.reviewType,
+      table.periodKey,
+    ),
+    // 同步增量拉取（DB §4.18.4）。
+    index('reviews_user_updated_idx').on(table.userId, table.updatedAt, table.id),
+  ],
+);
+
+/**
+ * 复盘调整（DB §4.11.4，Phase 7 落地）：**追加式**。
+ *
+ * 无 `version`、无 `deleted_at`——B4 冻结「清单只增不删、本页不提供撤销」，没有
+ * 更新与删除路径；且不参与同步（拍板 1 仅 `expense` / `review` 两实体）。因此这里
+ * 不复用 `commonColumns()`（它会带上用不到的 `version`），而是像 `recovery_states`
+ * 一样只取两个时间戳。
+ *
+ * `target_id` **不设外键**：它按 `target_type` 指向 `tasks` 或 `goals`，是多态引用，
+ * 单一 FK 表达不了（DB §4.11.4 亦未定义 FK）。
+ */
+export const reviewAdjustments = pgTable(
+  'review_adjustments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reviewId: uuid('review_id')
+      .notNull()
+      .references(() => reviews.id, { onDelete: 'cascade' }),
+    /** task / goal。 */
+    targetType: varchar('target_type', { length: 16 }).notNull(),
+    targetId: uuid('target_id').notNull(),
+    /** keep / shorten / defer / pause / delete（五动作，§4.11.4）。 */
+    action: varchar('action', { length: 24 }).notNull(),
+    payload: jsonb('payload').default({}).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    /** 插入后无写入路径：Drizzle 的 `$onUpdate` 在这里不会被触发。 */
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('review_adjustments_user_review_created_idx').on(
+      table.userId,
+      table.reviewId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;
 export type RoutineRow = typeof routines.$inferSelect;
@@ -643,3 +725,7 @@ export type ExpenseCategoryRow = typeof expenseCategories.$inferSelect;
 export type NewExpenseCategoryRow = typeof expenseCategories.$inferInsert;
 export type ExpenseRow = typeof expenses.$inferSelect;
 export type NewExpenseRow = typeof expenses.$inferInsert;
+export type ReviewRow = typeof reviews.$inferSelect;
+export type NewReviewRow = typeof reviews.$inferInsert;
+export type ReviewAdjustmentRow = typeof reviewAdjustments.$inferSelect;
+export type NewReviewAdjustmentRow = typeof reviewAdjustments.$inferInsert;
