@@ -55,13 +55,14 @@ export type ExpenseFormDrawerProps = {
   readonly onSaved: () => void;
   /** 行内新建分类：成功返回新分类供自动选中，失败返回 `null`。 */
   readonly onCreateCategory: (name: string) => Promise<ExpenseCategoryItem | null>;
-  /** 冲突时取服务端当前行；取不到返回 `null`（见 `fetchExpenseForConflict` 的取舍）。 */
+  /** 冲突时按 id 取服务端当前行；`null` 只表示这次读取失败（超时 / 断网 / 5xx）。 */
   readonly resolveServerExpense: (expenseId: string) => Promise<ExpenseItem | null>;
   /**
    * 撞 409（服务端已领先）时通知调用方重新取列表。
    *
    * 列表里的那一行此刻带着**旧 `version`**，不刷新的话用户下次编辑必然再撞一次，
-   * 直到手动刷新页面为止——所以这条通知不是可选装饰。
+   * 直到手动刷新页面为止——所以这条通知不是可选装饰。它与「怎么取服务端那一行」
+   * 是两件事：后者已随第 8 项勘误改为按 id 直取（见 `fetchExpenseById`）。
    */
   readonly onStale: () => void;
 };
@@ -183,14 +184,17 @@ export function ExpenseFormDrawer({
       onSaved();
     } catch (error) {
       // 409 是乐观并发冲突：复用 §4.9.2 的既有 ConflictDialog，不另造开销专用 UI。
-      // 但浮层要**两版并列**才有意义——服务端 409 响应体不带服务端行（`ConflictError`
-      // 只给 code / message / requestId），所以这里先真去取一次；取不到就退回就地文案
-      // （与设置页先例同一口径），绝不拿本地陈旧行冒充服务端版本。
+      //
+      // 浮层要**两版并列**才有意义，而 409 响应体按 §4.9.2 只给 code / message /
+      // requestId，不带服务端行。所以这里按 id 走 `GET /expenses/{id}`（第 8 项随批
+      // 勘误）真去取一次——那一行必然存在，取不到只剩网络失败一种解释。
       if (error instanceof ApiRequestError && error.status === 409 && expense !== null) {
         onStale();
         const server = await resolveServerExpense(expense.id);
         if (server === null) {
-          setFormError('这笔开销已在别处被修改。请重新加载页面后再改。');
+          // 不是「它太旧、不在首页里」（那个降级口径已随第 8 项勘误取消），
+          // 而是这次读取本身没成功：提示可重试，不诈称已拿到服务端版本。
+          setFormError('这笔开销已在别处被修改，但没能取到服务器上的版本。请稍后重试。');
         } else {
           setConflict({ input: body, server });
         }
