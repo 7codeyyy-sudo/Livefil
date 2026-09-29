@@ -162,8 +162,14 @@ export function WeeklyReviewSection() {
       });
       setPosted({ week: weekStart, items: envelope.data.adjustments });
       setPending(null);
+      // 指向**被复盘那一周的下一周**（调整动作的对象）；`weekOffset` 回看历史周时，
+      // 「下一周」随之平移，不是恒等于今天所在周的下一周。
+      const nextWeekStart = addDays(weekStart, 7);
       toast.success('已记录调整', {
-        action: { label: '查看下周计划', onClick: () => router.push('/week') },
+        action: {
+          label: '查看下周计划',
+          onClick: () => router.push(`/week?weekStart=${nextWeekStart}`),
+        },
       });
     } catch (error) {
       // 含「离线提交调整不支持」（披露 B.7 已声明）：失败就地呈现，不关弹窗。
@@ -252,6 +258,7 @@ export function WeeklyReviewSection() {
             }
             taskNames={collectTaskNames(data, tasks)}
             goalNames={collectGoalNames(data)}
+            nextWeekStart={addDays(weekStart, 7)}
           />
         </>
       )}
@@ -597,10 +604,13 @@ function AdjustmentsSection({
   adjustments,
   taskNames,
   goalNames,
+  nextWeekStart,
 }: {
   readonly adjustments: readonly ReviewAdjustmentItem[];
   readonly taskNames: ReadonlyMap<string, string>;
   readonly goalNames: ReadonlyMap<string, string>;
+  /** 被复盘那一周的下一周起点（`weekStart + 7`），链接指向它的周视图。 */
+  readonly nextWeekStart: string;
 }) {
   return (
     <section className={styles.block} aria-label="下周调整确认">
@@ -624,7 +634,7 @@ function AdjustmentsSection({
       )}
 
       <p className={styles.linkRow}>
-        <Link href="/week">查看下周计划</Link>
+        <Link href={`/week?weekStart=${nextWeekStart}`}>查看下周计划</Link>
       </p>
     </section>
   );

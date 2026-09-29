@@ -8,6 +8,23 @@
   gap: var(--space-3);
 }
 
+/* 周切换按钮组 + 周范围（B2 同型：上一周 / 本周 + `09-22 – 09-28`）。
+   nav 常驻三态之上（loading / error / success 都能切周）。 */
+.weekNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.range {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
