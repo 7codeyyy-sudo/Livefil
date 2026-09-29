@@ -199,6 +199,10 @@ export interface ReviewRow extends CommonRowFields {
   readonly period: ReviewPeriod;
   /** 周期起始日（`date`）。 */
   readonly period_start: string;
+  readonly review_type: string;
+  readonly period_key: string;
+  readonly answers: Record<string, unknown> | null;
+  readonly energy_level: string | null;
   readonly snapshot: Readonly<Record<string, unknown>> | null;
   readonly snapshot_schema_version: number;
 }

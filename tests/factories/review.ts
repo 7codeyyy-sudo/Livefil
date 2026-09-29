@@ -1,13 +1,10 @@
 /**
- * `reviews` 行工厂（FND-003）——**最小骨架，待字段定义补全**。
+ * `reviews` 行工厂（Phase 7 schema）。
  *
- * 《数据库设计文档》§4.11 目前只有文字说明、没有字段清单，因此这里只固化文档
- * 已经明确表达的内容：复盘周期、结构化快照，以及快照必须携带的 schema 版本
- * （文档要求「不能依赖未来实时重新计算才能展示历史」）。
- *
- * 刻意**不**在这里臆造字段（如情绪评分、完成率等）：工厂一旦先于设计文档定义字段，
- * 后续实现就会以测试数据为准，反向把未经验证的结构固化成事实。
- * 字段补全后的收尾工作已记入《开发任务清单》REVIEW-001。
+ * 《数据库设计文档》§4.11 已补全字段定义，这里按最终字段实现：
+ * - period_key / period / period_start：复盘周期标识
+ * - review_type：daily / weekly
+ * - snapshot_schema_version：快照 schema 版本
  */
 import type { FactoryContext, ReviewRow, UserRow } from './types.ts';
 
@@ -46,8 +43,12 @@ export function createReviewFactory(
     const row: ReviewRow = {
       id: context.ids.next(),
       user_id: userId,
+      review_type: 'daily',
+      period_key: timestamp.slice(0, DATE_LENGTH),
       period: 'daily',
       period_start: timestamp.slice(0, DATE_LENGTH),
+      answers: null,
+      energy_level: null,
       snapshot: null,
       snapshot_schema_version: DEFAULT_SNAPSHOT_SCHEMA_VERSION,
       created_at: timestamp,

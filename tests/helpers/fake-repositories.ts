@@ -28,6 +28,7 @@ import type {
   LifeAreaCreateInput,
   LifeAreaPatch,
 } from '../../src/modules/life-areas/domain/life-area.ts';
+import type { ExpenseCategory } from '../../src/modules/expenses/domain/expense-category.ts';
 import {
   assertReorderCoversActiveSet,
   isLifeAreaColorKey,
@@ -84,11 +85,12 @@ export const DEFAULT_USER_SETTINGS: UserSettings = Object.freeze({
 export interface FakeDatabase {
   readonly users: User[];
   readonly lifeAreas: LifeArea[];
+  readonly expenseCategories: ExpenseCategory[];
   sequence: number;
 }
 
 export function createFakeDatabase(): FakeDatabase {
-  return { users: [], lifeAreas: [], sequence: 0 };
+  return { users: [], lifeAreas: [], expenseCategories: [], sequence: 0 };
 }
 
 /** 生成一个稳定可读的 id（顺序递增，便于断言里对照）。 */
