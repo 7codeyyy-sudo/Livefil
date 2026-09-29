@@ -67,13 +67,20 @@ test.describe('外壳 · 桌面（≥1024px）', () => {
   test('导航切换后当前页标记与文档标题同步', async ({ page }) => {
     await page.goto('/today');
 
-    await expect(page.getByRole('link', { name: '今日' })).toHaveAttribute('aria-current', 'page');
+    // 导航项一律 `exact: true`：`getByRole` 的 `name` 是**子串**匹配，而页面上
+    // 可能与导航同名/近名的其它真链接（如 `/review` 空态的「查看今日计划」→ `/today`，
+    // UI 规范 v0.21 §5 B1）。不精确匹配会撞 strict mode，断言的意图（侧栏导航项
+    // 的 `aria-current`）反而被别处的链接劫持。
+    await expect(page.getByRole('link', { name: '今日', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
 
     await page.getByRole('link', { name: '复盘' }).click();
 
     await expect(page).toHaveURL(/\/review$/);
     await expect(page.getByRole('link', { name: '复盘' })).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('link', { name: '今日' })).not.toHaveAttribute(
+    await expect(page.getByRole('link', { name: '今日', exact: true })).not.toHaveAttribute(
       'aria-current',
       'page',
     );
