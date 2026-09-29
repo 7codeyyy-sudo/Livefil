@@ -53,7 +53,12 @@ const MAX_SUMMARY_FIELDS = 3;
  * 关键字段的展示顺序与中文名。
  *
  * 顺序即优先级：实体名与状态最能让用户认出"这是哪一条"，日期次之。
- * 用一张表而不是逐类型分支：9 个实体类型共用同一份口径，表比分支好维护。
+ * 用一张表而不是逐类型分支：各实体类型共用同一份口径，表比分支好维护。
+ *
+ * 末尾四项为新实体（`expense` / `review`）追加：**追加在表尾**，既有 8 项的
+ * 优先级与 `MAX_SUMMARY_FIELDS` 截断行为逐字不变；`expense` 实际得到
+ * 「金额 / 币种 / 日期」三行，金额冲突的两版金额因此逐行可见
+ * （RD-20260928-004 §B.4：金额冲突提示复用 §4.9.2 浮层，不另造字段级 diff）。
  */
 const SUMMARY_FIELDS: readonly (readonly [string, string])[] = [
   ['title', '标题'],
@@ -64,6 +69,10 @@ const SUMMARY_FIELDS: readonly (readonly [string, string])[] = [
   ['startsAtUtc', '开始时间'],
   ['estimatedMinutes', '预估时长'],
   ['minimumVersion', '最低版本'],
+  ['amountMinor', '金额'],
+  ['currencyCode', '币种'],
+  ['occurredOn', '日期'],
+  ['periodKey', '复盘日期'],
 ];
 
 /** 一条待推送的操作（与 `POST /sync/push` 的单条入参同形）。 */
@@ -613,9 +622,16 @@ function toConflictView(operation: PendingOperationRecord): SyncConflictView {
   };
 }
 
-/** 实体可读名：优先标题，其次名称，都没有就退化成 id（绝不显示空白标题）。 */
+/**
+ * 实体可读名：优先标题，其次名称、备注、复盘日期，都没有就退化成 id
+ * （绝不显示空白标题）。
+ *
+ * `note` / `periodKey` 是新实体（`expense` / `review`）的候选键：开销没有标题，
+ * 其可读信息只有备注；复盘的天然标识是它所对应的日期（RD-20260928-004 §B.4）。
+ * 既有实体行为不变——它们本来就在前两个候选键上命中。
+ */
 function entityDisplayName(operation: PendingOperationRecord): string {
-  for (const key of ['title', 'name']) {
+  for (const key of ['title', 'name', 'note', 'periodKey']) {
     const value = operation.payload[key];
     if (typeof value === 'string' && value !== '') {
       return value;

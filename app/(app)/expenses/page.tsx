@@ -6,10 +6,10 @@ import { ExpensesPanel } from './ExpensesPanel';
 export const metadata: Metadata = { title: '开销' };
 
 /**
- * 开销页（`/expenses`）。
+ * 开销页（`/expenses`，EXP-001~004）。
  *
- * 本批（UI-004）只交付状态；记账与摘要属 EXP 系列任务。空态描述因此讲的是
- * 「这块区域将来会给出什么」（按月汇总），而不是一个点不动的「记一笔」。
+ * 页面本身只管标题与外壳；取数、筛选、记账抽屉、分类管理都在 `ExpensesPanel`
+ * 及其子组件里（《UI 页面规范》§5 A1~A6）。
  */
 export default function ExpensesPage() {
   return (

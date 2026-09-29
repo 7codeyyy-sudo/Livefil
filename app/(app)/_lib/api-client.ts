@@ -209,11 +209,24 @@ const SYNC_ENTITY_BY_COLLECTION: Readonly<Record<string, string>> = {
   'schedule-blocks': 'schedule_block',
   'fixed-commitments': 'fixed_commitment',
   'life-areas': 'life_area',
+  expenses: 'expense',
+  reviews: 'review',
 };
 
 /** 可入队的路径形态：`/api/v1/<集合>/<实体 uuid>`，且**没有**更深的子路径。 */
 const ENTITY_WRITE_PATH =
   /^\/api\/v1\/([^/]+)\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$/;
+
+/**
+ * 周期复盘写路径：`PUT /api/v1/reviews/daily/{date}`（日期键 upsert，REVIEW-001）。
+ *
+ * 它既不匹配 `ENTITY_WRITE_PATH`（第二段是 `daily` 而非 uuid）也不匹配
+ * `COLLECTION_WRITE_PATH`（要求单段集合路径），只能单独登记。实体 id 没有服务端
+ * 存在物可指，由客户端 `crypto.randomUUID()` 生成（披露 B.2 甲案）；服务端 create
+ * 按该 uuid 落行，同日在线再 PUT 时按唯一键 `(user_id, review_type, period_key)`
+ * 命中同一行，不重复建行。
+ */
+const PERIOD_REVIEW_WRITE_PATH = /^\/api\/v1\/reviews\/(daily|weekly)\/(\d{4}-\d{2}-\d{2})$/;
 
 /**
  * 创建请求的路径形态：`/api/v1/<集合>`，**没有**实体 id 也没有子路径。
@@ -258,6 +271,12 @@ function describeFailedWrite(
   const operationType = OPERATION_BY_METHOD[method];
   if (operationType === undefined) {
     return null;
+  }
+
+  // 日期键 upsert 先试：它的路径同样以集合名开头，形态与下面两种都不同。
+  const periodReview = describePeriodReviewWrite(method, path, body);
+  if (periodReview !== null) {
+    return periodReview;
   }
 
   const matched = ENTITY_WRITE_PATH.exec(path);
@@ -339,6 +358,72 @@ function describeFailedCreate(path: string, body: unknown): FailedWriteOutcome |
 /** 是否为可逐键读取的普通对象（数组与 `null` 都不算）。 */
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 一次失败的**周期复盘**写请求（`PUT /api/v1/reviews/daily/{date}`）→ 同步描述 + 离线信封。
+ *
+ * 与 `describeFailedCreate` 的关键差别是**实体 id 没有来源**：这条端点以
+ * `(review_type, period_key)` 为主键，路径里根本没有 uuid。因此这里替客户端生成一个
+ * （服务端 `create` 就用它建行），并把路径上的 `reviewType` / `periodKey` 回填进
+ * payload——它们是服务端 NOT NULL 且无默认值的列，不带上就会被逐条 `rejected`。
+ *
+ * 离线时「服务端是否已有该日那一行」无从得知，故**一律按 create 入队**：服务端以
+ * `(user_id, review_type = 'daily', period_key)` 唯一索引收敛到同一行，同日在线再保存
+ * 命中同一行，不重复建行（RD-20260928-004 §B.2 甲案）。
+ *
+ * 离线信封对齐在线 PUT 的响应形状，但 `facts` 只能是零值——事实摘要来自服务端聚合，
+ * 离线算不出来；页面以本地快照兜底展示（RD-20260928-004 §B.3）。
+ */
+function describePeriodReviewWrite(
+  method: MutationMethod,
+  path: string,
+  body: unknown,
+): FailedWriteOutcome | null {
+  if (method !== 'PUT') {
+    return null;
+  }
+  const matched = PERIOD_REVIEW_WRITE_PATH.exec(path);
+  if (matched === null) {
+    return null;
+  }
+  const reviewType = matched[1];
+  const periodKey = matched[2];
+  if (reviewType === undefined || periodKey === undefined) {
+    return null;
+  }
+
+  const fields = isRecord(body) ? body : {};
+  // `version` 由服务端维护，不进 payload（创建时也不存在期望版本）；`undefined`
+  // 会被 JSON.stringify 丢掉，留着会让入队记录与真正发出的请求体不一致。
+  const { version: _version, ...rest } = fields;
+  const payload: Record<string, unknown> = { reviewType, periodKey };
+  for (const [key, value] of Object.entries(rest)) {
+    if (value !== undefined) {
+      payload[key] = value;
+    }
+  }
+  const entityId = crypto.randomUUID();
+
+  return {
+    descriptor: {
+      entityType: 'review',
+      entityId,
+      operationType: 'create',
+      baseVersion: null,
+      payload,
+    },
+    offlineResult: {
+      data: {
+        date: periodKey,
+        answers: payload['answers'] ?? null,
+        energyLevel: payload['energyLevel'] ?? null,
+        version: null,
+        createdAt: null,
+        facts: { plannedMinutes: 0, actualMinutes: 0, completedCount: 0, uncompletedCount: 0 },
+      },
+    },
+  };
 }
 
 /**

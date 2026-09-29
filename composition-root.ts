@@ -38,6 +38,10 @@ import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
 import { DEFAULT_LIFE_AREAS } from '@/modules/life-areas/domain/default-life-areas.ts';
+import { createExpenseCategoryRepository } from '@/modules/expenses/infrastructure/expense-category-repository.drizzle.ts';
+import { createExpenseRepository } from '@/modules/expenses/infrastructure/expense-repository.drizzle.ts';
+import type { ExpenseCategoryRepository } from '@/modules/expenses/domain/expense-category-repository.ts';
+import type { ExpenseRepository } from '@/modules/expenses/domain/expense-repository.ts';
 import type { LifeAreaRepository } from '@/modules/life-areas/domain/life-area-repository.ts';
 import type { LifeAreaSeed } from '@/modules/life-areas/domain/life-area.ts';
 import { createLifeAreaRepository } from '@/modules/life-areas/infrastructure/life-area-repository.drizzle.ts';
@@ -65,6 +69,16 @@ import {
 } from '@/modules/execution/infrastructure/execution-repositories.drizzle.ts';
 import type { RoutineRepository } from '@/modules/routines/domain/routine-repository.ts';
 import { createRoutineRepository } from '@/modules/routines/infrastructure/routine-repository.drizzle.ts';
+import type {
+  ReviewAdjustmentApplier,
+  ReviewFactsRepository,
+  ReviewRepository,
+} from '@/modules/reviews/domain/review-repository.ts';
+import { createReviewFactsRepository } from '@/modules/reviews/infrastructure/review-facts.drizzle.ts';
+import {
+  createReviewAdjustmentApplier,
+  createReviewRepository,
+} from '@/modules/reviews/infrastructure/review-repository.drizzle.ts';
 import type { SyncConflictRepository } from '@/modules/sync/domain/sync-conflict.ts';
 import type { SyncApplyPort, SyncRepository } from '@/modules/sync/domain/sync-repository.ts';
 import { createSyncApplyPort } from '@/modules/sync/infrastructure/sync-apply.drizzle.ts';
@@ -131,6 +145,8 @@ export function getAuditLogger(): AuditLogger {
 export function getRepositories(): {
   readonly users: UserRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly expenseCategories: ExpenseCategoryRepository;
+  readonly expenses: ExpenseRepository;
   readonly tasks: TaskRepository;
   readonly goals: GoalRepository;
   readonly actions: ActionRepository;
@@ -139,6 +155,9 @@ export function getRepositories(): {
   readonly executionLogs: ExecutionLogRepository;
   readonly recoveryStates: RecoveryStateRepository;
   readonly routines: RoutineRepository;
+  readonly reviews: ReviewRepository;
+  readonly reviewFacts: ReviewFactsRepository;
+  readonly reviewAdjustments: ReviewAdjustmentApplier;
   readonly sync: SyncRepository;
   readonly syncApply: SyncApplyPort;
   readonly syncConflicts: SyncConflictRepository;
@@ -147,6 +166,8 @@ export function getRepositories(): {
   return {
     users: createUserRepository(db),
     lifeAreas: createLifeAreaRepository(db),
+    expenseCategories: createExpenseCategoryRepository(db),
+    expenses: createExpenseRepository(db),
     tasks: createTaskRepository(db),
     goals: createGoalRepository(db),
     actions: createActionRepository(db),
@@ -155,6 +176,9 @@ export function getRepositories(): {
     executionLogs: createExecutionLogRepository(db),
     recoveryStates: createRecoveryStateRepository(db),
     routines: createRoutineRepository(db),
+    reviews: createReviewRepository(db),
+    reviewFacts: createReviewFactsRepository(db),
+    reviewAdjustments: createReviewAdjustmentApplier(db),
     sync: createSyncRepository(db),
     syncApply: createSyncApplyPort(db),
     syncConflicts: createSyncConflictRepository(db),
