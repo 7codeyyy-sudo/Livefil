@@ -173,30 +173,30 @@ export function updateExpense(
 }
 
 /**
- * 取服务端当前的这一笔（PATCH 撞 409 时用来渲染「服务器上的版本」）。
+ * 按 id 取服务端当前的这一笔（PATCH 撞 409 时用来渲染「服务器上的版本」）。
  *
- * ## 为什么要绕一次列表
+ * ## 为什么现在能直取
  *
- * 契约里**没有** `GET /expenses/{expenseId}`（§9 的实体路径只有 PATCH / DELETE），
- * 而 409 的响应体按 §4.9.2 只给 code / message / requestId，不带服务端行。于是这里
- * 退一步：从**无筛选列表首页**（`limit=100`，排序 `occurredOn desc, createdAt desc,
- * id desc`）里把它找出来。
+ * 契约原先**没有**实体读取路径（§9 的实体路径只有 PATCH / DELETE），而 409 的响应体
+ * 按 §4.9.2 只给 code / message / requestId，不带服务端行。当时的替代做法是从
+ * **无筛选列表首页**（`limit=100`）里反查——早于最近 100 笔的记录就不在首页里，
+ * 只能退化为「重新加载页面」的降级文案（缺口见 RD-20260928-005 §七①）。
  *
- * ## 返回 `null` 是**有意**的，调用方不得将就
- *
- * 早于最近 100 笔的记录不在首页里。这种情况下**不能**拿本地那行陈旧数据冒充服务端
- * 版本（两版看起来一模一样，等于骗用户），而应退化为就地提示「重新加载页面」。
- * 该缺口已在交付报告中声明。
+ * 第 8 项随批勘误补上 `GET /expenses/{expenseId}`（接口文档 v0.5 §9）后，这里按 id
+ * 直取即可：**再也不存在"取不到"的正常情形**——那一行必然存在（409 是版本不匹配，
+ * 不是行不存在）。因此 `null` 只剩一种含义：**这次读取本身失败了**（超时、断网、
+ * 服务端 5xx）。调用方据此提示可重试，而不是像过去那样说"请重新加载页面"。
  */
-export async function fetchExpenseForConflict(
+export async function fetchExpenseById(
   expenseId: string,
   signal: AbortSignal,
 ): Promise<ExpenseItem | null> {
-  const envelope = await fetchJson<{ readonly items: readonly ExpenseItem[] }>(
-    '/api/v1/expenses?limit=100',
-    signal,
-  );
-  return envelope.data.items.find((item) => item.id === expenseId) ?? null;
+  try {
+    const envelope = await fetchJson<ExpenseItem>(`/api/v1/expenses/${expenseId}`, signal);
+    return envelope.data;
+  } catch {
+    return null;
+  }
 }
 
 /** 软删除：响应体即「可撤销信息」（含 `deletedAt` 与撤销要带的 `version`）。 */

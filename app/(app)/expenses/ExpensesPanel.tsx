@@ -20,8 +20,8 @@ import {
   createExpenseCategory,
   deleteExpense,
   EMPTY_EXPENSE_FILTER,
+  fetchExpenseById,
   fetchExpenseCategories,
-  fetchExpenseForConflict,
   formatMinorToHuman,
   hasActiveFilter,
   restoreExpense,
@@ -231,11 +231,11 @@ export function ExpensesPanel() {
 
   /**
    * 编辑撞 409 时取服务端当前行（交给抽屉渲染「服务器上的版本」与「保留此设备版本」
-   * 要用的 `version`）。取不到返回 `null`——抽屉会退化为就地提示，而不是拿本地
-   * 陈旧行冒充服务端版本。
+   * 要用的 `version`）。`GET /expenses/{id}` 是第 8 项随批勘误补上的实体路径，
+   * 因此这里不再绕列表首页；返回 `null` 只表示这次读取失败（超时 / 断网 / 5xx）。
    */
   const resolveServerExpense = (expenseId: string): Promise<ExpenseItem | null> =>
-    fetchExpenseForConflict(expenseId, new AbortController().signal).catch(() => null);
+    fetchExpenseById(expenseId, new AbortController().signal);
 
   const visibleItems =
     listItems === null ? null : listItems.filter((item) => !removedIds.has(item.id));
