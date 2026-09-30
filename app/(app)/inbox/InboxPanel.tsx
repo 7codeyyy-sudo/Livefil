@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  ReminderRuleInlineArea,
   Skeleton,
   useCursorListQuery,
   useToast,
@@ -15,6 +16,7 @@ import {
 
 import { ApiRequestError, sendJson } from '../_lib/api-client';
 import { makeInboxQueryFn, type TaskItem } from '../_lib/queries';
+import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import { ConvertToActionModal } from './ConvertToActionModal';
 import { ScheduleTaskModal } from './ScheduleTaskModal';
 import styles from './InboxPanel.module.css';
@@ -40,6 +42,15 @@ export function InboxPanel() {
   const [scheduleTargets, setScheduleTargets] = useState<readonly string[] | null>(null);
   /** 「转为目标行动」的目标任务。 */
   const [convertTask, setConvertTask] = useState<TaskItem | null>(null);
+  /**
+   * 行内提醒展开态：**同屏至多展开一行**——只存一个键，展开新行即替换旧行
+   * （§5 A「展开新行先折叠旧行」，避免长列表纵向膨胀）。
+   */
+  const [expandedReminderKey, setExpandedReminderKey] = useState<string | null>(null);
+  const reminders = useReminderRuleStore(['task']);
+  // 总开关未知（加载中 / 取数失败）时不渲染入口：`ReminderRuleSection` 只接受
+  // 确定的布尔值，把「还不知道」当 `false` 渲染成「总开关已关闭」是假话。
+  const reminderGlobalEnabled = reminders.globalEnabled;
   const quickAddInputRef = useRef<HTMLInputElement>(null);
 
   // 顶栏「＋快速添加」跳转 `/inbox#quick-add`（UI v0.19 §5）：落页后聚焦输入框。
@@ -48,6 +59,11 @@ export function InboxPanel() {
       quickAddInputRef.current?.focus();
     }
   }, []);
+
+  /** 翻转某行的提醒展开态（同屏至多一行：展开新行即折叠旧行）。 */
+  const toggleReminderRow = (rowKey: string) => {
+    setExpandedReminderKey((current) => (current === rowKey ? null : rowKey));
+  };
 
   const toggleSelected = (taskId: string, nextChecked: boolean) => {
     setSelected((previous) => {
@@ -237,6 +253,26 @@ export function InboxPanel() {
                 归档
               </Button>
             </div>
+            {/* 铃铛排在行尾既有动作之后（§5 A「共存与可达」），不与它们重排。 */}
+            {reminderGlobalEnabled === null ? null : (
+              <ReminderRuleInlineArea
+                label="为该任务添加提醒"
+                controlsId={`reminder-task-${task.id}`}
+                expanded={expandedReminderKey === `task:${task.id}`}
+                onToggleExpanded={() => {
+                  toggleReminderRow(`task:${task.id}`);
+                }}
+                section={{
+                  state: reminders.stateFor('task', task.id),
+                  onRetry: reminders.retry,
+                  globalEnabled: reminderGlobalEnabled,
+                  permission: reminders.permission,
+                  onRequestPermission: reminders.requestPermission,
+                  onCreate: (draft) => reminders.createRule('task', task.id, draft),
+                  onToggle: reminders.toggleRule,
+                }}
+              />
+            )}
           </li>
         ))}
       </ul>

@@ -57,6 +57,15 @@
   line-height: var(--line-height-caption);
 }
 
+/* 每个块的容器：块按钮（点击打开编辑弹层）与提醒触发件**并列**为兄弟节点
+   （`button` 不能嵌 `button`），展开区凭 `flex-basis: 100%` 落到下方（§5 A）。 */
+.blockRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .blockItem {
   margin: 0;
   padding: var(--space-1) var(--space-2);

@@ -3,11 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { Button, ErrorState, Skeleton, useAsyncQuery } from '@/shared/ui/components';
+import {
+  Button,
+  ErrorState,
+  ReminderRuleInlineArea,
+  Skeleton,
+  useAsyncQuery,
+} from '@/shared/ui/components';
 
 import { fetchJson } from '../_lib/api-client';
 import { fetchProfile } from '../_lib/identity-api';
 import { addDays, formatWeekRange, localCalendarDay, startOfWeek } from '../_lib/review-api';
+import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import { EditBlockModal, type EditableBlock } from '../_components/EditBlockModal';
 import styles from './WeekPanel.module.css';
 
@@ -75,6 +82,20 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
   // 周视图 P0＝只读展示＋点击块编辑（任务清单次级口径⑨冻结）。
   const [editing, setEditing] = useState<EditableBlock | null>(null);
   const router = useRouter();
+  /**
+   * 行内提醒展开态：**同屏至多展开一行**——只存一个键，展开新行即替换旧行
+   * （§5 A「展开新行先折叠旧行」）。
+   */
+  const [expandedReminderKey, setExpandedReminderKey] = useState<string | null>(null);
+  const reminders = useReminderRuleStore(['task']);
+  // 总开关未知（加载中 / 取数失败）时不渲染入口：把「还不知道」当 `false`
+  // 渲染成「总开关已关闭」是假话（同 ReviewReminderArea）。
+  const reminderGlobalEnabled = reminders.globalEnabled;
+
+  /** 翻转某行的提醒展开态（同屏至多一行：展开新行即折叠旧行）。 */
+  const toggleReminderRow = (rowKey: string) => {
+    setExpandedReminderKey((current) => (current === rowKey ? null : rowKey));
+  };
 
   const profile = useAsyncQuery({ queryKey: ['me'], queryFn: fetchProfile });
   const weekStartsOn =
@@ -197,22 +218,49 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
                   {dayBlocks.length === 0 && dayFixed.length === 0 ? (
                     <p className={styles.emptyDay}>—</p>
                   ) : null}
-                  {dayBlocks.map((block) => (
-                    <button
-                      key={block.id}
-                      type="button"
-                      className={
-                        block.status === 'completed' ? styles.completedItem : styles.blockItem
-                      }
-                      onClick={() => {
-                        if (block.status !== 'completed') {
-                          setEditing(block);
-                        }
-                      }}
-                    >
-                      {clockOf(block.startsAtUtc)} {block.title ?? '自由安排'}
-                    </button>
-                  ))}
+                  {dayBlocks.map((block) => {
+                    // 任务行现在是 `button`（点击打开编辑弹层）——`button` 不能嵌 `button`，
+                    // 所以把块按钮包进容器，提醒触发件与它**并列**为兄弟节点（§5 A）。
+                    const taskId = block.taskId;
+                    const rowKey = `task:${taskId ?? ''}`;
+                    return (
+                      <div key={block.id} className={styles.blockRow}>
+                        <button
+                          type="button"
+                          className={
+                            block.status === 'completed' ? styles.completedItem : styles.blockItem
+                          }
+                          onClick={() => {
+                            if (block.status !== 'completed') {
+                              setEditing(block);
+                            }
+                          }}
+                        >
+                          {clockOf(block.startsAtUtc)} {block.title ?? '自由安排'}
+                        </button>
+                        {/* 自由安排块没有 `taskId`，没有可挂规则的对象（§5 C）。 */}
+                        {taskId === null || reminderGlobalEnabled === null ? null : (
+                          <ReminderRuleInlineArea
+                            label="为该任务添加提醒"
+                            controlsId={`reminder-task-${taskId}`}
+                            expanded={expandedReminderKey === rowKey}
+                            onToggleExpanded={() => {
+                              toggleReminderRow(rowKey);
+                            }}
+                            section={{
+                              state: reminders.stateFor('task', taskId),
+                              onRetry: reminders.retry,
+                              globalEnabled: reminderGlobalEnabled,
+                              permission: reminders.permission,
+                              onRequestPermission: reminders.requestPermission,
+                              onCreate: (draft) => reminders.createRule('task', taskId, draft),
+                              onToggle: reminders.toggleRule,
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </section>
               );
             })}

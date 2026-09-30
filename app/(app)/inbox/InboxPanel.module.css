@@ -52,6 +52,8 @@
 .row {
   display: flex;
   align-items: center;
+  /* 允许换行：行内提醒的展开区（`flex-basis: 100%`）据此落到整行下方（§5 A）。 */
+  flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-border);
@@ -101,12 +103,9 @@
 
 /* 手机：行内三动作收窄为图标位不现实（IconButton 无文字可读性差），
    保持三按钮但允许换行（§3.2 窄屏不隐藏功能）。
-   断点值直接写像素：CSS 变量无法用于 @media 条件，项目既定做法。 */
+   断点值直接写像素：CSS 变量无法用于 @media 条件，项目既定做法。
+   `.row` 已经在所有宽度下 `flex-wrap: wrap`，这里只需把动作区推成整行。 */
 @media (max-width: 767px) {
-  .row {
-    flex-wrap: wrap;
-  }
-
   .rowActions {
     width: 100%;
     justify-content: flex-end;

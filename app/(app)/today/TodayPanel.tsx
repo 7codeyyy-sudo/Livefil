@@ -13,12 +13,14 @@ import {
   Checkbox,
   ErrorState,
   Input,
+  ReminderRuleInlineArea,
   Skeleton,
   useAsyncQuery,
   useToast,
 } from '@/shared/ui/components';
 
 import { ApiRequestError, fetchJson, sendJson } from '../_lib/api-client';
+import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import styles from './TodayPanel.module.css';
 
 /**
@@ -127,6 +129,20 @@ export function TodayPanel() {
   /** 键盘调整（冻结口径：方向键 15 分钟、Enter 确认、Esc 还原）——本地暂存，Enter 才 PATCH。 */
   const [shiftMinutes, setShiftMinutes] = useState<Readonly<Record<string, number>>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  /**
+   * 行内提醒展开态：**同屏至多展开一行**——只存一个键，展开新行即替换旧行
+   * （§5 A「展开新行先折叠旧行」）。键区分任务行与例程行（`task:` / `routine:`）。
+   */
+  const [expandedReminderKey, setExpandedReminderKey] = useState<string | null>(null);
+  const reminders = useReminderRuleStore(['task', 'routine']);
+  // 总开关未知（加载中 / 取数失败）时不渲染入口：把「还不知道」当 `false`
+  // 渲染成「总开关已关闭」是假话（同 ReviewReminderArea）。
+  const reminderGlobalEnabled = reminders.globalEnabled;
+
+  /** 翻转某行的提醒展开态（同屏至多一行：展开新行即折叠旧行）。 */
+  const toggleReminderRow = (rowKey: string) => {
+    setExpandedReminderKey((current) => (current === rowKey ? null : rowKey));
+  };
 
   const mutateBlock = async (block: TodayBlock, status: 'completed' | 'deferred') => {
     setPending((previous) => new Set(previous).add(block.id));
@@ -267,116 +283,141 @@ export function TodayPanel() {
           </p>
         ) : (
           <ul className={styles.blockList}>
-            {view.blocks.map((block) => (
-              <li
-                key={block.id}
-                className={styles.blockRow}
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (block.status === 'completed') return;
-                  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            {view.blocks.map((block) => {
+              // 自由安排块没有 `taskId`（＝没有可挂规则的对象），§5 C 明文「固定事项与
+              // 时间块不产生提醒」，因此这类块不渲染提醒入口。
+              const taskId = block.taskId;
+              const rowKey = `task:${taskId ?? ''}`;
+              return (
+                <li
+                  key={block.id}
+                  className={styles.blockRow}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (block.status === 'completed') return;
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                      event.preventDefault();
+                      const delta = event.key === 'ArrowRight' ? 15 : -15;
+                      setShiftMinutes((prev) => ({
+                        ...prev,
+                        [block.id]: (prev[block.id] ?? 0) + delta,
+                      }));
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      setEditingBlock({
+                        ...block,
+                        startsAtUtc: shiftPreviewIso(block, shiftMinutes[block.id] ?? 0),
+                      });
+                      setShiftMinutes((prev) => {
+                        const next = { ...prev };
+                        delete next[block.id];
+                        return next;
+                      });
+                    }
+                    if (event.key === 'Escape') {
+                      setShiftMinutes((prev) => {
+                        const next = { ...prev };
+                        delete next[block.id];
+                        return next;
+                      });
+                    }
+                  }}
+                  draggable={block.status !== 'completed'}
+                  onDragStart={() => {
+                    setDraggingId(block.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingId(null);
+                  }}
+                  onDragOver={(event) => {
+                    if (draggingId !== null && draggingId !== block.id) {
+                      event.preventDefault();
+                    }
+                  }}
+                  onDrop={(event) => {
                     event.preventDefault();
-                    const delta = event.key === 'ArrowRight' ? 15 : -15;
-                    setShiftMinutes((prev) => ({
-                      ...prev,
-                      [block.id]: (prev[block.id] ?? 0) + delta,
-                    }));
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    setEditingBlock({
-                      ...block,
-                      startsAtUtc: shiftPreviewIso(block, shiftMinutes[block.id] ?? 0),
-                    });
-                    setShiftMinutes((prev) => {
-                      const next = { ...prev };
-                      delete next[block.id];
-                      return next;
-                    });
-                  }
-                  if (event.key === 'Escape') {
-                    setShiftMinutes((prev) => {
-                      const next = { ...prev };
-                      delete next[block.id];
-                      return next;
-                    });
-                  }
-                }}
-                draggable={block.status !== 'completed'}
-                onDragStart={() => {
-                  setDraggingId(block.id);
-                }}
-                onDragEnd={() => {
-                  setDraggingId(null);
-                }}
-                onDragOver={(event) => {
-                  if (draggingId !== null && draggingId !== block.id) {
-                    event.preventDefault();
-                  }
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const dragged = view.blocks.find((b) => b.id === draggingId);
-                  setDraggingId(null);
-                  if (dragged === undefined || dragged.id === block.id) return;
-                  // 拖拽语义：被拖块的开始吸附到目标块结束（冲突由服务端 warning）。
-                  void moveBlockTo(dragged, new Date(block.endsAtUtc));
-                }}
-              >
-                <span className={styles.blockTime}>
-                  {clockOf(shiftPreviewIso(block, shiftMinutes[block.id] ?? 0))}–
-                  {clockOf(
-                    shiftPreviewIso(
-                      block,
-                      (shiftMinutes[block.id] ?? 0) +
-                        minutesBetween(block.startsAtUtc, block.endsAtUtc),
-                    ),
-                  )}
-                </span>
-                <span className={styles.blockTitle}>
-                  {block.title ?? '自由安排'}
-                  {(shiftMinutes[block.id] ?? 0) !== 0 ? (
-                    <span className={styles.hint}>
-                      {' '}
-                      （{shiftMinutes[block.id]! > 0 ? '+' : ''}
-                      {String(shiftMinutes[block.id])} 分钟，Enter 确认 / Esc 还原）
-                    </span>
-                  ) : null}
-                </span>
-                {block.status === 'completed' ? (
-                  <span className={styles.doneBadge}>已完成</span>
-                ) : (
-                  <span className={styles.blockActions}>
-                    <Button
-                      variant="ghost"
-                      loading={pending.has(block.id)}
-                      onClick={() => {
-                        void mutateBlock(block, 'completed');
-                      }}
-                    >
-                      完成
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      loading={pending.has(block.id)}
-                      onClick={() => {
-                        void mutateBlock(block, 'deferred');
-                      }}
-                    >
-                      延后
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingBlock(block);
-                      }}
-                    >
-                      调整
-                    </Button>
+                    const dragged = view.blocks.find((b) => b.id === draggingId);
+                    setDraggingId(null);
+                    if (dragged === undefined || dragged.id === block.id) return;
+                    // 拖拽语义：被拖块的开始吸附到目标块结束（冲突由服务端 warning）。
+                    void moveBlockTo(dragged, new Date(block.endsAtUtc));
+                  }}
+                >
+                  <span className={styles.blockTime}>
+                    {clockOf(shiftPreviewIso(block, shiftMinutes[block.id] ?? 0))}–
+                    {clockOf(
+                      shiftPreviewIso(
+                        block,
+                        (shiftMinutes[block.id] ?? 0) +
+                          minutesBetween(block.startsAtUtc, block.endsAtUtc),
+                      ),
+                    )}
                   </span>
-                )}
-              </li>
-            ))}
+                  <span className={styles.blockTitle}>
+                    {block.title ?? '自由安排'}
+                    {(shiftMinutes[block.id] ?? 0) !== 0 ? (
+                      <span className={styles.hint}>
+                        {' '}
+                        （{shiftMinutes[block.id]! > 0 ? '+' : ''}
+                        {String(shiftMinutes[block.id])} 分钟，Enter 确认 / Esc 还原）
+                      </span>
+                    ) : null}
+                  </span>
+                  {block.status === 'completed' ? (
+                    <span className={styles.doneBadge}>已完成</span>
+                  ) : (
+                    <span className={styles.blockActions}>
+                      <Button
+                        variant="ghost"
+                        loading={pending.has(block.id)}
+                        onClick={() => {
+                          void mutateBlock(block, 'completed');
+                        }}
+                      >
+                        完成
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        loading={pending.has(block.id)}
+                        onClick={() => {
+                          void mutateBlock(block, 'deferred');
+                        }}
+                      >
+                        延后
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingBlock(block);
+                        }}
+                      >
+                        调整
+                      </Button>
+                    </span>
+                  )}
+                  {taskId === null || reminderGlobalEnabled === null ? null : (
+                    <ReminderRuleInlineArea
+                      label="为该任务添加提醒"
+                      controlsId={`reminder-task-${taskId}`}
+                      expanded={expandedReminderKey === rowKey}
+                      onToggleExpanded={() => {
+                        toggleReminderRow(rowKey);
+                      }}
+                      section={{
+                        state: reminders.stateFor('task', taskId),
+                        onRetry: reminders.retry,
+                        globalEnabled: reminderGlobalEnabled,
+                        permission: reminders.permission,
+                        onRequestPermission: reminders.requestPermission,
+                        onCreate: (draft) => reminders.createRule('task', taskId, draft),
+                        onToggle: reminders.toggleRule,
+                      }}
+                    />
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -429,6 +470,25 @@ export function TodayPanel() {
                     >
                       安排到今天
                     </Button>
+                  )}
+                  {reminderGlobalEnabled === null ? null : (
+                    <ReminderRuleInlineArea
+                      label="为例程添加提醒"
+                      controlsId={`reminder-routine-${routine.id}`}
+                      expanded={expandedReminderKey === `routine:${routine.id}`}
+                      onToggleExpanded={() => {
+                        toggleReminderRow(`routine:${routine.id}`);
+                      }}
+                      section={{
+                        state: reminders.stateFor('routine', routine.id),
+                        onRetry: reminders.retry,
+                        globalEnabled: reminderGlobalEnabled,
+                        permission: reminders.permission,
+                        onRequestPermission: reminders.requestPermission,
+                        onCreate: (draft) => reminders.createRule('routine', routine.id, draft),
+                        onToggle: reminders.toggleRule,
+                      }}
+                    />
                   )}
                 </li>
                 {routine.steps.map((step) => {
