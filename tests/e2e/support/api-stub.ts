@@ -71,6 +71,105 @@ export async function stubTaskQueryAsEmpty(page: Page): Promise<void> {
   );
 }
 
+/** §16 `GET /notifications/pending` 的空结果（载荷是数组本身，不是 `items` 包一层）。 */
+const EMPTY_PENDING_ENVELOPE = { data: [], meta: { requestId: 'stub' } };
+
+/** 空例程列表（面板标题补名用，形状同 `GET /routines` 的 `{ items }`）。 */
+const EMPTY_ROUTINES_ENVELOPE = { data: { items: [] }, meta: { requestId: 'stub' } };
+
+/**
+ * 把通知域的取数接成「成功但为空」。
+ *
+ * 应用外壳（`app/(app)/layout.tsx`）自 NOTIFY-002 起在**每个应用内页面**都会取
+ * 一次待处理提醒——顶栏铃铛的未读数是列表条数（《UI 页面规范》v0.23 §5 B），
+ * 随后还会取一次例程清单给面板标题补名（§16 的 pending 载荷不带对象名）。
+ * 不接住这两条，凡是「断言页面没有控制台错误」的用例都会多出一条 500 的
+ * resource error：本地没有数据库、CI 的 browser-e2e 作业也没有 DATABASE_URL。
+ *
+ * 与 `stubTaskQueryAsEmpty` 里那条 `/today` 同一个理由：**stub 数据源，而不是
+ * 给 CI 加数据库**。必须在 `page.goto` **之前**调用。
+ */
+export async function stubNotificationsAsEmpty(page: Page): Promise<void> {
+  await page.route('**/api/v1/notifications/pending*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_PENDING_ENVELOPE),
+    }),
+  );
+  await page.route('**/api/v1/routines*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_ROUTINES_ENVELOPE),
+    }),
+  );
+}
+
+/** 空分类列表。 */
+const EMPTY_CATEGORIES_ENVELOPE = { data: { items: [] }, meta: { nextCursor: null } };
+
+/**
+ * 把分类查询接成「成功但为空」。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubExpenseCategoriesData(page: Page): Promise<void> {
+  await page.route('**/api/v1/expense-categories*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_CATEGORIES_ENVELOPE),
+    }),
+  );
+}
+
+/** 空支出列表。 */
+const EMPTY_EXPENSES_ENVELOPE = { data: { items: [] }, meta: { nextCursor: null, hasMore: false } };
+
+/**
+ * 把支出查询接成「成功但为空」。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubExpenseData(page: Page): Promise<void> {
+  await page.route('**/api/v1/expenses*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_EXPENSES_ENVELOPE),
+    }),
+  );
+}
+
+/** 空日复盘。 */
+const EMPTY_DAILY_REVIEW = { data: null, meta: { requestId: 'stub' } };
+
+/** 空周复盘。 */
+const EMPTY_WEEKLY_REVIEW = { data: null, meta: { requestId: 'stub' } };
+
+/**
+ * 把日/周复盘查询接成「成功但为空」。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubReviewData(page: Page): Promise<void> {
+  await page.route('**/api/v1/reviews/daily/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_DAILY_REVIEW),
+    }),
+  );
+  await page.route('**/api/v1/reviews/weekly/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_WEEKLY_REVIEW),
+    }),
+  );
+}
+
 /**
  * 页面上的阻塞式错误态（`ErrorState`）。
  *

@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { stubTaskQueryAsEmpty } from './support/api-stub';
+import { stubNotificationsAsEmpty, stubTaskQueryAsEmpty } from './support/api-stub';
 
 /** 读取 `:root` 上的自定义属性（浏览器返回的是声明值，未做数值解析）。 */
 async function readToken(page: Page, name: string): Promise<string> {
@@ -109,8 +109,10 @@ test('页面内边距随视口收敛（断点覆盖真实生效）', async ({ pa
 test('令牌生效的同时没有引入控制台错误', async ({ page }) => {
   // 从 UI-004 起首页会按 §4.7 用真实端点取数，而本批没有业务端点——
   // 不接住那条请求，浏览器会记一条 resource error，掩盖掉这条用例真正
-  // 要找的东西（样式解析或脚本错误）。
+  // 要找的东西（样式解析或脚本错误）。外壳自 NOTIFY-002 起还会取待处理
+  // 提醒（顶栏铃铛，UI v0.23 §5 B），同理必须一并接住。
   await stubTaskQueryAsEmpty(page);
+  await stubNotificationsAsEmpty(page);
 
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
