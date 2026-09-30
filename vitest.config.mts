@@ -64,6 +64,20 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['tests/integration/**/*.test.ts', 'tests/integration/**/*.test.tsx'],
           setupFiles: ['tests/setup/vitest.setup.ts'],
+          /**
+           * 并发上限 4（默认取「核数 − 1」）。
+           *
+           * 2026-09-30 实测：16 核本机默认并发下，28 个 jsdom 环境被同时创建而互相
+           * 饿死；`home.test.tsx` 与 `ui/AppShell.test.tsx` 的**首条用例**（环境创建与
+           * 模块转换均记在它头上）稳定超默认 5000ms 超时，而断言本身全过——单跑该文件
+           * 0.5s 通过，`--testTimeout=20000` 亦全绿。
+           *
+           * 定性依据《事故记录》「同日补充（二）」的三条对照：CI（Ubuntu）历史全绿、
+           * Windows 本机稳定复现、单变量对照（仅改并发即恢复）——属工具链平台层而非
+           * 用例缺陷，故**不改用例、不放宽断言**，只收敛并发。本机整轮 integration 约
+           * 14s（默认并发约 11s）；小核数 CI 上默认并发本就低于 4，此上限近似无操作。
+           */
+          maxWorkers: 4,
         },
       },
     ],
