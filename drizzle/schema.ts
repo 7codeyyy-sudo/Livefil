@@ -23,6 +23,7 @@ import {
   bigint,
   boolean,
   char,
+  check,
   date,
   index,
   integer,
@@ -714,6 +715,124 @@ export const reviewAdjustments = pgTable(
   ],
 );
 
+/**
+ * 提醒规则（DB §4.12.1，Phase 8 落地 / NOTIFY-001）。
+ *
+ * `level` 是**服务端派生、只读**列（`task→normal` / `routine→critical` / `review→review`）：
+ * 它有服务端写入路径（创建时按 `target_type` 计算落库），因此不属于"无写入路径的死列"，
+ * 而是可支撑按等级排序与 `deliveries.level` 快照同名的物化列。
+ *
+ * **不设 `version` / `deleted_at`**：本批不入同步白名单（拍板 2），无跨端 CAS 与墓碑需求；
+ * `DELETE` 入口走**硬删**（§4.12.1）。因此这里不复用 `commonColumns()`。
+ */
+export const notificationRules = pgTable(
+  'notification_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** task / routine / review。 */
+    targetType: varchar('target_type', { length: 16 }).notNull(),
+    /** task/routine 必填；review 必须为 NULL（不绑定实体，由 CHECK 兜底）。 */
+    targetId: uuid('target_id'),
+    /** 用户时区下的本地时刻 `HH:MM:SS`——与 `users.quiet_hours_start` 同类型。 */
+    remindAt: time('remind_at').notNull(),
+    /** none / daily / weekly。 */
+    repeatRule: varchar('repeat_rule', { length: 16 }).default('none').notNull(),
+    /** 默认 false：不勾＝安静时段内抑制，而非豁免。 */
+    allowQuietHours: boolean('allow_quiet_hours').default(false).notNull(),
+    /** 单条关闭＝false（FR-070 第 4 项）；不提供删除按钮。 */
+    enabled: boolean('enabled').default(true).notNull(),
+    /** critical / normal / review，服务端按 `target_type` 派生。 */
+    level: varchar('level', { length: 16 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    /** 行更新经 `update()`，`$onUpdate` 自动前移；此处不写 `$onUpdate` 会漏掉硬删以外的所有写路径。 */
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('notification_rules_user_target_idx').on(table.userId, table.targetType, table.targetId),
+    index('notification_rules_user_enabled_remind_idx').on(
+      table.userId,
+      table.enabled,
+      table.remindAt,
+    ),
+    check(
+      'notification_rules_review_target_null_check',
+      sql`${table.targetType} <> 'review' OR ${table.targetId} IS NULL`,
+    ),
+  ],
+);
+
+/**
+ * 提醒交付记录（DB §4.12.2，Phase 8 落地 / NOTIFY-002）。
+ *
+ * ## 三条贯穿全表的语义
+ *
+ * - **`status` 严守四值**（`pending`/`sent`/`failed`/`cancelled`）：用户「已处理」只写
+ *   `dismissed_at`、**不改 status**，从而不扩枚举（§4.12.2）。
+ * - **`error_code` 在 `status='failed'` 时必填**（CHECK 兜底）——"发送失败必须记录错误码"
+ *   的可执行表达，而不是一句注释。
+ * - **`channel` 是纯服务端派生字段**：物化时 `in_app`；`attempt` 上报落痕时（无论成败）
+ *   置 `browser`——使渠道枚举的 `browser` 值获得唯一写入路径，不留死值。
+ *
+ * **不设 `version` / `deleted_at`**（不入同步白名单，拍板 2）。
+ * `rule_id` 用 `ON DELETE SET NULL`：规则硬删后**保留历史留痕**（§4.12.2）。
+ */
+export const notificationDeliveries = pgTable(
+  'notification_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    ruleId: uuid('rule_id').references(() => notificationRules.id, { onDelete: 'set null' }),
+    /** task / routine / review，冗余自规则：规则删除后仍可解释本条语义。 */
+    targetType: varchar('target_type', { length: 16 }).notNull(),
+    targetId: uuid('target_id'),
+    /** in_app / browser（云端渠道留位，拍板 2）。 */
+    channel: varchar('channel', { length: 16 }).default('in_app').notNull(),
+    /** 触达时的实际等级**快照**，不随规则后续变更。 */
+    level: varchar('level', { length: 16 }).notNull(),
+    /** pending / sent / failed / cancelled。 */
+    status: varchar('status', { length: 16 }).default('pending').notNull(),
+    /** 本次触达目标时刻（UTC 瞬时）。 */
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true, mode: 'date' }).notNull(),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true, mode: 'date' }),
+    /** failed 时必填（CHECK 兜底）；取值限 §4.12.2 四值，与 §1.4 API 错误码不同源。 */
+    errorCode: varchar('error_code', { length: 48 }),
+    /** 仅「可重试失败」非空；NULL 表示不再重试。 */
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true, mode: 'date' }),
+    /** 应用内面板的「已处理」出口：写它、不改 status。 */
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('notification_deliveries_user_status_scheduled_idx').on(
+      table.userId,
+      table.status,
+      table.scheduledFor,
+    ),
+    index('notification_deliveries_user_scheduled_idx').on(table.userId, table.scheduledFor),
+    // 部分索引：只索引「可重试失败」行，避免重试扫描退化为全表。
+    index('notification_deliveries_user_next_retry_idx')
+      .on(table.userId, table.nextRetryAt)
+      .where(sql`status = 'failed'`),
+    check(
+      'notification_deliveries_failed_error_code_check',
+      sql`${table.status} <> 'failed' OR ${table.errorCode} IS NOT NULL`,
+    ),
+  ],
+);
+
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;
 export type RoutineRow = typeof routines.$inferSelect;
@@ -729,3 +848,7 @@ export type ReviewRow = typeof reviews.$inferSelect;
 export type NewReviewRow = typeof reviews.$inferInsert;
 export type ReviewAdjustmentRow = typeof reviewAdjustments.$inferSelect;
 export type NewReviewAdjustmentRow = typeof reviewAdjustments.$inferInsert;
+export type NotificationRuleRow = typeof notificationRules.$inferSelect;
+export type NewNotificationRuleRow = typeof notificationRules.$inferInsert;
+export type NotificationDeliveryRow = typeof notificationDeliveries.$inferSelect;
+export type NewNotificationDeliveryRow = typeof notificationDeliveries.$inferInsert;

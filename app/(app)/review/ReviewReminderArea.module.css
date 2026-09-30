@@ -1,0 +1,27 @@
+/**
+ * 复盘提醒区样式（UI v0.23 §5 A 的 `/review` 宿主）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ */
+
+.area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.toolbar {
+  display: flex;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

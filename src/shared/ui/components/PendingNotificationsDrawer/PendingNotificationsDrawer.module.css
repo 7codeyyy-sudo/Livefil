@@ -1,0 +1,85 @@
+/**
+ * 待处理提醒面板样式（UI v0.23 §5 B）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ *
+ * ## 整行可点 + 行内按钮可点，两者如何共存
+ *
+ * 行主链接用 stretched-link（`.link::after` 以 `inset: 0` 铺满 `.item`），
+ * 行内按钮所在 `.actions` 是**定位元素**且位于 DOM 之后——同为定位元素时
+ * 按 DOM 顺序绘制，按钮自然盖在覆盖层之上，因此**不需要 z-index 字面量**。
+ */
+
+/* 三行骨架与真实条目等距：避免 loading → success 时整块跳高。 */
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* 「全部已读」是次要动作，推到右端，不与条目抢视觉重心。 */
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 定位上下文：同时给 stretched-link 覆盖层与行内按钮当参照物。 */
+.item {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.link {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* 覆盖层铺满整行：让「点行跳转」在整块背景上都生效，而不只是文字上。 */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}
+
+.time {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 见文件头：定位 + DOM 顺序，让两枚按钮盖过 `.link::after` 的覆盖层。 */
+.actions {
+  position: relative;
+  display: flex;
+  gap: var(--space-2);
+}

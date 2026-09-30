@@ -1,0 +1,23 @@
+/* 顶栏铃铛（UI v0.23 §5 B）。全部取值来自 §2.4 在册令牌，零新增令牌。 */
+
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.glyph {
+  display: block;
+  /* 图标随按钮字号缩放：不写 px 字面量，也不给图标单独造尺寸令牌。 */
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* 未读角标叠在铃铛右上角。位移用百分比（相对自身尺寸），避免引入 px 字面量。 */
+.count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(38%, -38%);
+  /* 角标是纯展示：点击应落到铃铛按钮上，不该被角标挡住。 */
+  pointer-events: none;
+}

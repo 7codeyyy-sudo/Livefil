@@ -69,6 +69,10 @@ import {
 } from '@/modules/execution/infrastructure/execution-repositories.drizzle.ts';
 import type { RoutineRepository } from '@/modules/routines/domain/routine-repository.ts';
 import { createRoutineRepository } from '@/modules/routines/infrastructure/routine-repository.drizzle.ts';
+import type { NotificationRuleRepository } from '@/modules/notifications/domain/notification-rule-repository.ts';
+import type { NotificationDeliveryRepository } from '@/modules/notifications/domain/notification-delivery-repository.ts';
+import { createNotificationRuleRepository } from '@/modules/notifications/infrastructure/notification-rule-repository.drizzle.ts';
+import { createNotificationDeliveryRepository } from '@/modules/notifications/infrastructure/notification-delivery-repository.drizzle.ts';
 import type {
   ReviewAdjustmentApplier,
   ReviewFactsRepository,
@@ -155,6 +159,8 @@ export function getRepositories(): {
   readonly executionLogs: ExecutionLogRepository;
   readonly recoveryStates: RecoveryStateRepository;
   readonly routines: RoutineRepository;
+  readonly notificationRules: NotificationRuleRepository;
+  readonly notificationDeliveries: NotificationDeliveryRepository;
   readonly reviews: ReviewRepository;
   readonly reviewFacts: ReviewFactsRepository;
   readonly reviewAdjustments: ReviewAdjustmentApplier;
@@ -176,6 +182,8 @@ export function getRepositories(): {
     executionLogs: createExecutionLogRepository(db),
     recoveryStates: createRecoveryStateRepository(db),
     routines: createRoutineRepository(db),
+    notificationRules: createNotificationRuleRepository(db),
+    notificationDeliveries: createNotificationDeliveryRepository(db),
     reviews: createReviewRepository(db),
     reviewFacts: createReviewFactsRepository(db),
     reviewAdjustments: createReviewAdjustmentApplier(db),
