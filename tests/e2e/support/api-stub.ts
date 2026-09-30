@@ -19,7 +19,7 @@
  *
  * 文件名不含 `.spec.ts`，所以 Playwright 不会把它当作用例文件收集。
  */
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 
 /** 《接口文档》§1.3 的分页信封，空结果。 */
 const EMPTY_TASKS_ENVELOPE = { data: [], meta: { hasMore: false } };
@@ -104,6 +104,278 @@ export async function stubNotificationsAsEmpty(page: Page): Promise<void> {
       body: JSON.stringify(EMPTY_ROUTINES_ENVELOPE),
     }),
   );
+}
+
+/** 空分类列表。 */
+const EMPTY_CATEGORIES_ENVELOPE = { data: { items: [] }, meta: { nextCursor: null } };
+
+/**
+ * 把分类查询接成「成功但为空」。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubExpenseCategoriesData(page: Page): Promise<void> {
+  await page.route('**/api/v1/expense-categories*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_CATEGORIES_ENVELOPE),
+    }),
+  );
+}
+
+/** 空支出列表。 */
+const EMPTY_EXPENSES_ENVELOPE = { data: { items: [] }, meta: { nextCursor: null, hasMore: false } };
+
+/**
+ * 把支出查询接成「成功但为空」。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubExpenseData(page: Page): Promise<void> {
+  await page.route('**/api/v1/expenses*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_EXPENSES_ENVELOPE),
+    }),
+  );
+}
+
+/** 空日复盘。 */
+const EMPTY_DAILY_REVIEW = { data: null, meta: { requestId: 'stub' } };
+
+/** 空周复盘。 */
+const EMPTY_WEEKLY_REVIEW = { data: null, meta: { requestId: 'stub' } };
+
+/** 周复盘四态计数（B2 第 1/2 项的固定四枚 Badge）。 */
+export interface StubWeeklyTaskStatusCounts {
+  readonly completed: number;
+  readonly partial: number;
+  readonly deferred: number;
+  readonly skipped: number;
+}
+
+/** 构造周复盘 `data`（其余字段给零值，只让用例控制它要断言的那一项）。 */
+export function weeklyReviewData(
+  counts: Partial<StubWeeklyTaskStatusCounts> = {},
+): Readonly<Record<string, unknown>> {
+  return {
+    weekStart: '2026-01-05',
+    planActual: { plannedMinutes: 0, actualMinutes: 0 },
+    taskStatusCounts: {
+      completed: 0,
+      partial: 0,
+      deferred: 0,
+      skipped: 0,
+      ...counts,
+    },
+    repeatedDeferrals: [],
+    goalActions: [],
+    expenseSummaries: [],
+    adjustments: [],
+    snapshotSchemaVersion: null,
+  };
+}
+
+/**
+ * 把日复盘接成「成功但为空」（`data: null`＝这天还没填写），并可**按需**给周复盘
+ * 一份有数据的载荷。
+ *
+ * 《接口文档》§10 的 `data: null` 表示「还没填写」而非错误：日复盘据此落可填写态，
+ * 周复盘据此则整段不渲染（`WeeklyReviewSection` 在 `data === null` 时返回空）。
+ * 因此要验证 B2/B4 的页面元素（四枚 Badge、「查看下周计划」链接）时，必须给周复盘
+ * 一份**非空**载荷——由调用方按需传入，不传时维持既有行为（两段都接空）。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubReviewData(
+  page: Page,
+  options: { readonly weekly?: Readonly<Record<string, unknown>> | undefined } = {},
+): Promise<void> {
+  await page.route('**/api/v1/reviews/daily/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_DAILY_REVIEW),
+    }),
+  );
+  await page.route('**/api/v1/reviews/weekly/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        options.weekly === undefined
+          ? EMPTY_WEEKLY_REVIEW
+          : { data: options.weekly, meta: { requestId: 'stub' } },
+      ),
+    }),
+  );
+}
+
+/** `GET /schedule-blocks`、`GET /fixed-commitments` 的空 `{ items }` 载荷。 */
+const EMPTY_ITEMS_ENVELOPE = { data: { items: [] }, meta: { requestId: 'stub' } };
+
+/**
+ * 把周视图（`/week`）的两条数据源接成「成功但为空」。
+ *
+ * `/week` 的七日网格只在两条取数都成功后渲染（`WeekPanel` 的 `weekData === null`
+ * 分支）；不接住它们的话，无数据库环境下两请求 500、网格整块不渲染。
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function stubWeekScheduleData(page: Page): Promise<void> {
+  await page.route('**/api/v1/schedule-blocks*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_ITEMS_ENVELOPE),
+    }),
+  );
+  await page.route('**/api/v1/fixed-commitments*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_ITEMS_ENVELOPE),
+    }),
+  );
+}
+
+/** 分类桩数据（与 `ExpenseCategoryItem` 同形）。 */
+export interface StubExpenseCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isDefault: boolean;
+  isArchived: boolean;
+  version: number;
+}
+
+/** 开销域桩的可变状态。 */
+export interface ExpenseStub {
+  readonly categories: StubExpenseCategory[];
+}
+
+/** 预置分类（两个默认 + 一个自定义，供重命名/停用用例操作）。 */
+const INITIAL_EXPENSE_CATEGORIES: readonly Omit<StubExpenseCategory, 'id'>[] = [
+  { name: '餐饮', sortOrder: 0, isDefault: true, isArchived: false, version: 1 },
+  { name: '交通', sortOrder: 1, isDefault: true, isArchived: false, version: 1 },
+  { name: '差旅', sortOrder: 2, isDefault: false, isArchived: false, version: 1 },
+];
+
+/**
+ * 状态化的开销域桩（`/expense-categories` 与 `/expenses`）。
+ *
+ * ## 为什么必须状态化
+ *
+ * A6 的三条链路（新建 / 重命名 / 停用+恢复）都是**写后读**：写请求的响应决定
+ * 界面下一步显示什么，而列表又要在写后立刻反映出来。一个只会回固定 JSON 的桩
+ * 会让所有写操作"看起来成功了"，却无法验证「列表随即更新 / 分类从活跃列表消失」
+ * 这些真正要断言的行为——这与会返回空列表的 `stubExpenseCategoriesData` 是两个
+ * 用途（后者只服务「页面不因 404 记一条 resource error」的场景）。
+ *
+ * 与 `settings-api-stub.ts` 同一纪律：桩内部维护内存数据，`version` 自增、
+ * 停用＝置 `is_archived`（A6 冻结映射）。
+ *
+ * 必须在 `page.goto` **之前**调用。
+ */
+export async function installExpenseStub(
+  page: Page,
+  options: { readonly categories?: readonly StubExpenseCategory[] | undefined } = {},
+): Promise<ExpenseStub> {
+  const state: ExpenseStub = {
+    categories:
+      options.categories === undefined
+        ? INITIAL_EXPENSE_CATEGORIES.map((item, index) => ({
+            ...item,
+            id: `cat-${String(index + 1)}`,
+          }))
+        : options.categories.map((item) => ({ ...item })),
+  };
+  let sequence = state.categories.length;
+
+  const json = (route: Route, data: unknown, status = 200): Promise<void> =>
+    route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify({ data, meta: { requestId: 'stub' } }),
+    });
+
+  const notFound = (route: Route): Promise<void> =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'NOT_FOUND', message: '分类不存在', requestId: 'stub' },
+      }),
+    });
+
+  const readBody = (route: Route): Record<string, unknown> => {
+    const raw = route.request().postData();
+    return raw === null ? {} : (JSON.parse(raw) as Record<string, unknown>);
+  };
+
+  const bySortOrder = (a: StubExpenseCategory, b: StubExpenseCategory): number =>
+    a.sortOrder - b.sortOrder;
+
+  // `**`（而非 `*`）才能同时覆盖集合路径（含查询串）与子路径
+  // `/expense-categories/{id}`——`*` 不匹配 `/`，PATCH 会漏出桩外。
+  await page.route('**/api/v1/expense-categories**', async (route) => {
+    const request = route.request();
+    const method = request.method();
+    const path = new URL(request.url()).pathname;
+
+    if (path === '/api/v1/expense-categories') {
+      if (method === 'GET') {
+        return json(route, { items: [...state.categories].sort(bySortOrder) });
+      }
+      if (method === 'POST') {
+        const body = readBody(route);
+        const name = typeof body.name === 'string' ? body.name : '';
+        sequence += 1;
+        const created: StubExpenseCategory = {
+          id: `cat-${String(sequence)}`,
+          name,
+          sortOrder: state.categories.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1,
+          isDefault: false,
+          isArchived: false,
+          version: 1,
+        };
+        state.categories.push(created);
+        return json(route, created, 201);
+      }
+    }
+
+    const itemMatch = /^\/api\/v1\/expense-categories\/([^/]+)$/.exec(path);
+    if (itemMatch !== null && method === 'PATCH') {
+      const id = itemMatch[1] ?? '';
+      const item = state.categories.find((category) => category.id === id);
+      if (item === undefined) {
+        return notFound(route);
+      }
+      const body = readBody(route);
+      if (typeof body.name === 'string') {
+        item.name = body.name;
+      }
+      if (typeof body.isArchived === 'boolean') {
+        item.isArchived = body.isArchived;
+      }
+      item.version += 1;
+      return json(route, item);
+    }
+
+    return notFound(route);
+  });
+
+  // 列表查询接成空页（`readCursorPage` 从 meta 读游标，缺省即「没有下一页」）。
+  await page.route('**/api/v1/expenses*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(EMPTY_ITEMS_ENVELOPE),
+    }),
+  );
+
+  return state;
 }
 
 /**
