@@ -27,6 +27,18 @@ export type AppShellProps = {
    * sync 模块，只能由 `app/(app)/layout.tsx` 从上层注入。
    */
   readonly syncBanner?: ReactNode | undefined;
+  /**
+   * 顶栏通知铃铛（NOTIFY-002，《UI 页面规范》v0.23 §5 B）。
+   *
+   * 与 `pageActions` **分开一个槽**是刻意的：那个槽的语义是「当前页必要操作」
+   * （§3.2），而提醒是跨页应用级信息，放进页面操作槽会让「页内动作」与
+   * 「全局入口」混成同一条语义。铃铛是全局件，因此单开一个槽。
+   *
+   * 与 `syncBanner` 同理，它必须是**插槽**而不是在外壳里直接 import：`AppShell`
+   * 在 `src/shared/ui`，分层规则禁止共享层引用 `src/modules/**`，数据只能由
+   * `app/(app)/layout.tsx` 从上层注入。
+   */
+  readonly notificationBell?: ReactNode | undefined;
   /** 页面内容。由 `app/(app)/layout.tsx` 以 `children` 传入，仍是服务端组件。 */
   readonly children: ReactNode;
 };
@@ -48,7 +60,7 @@ export type AppShellProps = {
  * 像素值（目前没有、也不该为此新建断点镜像文件）。这也正好与原型一致——
  * 原型的折叠与抽屉切换同样是 CSS 行为，JS 只负责那个 `.is-open` 类。
  */
-export function AppShell({ pageActions, syncBanner, children }: AppShellProps) {
+export function AppShell({ pageActions, syncBanner, notificationBell, children }: AppShellProps) {
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   function openNav(): void {
@@ -64,7 +76,12 @@ export function AppShell({ pageActions, syncBanner, children }: AppShellProps) {
       <Sidebar />
 
       <div className={styles.main}>
-        <Topbar isNavOpen={isNavOpen} onOpenNav={openNav} pageActions={pageActions} />
+        <Topbar
+          isNavOpen={isNavOpen}
+          onOpenNav={openNav}
+          pageActions={pageActions}
+          notificationBell={notificationBell}
+        />
 
         {/* 状态横幅：内容区顶部、页面内容之上（§4.7 / §4.9.1）。它刻意不是浮层——
             在文档流里意味着页面内容会被顺势下推，而不是被盖住。

@@ -26,6 +26,15 @@ export type TopbarProps = {
    * `usePathname` 决定操作"之间选一条，届时再定。
    */
   readonly pageActions?: ReactNode | undefined;
+  /**
+   * 通知铃铛（NOTIFY-002，《UI 页面规范》v0.23 §5 B）。
+   *
+   * 与 `pageActions` 分开：那个槽是「当前页必要操作」，铃铛是跨页应用级入口
+   * （见 `AppShellProps.notificationBell` 的说明）。排在页面操作之后、
+   * 「＋ 快速添加」主按钮之前——全局入口不与页面动作抢位置，也不挤掉主按钮
+   * 的右端锚点。
+   */
+  readonly notificationBell?: ReactNode | undefined;
 };
 
 /**
@@ -46,7 +55,7 @@ export type TopbarProps = {
  * 快速添加输入框。此前它是无 onClick 的挂空入口（行为属 TASK-002，
  * 当时不存在）；PageActions 岛机制继续挂账，本批不实现。
  */
-export function Topbar({ isNavOpen, onOpenNav, pageActions }: TopbarProps) {
+export function Topbar({ isNavOpen, onOpenNav, pageActions, notificationBell }: TopbarProps) {
   const router = useRouter();
   return (
     <header className={styles.topbar}>
@@ -64,6 +73,10 @@ export function Topbar({ isNavOpen, onOpenNav, pageActions }: TopbarProps) {
         <div className={styles.actions}>
           {pageActions === undefined ? null : (
             <div className={styles.pageActions}>{pageActions}</div>
+          )}
+
+          {notificationBell === undefined ? null : (
+            <div className={styles.notificationBell}>{notificationBell}</div>
           )}
 
           <Button

@@ -14,8 +14,16 @@
  */
 import { useId, useState } from 'react';
 
-import { Input, Select, Switch } from '@/shared/ui/components';
+import {
+  Input,
+  NotificationPermissionNotice,
+  ReminderReachNotice,
+  Select,
+  Switch,
+} from '@/shared/ui/components';
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/shared/validation/locales.ts';
+
+import { useNotificationPermission } from '../../_lib/use-notification-permission';
 
 import styles from './PreferenceSections.module.css';
 import { SettingsSection } from './SettingsSection';
@@ -211,6 +219,7 @@ export function TaskDefaultsSection(bindings: SectionBindings) {
 export function RemindersSection(bindings: SectionBindings) {
   const { saving, error, run } = useSaveAction();
   const { draft, baseline, update } = bindings;
+  const { permission, requestPermission } = useNotificationPermission();
 
   return (
     <SettingsSection
@@ -257,6 +266,19 @@ export function RemindersSection(bindings: SectionBindings) {
           const value = event.target.value;
           update({ quietHoursEnd: value === '' ? null : value });
         }}
+      />
+
+      {/*
+        v0.23 §5 D 追加的一行（本区既有行零改动）：总开关开启时说明触达边界。
+        单条规则的创建与管理**不在本区**，在对象内提醒区（§5 A 的两层分工）——
+        这里只有"总"这一层。
+      */}
+      {draft.reminderEnabled ? <ReminderReachNotice /> : null}
+
+      {/* D 节的权限降级提示：内嵌本区的权限状态处，不弹窗（§1 克制）。 */}
+      <NotificationPermissionNotice
+        permission={permission}
+        onRequestPermission={requestPermission}
       />
     </SettingsSection>
   );

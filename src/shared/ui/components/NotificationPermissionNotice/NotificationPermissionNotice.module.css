@@ -1,0 +1,15 @@
+/* 触达降级提示（UI v0.23 §5 D）。全部取值来自 §2.4 在册令牌，零新增令牌。 */
+
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  color: var(--color-text-secondary);
+}

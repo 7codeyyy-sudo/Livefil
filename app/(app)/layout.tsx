@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
+import { NotificationsContainer } from './_components/NotificationsContainer';
 
 /**
  * 应用外壳路由组 `(app)` 的布局（UI-003）。
@@ -25,7 +26,15 @@ import { SyncStatusContainer } from './_components/SyncStatusContainer';
  *
  * 同步状态横幅（SYNC-002）同理：它是客户端组件，但作为 `syncBanner` 插槽
  * 传给 `AppShell`——外壳不与同步模块耦合，六态的唯一挂载点仍在这里。
+ *
+ * 通知铃铛（NOTIFY-002，UI v0.23 §5 B）走 `notificationBell` 槽，理由同上：
+ * 提醒数据来自 notifications 模块，共享层不能反向依赖它。容器同时带出面板
+ * 抽屉，而抽屉经 `OverlayPortal` 挂到 `body`，所以它虽然挂在顶栏也不占页头。
  */
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
-  return <AppShell syncBanner={<SyncStatusContainer />}>{children}</AppShell>;
+  return (
+    <AppShell syncBanner={<SyncStatusContainer />} notificationBell={<NotificationsContainer />}>
+      {children}
+    </AppShell>
+  );
 }

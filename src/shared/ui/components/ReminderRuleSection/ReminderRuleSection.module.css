@@ -1,0 +1,100 @@
+/**
+ * 对象内「提醒」区样式（UI v0.23 §5 A）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ * 间距与行布局是布局量，按需写字面量（与 InboxPanel、ReviewPanel 同一口径）。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reachNotice {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 总开关关闭时的禁用说明（§5 A：「提醒总开关已关闭。」+「去开启」→ /settings）。 */
+.globalOff {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+.globalOffText {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.globalOffLink {
+  color: var(--color-accent);
+}
+
+/* 创建行：时间、重复、豁免勾选、保存横向排开。 */
+.createRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.checkboxRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.checkboxText {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-soft);
+}
+
+/* 已关闭态：整体降一档的次文字色，开关自己仍表达可再开。 */
+.ruleRow[data-disabled='true'] {
+  color: var(--color-text-secondary);
+}
+
+.ruleSwitch {
+  margin-left: auto;
+}

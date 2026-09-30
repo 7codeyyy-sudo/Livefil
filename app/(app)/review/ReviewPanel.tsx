@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/shared/ui/components';
 
 import { DailyReviewSection } from './DailyReviewSection';
+import { ReviewReminderArea } from './ReviewReminderArea';
 import { WeeklyReviewSection } from './WeeklyReviewSection';
 
 import styles from './ReviewPanel.module.css';
@@ -53,6 +54,13 @@ export function ReviewPanel() {
           周复盘
         </Button>
       </div>
+
+      {/*
+        复盘提醒入口（UI v0.23 §5 A 的第三处宿主）：页内「提醒」按钮，展开区落在
+        分段之下。它与分段是两种语义——分段切换视图，提醒展开一块区域——所以
+        不塞进同一个分组容器，避免读屏把它念成三选一。
+      */}
+      <ReviewReminderArea />
 
       {segment === 'daily' ? <DailyReviewSection /> : <WeeklyReviewSection />}
     </div>
