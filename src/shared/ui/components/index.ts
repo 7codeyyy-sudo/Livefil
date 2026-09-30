@@ -109,3 +109,5 @@ export type {
   ReminderRuleRow,
   ReminderRuleSectionProps,
 } from './ReminderRuleSection/ReminderRuleSection';
+export { ReminderRuleInlineArea } from './ReminderRuleInlineArea/ReminderRuleInlineArea';
+export type { ReminderRuleInlineAreaProps } from './ReminderRuleInlineArea/ReminderRuleInlineArea';

@@ -1,0 +1,51 @@
+/**
+ * 对象内提醒规则行内展开区样式（UI v0.23 §5 A）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量；
+ * 间距与布局量按需写字面量（与 InboxPanel / TodayPanel 同一口径）。
+ */
+
+/*
+ * `display: contents`：根节点是任务行里的**逻辑**包装（承载键盘冒泡拦截），
+ * 不产生盒子——触发件与展开区因此成为宿主行自身的 flex 子项：触发件接在行尾既有
+ * 动作之后，展开区凭 `flex-basis: 100%` 落到整行下方。
+ * 若给根节点一个盒子，展开区最多只能撑满这个盒子，跨不到整行。
+ */
+.root {
+  display: contents;
+}
+
+.expansion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* 整行宽度：宿主行需 `flex-wrap: wrap`，否则展开区会被挤在行尾。 */
+  flex-basis: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  animation: expansion-in var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes expansion-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* §5 A 明文的「reduced-motion 下展开过渡归零」。 */
+@media (prefers-reduced-motion: reduce) {
+  .expansion {
+    animation: none;
+  }
+}
+
+.collapseRow {
+  display: flex;
+  justify-content: flex-end;
+}

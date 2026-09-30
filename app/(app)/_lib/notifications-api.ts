@@ -297,9 +297,23 @@ export function formatNotificationTime(instant: string): string {
   });
 }
 
+/**
+ * 按 `targetType` 取**该类全部**规则（不拼 `targetId`）。
+ *
+ * 对象侧的行内展开区要按 `targetId` 逐行切片，而 `useAsyncQuery` 没有 `enabled`
+ * 选项、也不缓存——逐行发请求会退化成 N+1（几十行的列表就是几十个请求）。
+ * 一次取全量、客户端按 `targetId` 建 Map，是唯一不产生 N+1 的取法。
+ */
+export function fetchRulesForTargetType(
+  targetType: NotificationTargetType,
+  signal: AbortSignal,
+): Promise<ApiEnvelope<readonly NotificationRuleItem[]>> {
+  return fetchNotificationRules({ targetType }, signal);
+}
+
 /** 一次性读取（与页面其它查询同款的最小封装），供 /review 的提醒区使用。 */
 export function fetchRulesForReview(
   signal: AbortSignal,
 ): Promise<ApiEnvelope<readonly NotificationRuleItem[]>> {
-  return fetchNotificationRules({ targetType: 'review' }, signal);
+  return fetchRulesForTargetType('review', signal);
 }
