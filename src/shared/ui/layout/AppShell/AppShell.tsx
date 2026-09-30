@@ -39,6 +39,13 @@ export type AppShellProps = {
    * `app/(app)/layout.tsx` 从上层注入。
    */
   readonly notificationBell?: ReactNode | undefined;
+  /**
+   * 顶栏帮助入口（AI-002，《UI 页面规范》v0.22 §5 B）。
+   *
+   * 与铃铛同槽位区的第三个全局入口，理由同上：它是跨页的应用级入口，不是页面
+   * 动作；而"帮助与引导"的内容映射在 `app/(app)` 层，共享层的外壳不该知道。
+   */
+  readonly helpEntry?: ReactNode | undefined;
   /** 页面内容。由 `app/(app)/layout.tsx` 以 `children` 传入，仍是服务端组件。 */
   readonly children: ReactNode;
 };
@@ -60,7 +67,13 @@ export type AppShellProps = {
  * 像素值（目前没有、也不该为此新建断点镜像文件）。这也正好与原型一致——
  * 原型的折叠与抽屉切换同样是 CSS 行为，JS 只负责那个 `.is-open` 类。
  */
-export function AppShell({ pageActions, syncBanner, notificationBell, children }: AppShellProps) {
+export function AppShell({
+  pageActions,
+  syncBanner,
+  notificationBell,
+  helpEntry,
+  children,
+}: AppShellProps) {
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   function openNav(): void {
@@ -81,6 +94,7 @@ export function AppShell({ pageActions, syncBanner, notificationBell, children }
           onOpenNav={openNav}
           pageActions={pageActions}
           notificationBell={notificationBell}
+          helpEntry={helpEntry}
         />
 
         {/* 状态横幅：内容区顶部、页面内容之上（§4.7 / §4.9.1）。它刻意不是浮层——

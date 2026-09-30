@@ -160,6 +160,7 @@ export function RegionSection(bindings: SectionBindings) {
 
       <Select
         label="一周起始日"
+        fieldHint="weekStartsOn"
         value={String(draft.weekStartsOn)}
         onChange={(event) => {
           update({ weekStartsOn: Number(event.target.value) });
@@ -203,6 +204,7 @@ export function TaskDefaultsSection(bindings: SectionBindings) {
 
       <Input
         label="默认缓冲（分钟）"
+        fieldHint="buffer"
         type="number"
         inputMode="numeric"
         min={0}

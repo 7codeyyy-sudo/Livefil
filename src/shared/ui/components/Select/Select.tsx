@@ -3,6 +3,9 @@
 import { useId } from 'react';
 import type { ReactNode, SelectHTMLAttributes } from 'react';
 
+import { FieldHint, FieldHintText, useFieldHint } from '../FieldHint/FieldHint';
+import type { FieldHintKey } from '../FieldHint/FieldHint';
+
 import styles from './Select.module.css';
 
 export type SelectProps = {
@@ -12,6 +15,11 @@ export type SelectProps = {
   readonly error?: string | undefined;
   /** 辅助说明，常驻显示在标签下方。 */
   readonly hint?: string | undefined;
+  /**
+   * 字段解释（§5 B「表单字段解释」，AI-002）：给出时标签尾部出现 `?` 按钮，
+   * 点击在字段下方就地展开一行说明。取值来自共享层的冻结文案表 `FIELD_HINTS`。
+   */
+  readonly fieldHint?: FieldHintKey | undefined;
   /** `<option>` 列表。 */
   readonly children: ReactNode;
 } & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className' | 'id' | 'children'>;
@@ -23,13 +31,16 @@ export type SelectProps = {
  * 移动端滚轮选择器和系统级的可访问性支持，为的只是一致性更好的箭头。
  * 这笔交换不划算，样式只统一尺寸、边框与排版。
  */
-export function Select({ label, error, hint, children, ...rest }: SelectProps) {
+export function Select({ label, error, hint, fieldHint, children, ...rest }: SelectProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
+  // 无条件调用：字段解释的状态在「标签尾部按钮」与「字段下方说明行」之间共享。
+  const fieldHintState = useFieldHint();
 
   const describedBy = [
     hint === undefined ? undefined : hintId,
+    fieldHint !== undefined && fieldHintState.open ? fieldHintState.textId : undefined,
     error === undefined ? undefined : errorId,
   ]
     .filter((value) => value !== undefined)
@@ -37,9 +48,12 @@ export function Select({ label, error, hint, children, ...rest }: SelectProps) {
 
   return (
     <div className={styles.field}>
-      <label className={styles.label} htmlFor={id}>
-        {label}
-      </label>
+      <span className={styles.labelRow}>
+        <label className={styles.label} htmlFor={id}>
+          {label}
+        </label>
+        {fieldHint === undefined ? null : <FieldHint label={label} state={fieldHintState} />}
+      </span>
 
       {hint === undefined ? null : (
         <p className={styles.hint} id={hintId}>
@@ -56,6 +70,8 @@ export function Select({ label, error, hint, children, ...rest }: SelectProps) {
       >
         {children}
       </select>
+
+      {fieldHint === undefined ? null : <FieldHintText hint={fieldHint} state={fieldHintState} />}
 
       {error === undefined ? null : (
         <p className={styles.error} id={errorId} role="alert">

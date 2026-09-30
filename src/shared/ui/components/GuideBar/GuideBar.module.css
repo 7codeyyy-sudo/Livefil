@@ -1,0 +1,79 @@
+/**
+ * 引导条样式（《UI 页面规范》v0.22 §5 A，AI-001）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ * `8px` 圆点直径是几何量（与 Topbar 的 `26px` 品牌块同类）。
+ */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.progress {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.steps {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+}
+
+/* 当前步：surface-soft 底 + text-primary（§5 A 明文）。 */
+.dot[data-current='true'] {
+  border-color: var(--color-text-primary);
+  background-color: var(--color-surface-soft);
+}
+
+/* 已完成步：实心近黑，与当前步区分开。 */
+.dot[data-done='true'] {
+  border-color: var(--color-text-primary);
+  background-color: var(--color-text-primary);
+}
+
+.progressText {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 关闭按钮推到最右端；`IconButton` 不接受 `className`，所以由定位槽承担。 */
+.closeSlot {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.card {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}

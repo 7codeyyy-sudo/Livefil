@@ -102,6 +102,7 @@ export function ConvertToActionModal({ task, onClose, onDone }: ConvertToActionM
         />
         <Input
           label="最低版本（可选）"
+          fieldHint="minimumVersion"
           hint="状态很差时至少能完成的量，例如：散步 8 分钟"
           value={minimumVersion}
           onChange={(event) => {

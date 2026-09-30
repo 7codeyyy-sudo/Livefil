@@ -406,6 +406,7 @@ export function ExpenseFormDrawer({
 
             <ExpenseSelect
               label="关联目标或行动"
+              fieldHint="expenseAssociation"
               searchable
               searchLabel="搜索目标或行动"
               placeholder="不关联"
