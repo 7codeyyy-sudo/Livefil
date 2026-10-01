@@ -1,13 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 import { GuideBar } from '@/shared/ui/components';
 
 import { evaluateGuide, GUIDE_STEPS, TOTAL_GUIDE_STEPS } from '../_lib/guide/guide-steps';
 
-import { useGuideContext } from './GuideProvider';
+import { useOptionalGuideContext, type GuideContextValue } from './GuideProvider';
 
 /**
  * 引导条容器（《UI 页面规范》v0.22 §5 A，AI-001）。
@@ -30,9 +29,19 @@ import { useGuideContext } from './GuideProvider';
  * 当前步；用户下次进来再判一次。ABORTED 的那一轮连写回都不做。
  */
 export function GuideBarContainer() {
-  const router = useRouter();
-  const { state, visible, advance, dismiss } = useGuideContext();
+  const guide = useOptionalGuideContext();
 
+  // 没有 Provider 就没有引导可谈：今日页被单独渲染（页面级用例正是如此）时整块
+  // 不出现。这不是吞掉装配错误——引导是增强，缺它的正确表现就是它不在；而真在
+  // 外壳里忘了挂 Provider，`HelpDrawerContainer` 走的严格版 hook 会立刻报错。
+  if (guide === null) {
+    return null;
+  }
+
+  return <GuideBarView {...guide} />;
+}
+
+function GuideBarView({ state, visible, advance, dismiss }: GuideContextValue) {
   // 核对用的进度快照。用 ref 而不是把 `state.step` 放进 effect 依赖：那样每推进
   // 一步都会重跑一轮请求，与"两轮核对"的冻结口径不符（真正的轮询）。
   const stepRef = useRef(0);
@@ -95,10 +104,9 @@ export function GuideBarContainer() {
       totalSteps={TOTAL_GUIDE_STEPS}
       cardText={definition.cardText}
       actionLabel={definition.actionLabel}
-      onAction={() => {
-        // 主操作只导航、不关引导：用户去把这件事做完，回到今日页时判定自然推进。
-        router.push(definition.href);
-      }}
+      // 主操作只导航、不关引导：用户去把这件事做完，回到今日页时判定自然推进。
+      // 导航由 `GuideBar` 用 `<Link>` 完成——这里只给落点，不引入 router。
+      actionHref={definition.href}
       onSkip={dismiss}
       onClose={dismiss}
     />

@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { Button } from '../Button/Button';
 import { IconButton } from '../IconButton/IconButton';
 
@@ -18,8 +20,8 @@ export type GuideBarProps = {
   readonly cardText: string;
   /** 当前步主操作文案（冻结文本，如「去创建」）。 */
   readonly actionLabel: string;
-  /** 主操作：指向该步的真实落点（由容器负责导航）。 */
-  readonly onAction: () => void;
+  /** 主操作的落点（该步的真实去处，由容器按冻结文案表给出）。 */
+  readonly actionHref: string;
   readonly onSkip: () => void;
   readonly onClose: () => void;
 };
@@ -37,8 +39,9 @@ export type GuideBarProps = {
  * ## 为什么是纯展示件
  *
  * 与 `AsyncState` / `ReminderRuleSection` 同一条边界：组件不取数、不读
- * `localStorage`、不导航，判定与进度全在 `app/(app)` 层的容器里。这样它能在
- * jsdom 里被纯 props 驱动地测完，共享层也不必知道引导规则的存在。
+ * `localStorage`、不决定落点（`actionHref` 由容器给），判定与进度全在
+ * `app/(app)` 层的容器里。这样它能在 jsdom 里被纯 props 驱动地测完，
+ * 共享层也不必知道引导规则的存在。
  *
  * ## 步进条不是循环动画
  *
@@ -50,7 +53,7 @@ export function GuideBar({
   totalSteps,
   cardText,
   actionLabel,
-  onAction,
+  actionHref,
   onSkip,
   onClose,
 }: GuideBarProps) {
@@ -83,9 +86,12 @@ export function GuideBar({
       <p className={styles.card}>{cardText}</p>
 
       <div className={styles.actions}>
-        <Button variant="primary" onClick={onAction}>
+        {/* 主操作是 `<Link>` 而不是 `Button` + `router.push`：它就是一次导航，
+            锚点才带得来「新标签打开 / 未加载 JS 也可用」的语义（同今日面板的 CTA）。
+            代价是外观要在 `.action` 里自持一份。 */}
+        <Link className={styles.action} href={actionHref}>
           {actionLabel}
-        </Button>
+        </Link>
         {/* 跳过是低强调：它与主操作并列出现，但不该抢主操作的位置。 */}
         <Button variant="ghost" onClick={onSkip}>
           跳过

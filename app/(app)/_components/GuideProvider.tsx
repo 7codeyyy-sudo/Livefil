@@ -103,3 +103,15 @@ export function useGuideContext(): GuideContextValue {
   }
   return value;
 }
+
+/**
+ * 读引导状态；不在 `GuideProvider` 内时返回 `null`。
+ *
+ * 只给**可能被脱离外壳单独渲染**的消费者用：今日页的引导条是页面里的一个部件，
+ * 页面级用例会直接渲染今日页（树里没有 layout 挂的 Provider），那时它应当不出现，
+ * 而不是把整页炸掉。默认仍选严格版 {@link useGuideContext}——它能把「忘了挂
+ * Provider」这种装配错误当场暴露出来。
+ */
+export function useOptionalGuideContext(): GuideContextValue | null {
+  return useContext(GuideContext);
+}
