@@ -385,6 +385,7 @@ function AddActionForm({
       />
       <Input
         label="最低版本（可选）"
+        fieldHint="minimumVersion"
         hint="状态很差时至少能完成的量"
         value={minimumVersion}
         onChange={(event) => {

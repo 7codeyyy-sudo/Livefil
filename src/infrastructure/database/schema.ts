@@ -15,6 +15,8 @@
  */
 export {
   actions,
+  aiDrafts,
+  aiUsage,
   executionLogs,
   expenseCategories,
   expenses,
@@ -36,6 +38,8 @@ export {
 } from '../../../drizzle/schema.ts';
 export type {
   ActionRow,
+  AiDraftRow,
+  AiUsageRow,
   ExecutionLogRow,
   ExpenseCategoryRow,
   ExpenseRow,

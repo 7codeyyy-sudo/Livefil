@@ -10,6 +10,13 @@
   gap: var(--space-1);
 }
 
+/* 标签行：字段解释的 `?` 按钮贴着标签右端（§5 B），因此两者同一行。 */
+.labelRow {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
 .label {
   color: var(--color-text-primary);
   font-size: var(--font-size-caption);

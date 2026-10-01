@@ -8,6 +8,7 @@ import type { AsyncQueryState } from '../AsyncState/use-async-query';
 import { Badge } from '../Badge/Badge';
 import { Button } from '../Button/Button';
 import { Checkbox } from '../Checkbox/Checkbox';
+import { FieldHint, FieldHintText, useFieldHint } from '../FieldHint/FieldHint';
 import { Input } from '../Input/Input';
 import { Skeleton } from '../LoadingState/Skeleton';
 import { NotificationPermissionNotice } from '../NotificationPermissionNotice/NotificationPermissionNotice';
@@ -127,6 +128,8 @@ export function ReminderRuleSection({
   const [creating, setCreating] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // 安静时段豁免的字段解释：勾选框与说明行是同一状态的两个渲染位置（§5 B）。
+  const quietHoursHint = useFieldHint();
 
   const submit = async (): Promise<void> => {
     if (remindAt === '' || creating) {
@@ -189,6 +192,7 @@ export function ReminderRuleSection({
 
         <Select
           label="重复"
+          fieldHint="reminderRepeat"
           disabled={!globalEnabled}
           value={repeatRule}
           onChange={(event) => {
@@ -218,6 +222,7 @@ export function ReminderRuleSection({
           <span className={styles.checkboxText} aria-hidden="true">
             {QUIET_HOURS_LABEL}
           </span>
+          <FieldHint label={QUIET_HOURS_LABEL} state={quietHoursHint} />
         </div>
 
         <Button
@@ -231,6 +236,10 @@ export function ReminderRuleSection({
           保存
         </Button>
       </div>
+
+      {/* 说明行落在创建行**下方**而非行内：创建行是横向的，挤进去会把行撑开、
+          也读不出它属于哪个字段（§5 B「在字段下方就地展开一行」）。 */}
+      <FieldHintText hint="quietHoursExempt" state={quietHoursHint} />
 
       {errorMessage === null ? null : (
         <p className={styles.error} role="alert">

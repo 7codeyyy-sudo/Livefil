@@ -143,6 +143,8 @@ export function createTaskRepository(db: Database): TaskRepository {
           minimumVersion: input.minimumVersion,
           goalId: input.goalId,
           actionId: input.actionId,
+          // 缺省即 DB 默认的 `manual`；只有 AI 草稿确认路径会显式传 `ai`。
+          source: input.source ?? 'manual',
         })
         .returning();
       const row = rows[0];

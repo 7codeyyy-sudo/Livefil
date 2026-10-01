@@ -9,13 +9,17 @@ import {
   ReminderRuleInlineArea,
   Skeleton,
   useAsyncQuery,
+  useToast,
 } from '@/shared/ui/components';
 
 import { fetchJson } from '../_lib/api-client';
 import { fetchProfile } from '../_lib/identity-api';
 import { addDays, formatWeekRange, localCalendarDay, startOfWeek } from '../_lib/review-api';
+import { useAiEnabled } from '../_lib/use-ai-enabled';
 import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import { EditBlockModal, type EditableBlock } from '../_components/EditBlockModal';
+import { ScheduleTaskModal } from '../inbox/ScheduleTaskModal';
+import { ScheduleSuggestionSection } from './ScheduleSuggestionSection';
 import styles from './WeekPanel.module.css';
 
 /**
@@ -82,6 +86,7 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
   // 周视图 P0＝只读展示＋点击块编辑（任务清单次级口径⑨冻结）。
   const [editing, setEditing] = useState<EditableBlock | null>(null);
   const router = useRouter();
+  const toast = useToast();
   /**
    * 行内提醒展开态：**同屏至多展开一行**——只存一个键，展开新行即替换旧行
    * （§5 A「展开新行先折叠旧行」）。
@@ -91,6 +96,13 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
   // 总开关未知（加载中 / 取数失败）时不渲染入口：把「还不知道」当 `false`
   // 渲染成「总开关已关闭」是假话（同 ReviewReminderArea）。
   const reminderGlobalEnabled = reminders.globalEnabled;
+
+  // AI 关闭态（§5 E）：`null`（还没读出来）与 `false` 都不渲染排程建议入口。
+  const aiEnabled = useAiEnabled();
+  /** 「手动安排」失败回退的目标任务（打开既有排程创建弹层）。 */
+  const [manualScheduleTargets, setManualScheduleTargets] = useState<readonly string[] | null>(
+    null,
+  );
 
   /** 翻转某行的提醒展开态（同屏至多一行：展开新行即折叠旧行）。 */
   const toggleReminderRow = (rowKey: string) => {
@@ -166,6 +178,19 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
         </Button>
         <p className={styles.range}>{formatWeekRange(weekStart)}</p>
       </div>
+
+      {/* 排程建议（§5 C2）：就地建议块，非浮层；AI 关闭时不渲染（§5 E）。 */}
+      {aiEnabled !== true ? null : (
+        <ScheduleSuggestionSection
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+          onManualSchedule={(taskIds) => {
+            // 没有勾选任务时无法走手动创建（排程需要一个对象），保持当前态。
+            setManualScheduleTargets(taskIds.length === 0 ? null : taskIds);
+          }}
+          onScheduled={week.refetch}
+        />
+      )}
 
       {week.state.status === 'loading' ? (
         <div className={styles.section}>
@@ -266,6 +291,21 @@ export function WeekPanel({ requestedWeekStart }: { readonly requestedWeekStart:
             })}
           </div>
         </>
+      )}
+
+      {/* 失败回退的「手动安排」：复用收件箱的既有排程创建弹层（真实路径）。 */}
+      {manualScheduleTargets === null ? null : (
+        <ScheduleTaskModal
+          taskIds={manualScheduleTargets}
+          onClose={() => {
+            setManualScheduleTargets(null);
+          }}
+          onDone={(count) => {
+            setManualScheduleTargets(null);
+            toast.success(count === 1 ? '已安排' : `已安排 ${String(count)} 项`);
+            week.refetch();
+          }}
+        />
       )}
     </div>
   );

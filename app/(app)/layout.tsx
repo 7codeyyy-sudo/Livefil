@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
+import { GuideProvider } from './_components/GuideProvider';
+import { HelpDrawerContainer } from './_components/HelpDrawerContainer';
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
 import { NotificationsContainer } from './_components/NotificationsContainer';
 
@@ -30,11 +32,22 @@ import { NotificationsContainer } from './_components/NotificationsContainer';
  * 通知铃铛（NOTIFY-002，UI v0.23 §5 B）走 `notificationBell` 槽，理由同上：
  * 提醒数据来自 notifications 模块，共享层不能反向依赖它。容器同时带出面板
  * 抽屉，而抽屉经 `OverlayPortal` 挂到 `body`，所以它虽然挂在顶栏也不占页头。
+ *
+ * 帮助入口（AI-002，UI v0.22 §5 B）走 `helpEntry` 槽，同理：路由到文案的映射
+ * 与引导进度都属应用层。`GuideProvider` 包住整个外壳，使**顶栏里的**帮助抽屉
+ * 与**今日页页顶**的引导条共用同一份进度（抽屉要能"重新查看新手引导"，而它挂
+ * 在每次都存在的顶栏上，状态只能活在共同祖先里）。
  */
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <AppShell syncBanner={<SyncStatusContainer />} notificationBell={<NotificationsContainer />}>
-      {children}
-    </AppShell>
+    <GuideProvider>
+      <AppShell
+        syncBanner={<SyncStatusContainer />}
+        notificationBell={<NotificationsContainer />}
+        helpEntry={<HelpDrawerContainer />}
+      >
+        {children}
+      </AppShell>
+    </GuideProvider>
   );
 }
