@@ -63,9 +63,21 @@ export interface AiDraftConfirmExpenseInput {
   readonly note?: string | null | undefined;
 }
 
+/**
+ * 确认时可由用户改写的任务草稿行（UI 规范 §5 C1「可编辑、可移除单项」）。
+ *
+ * 缺省（未提供 `tasks`）时沿用服务端草稿的 `suggestions`；提供时以用户编辑后的
+ * 列表为准——「可编辑」若只改界面不落库，就是空壳。
+ */
+export interface AiDraftConfirmTaskInput {
+  readonly title: string;
+  readonly estimatedMinutes?: number | null | undefined;
+}
+
 /** 确认入参（结构上等同 `aiDraftConfirmBodySchema` 的解析结果）。 */
 export interface AiDraftConfirmInput {
   readonly expense?: AiDraftConfirmExpenseInput | undefined;
+  readonly tasks?: readonly AiDraftConfirmTaskInput[] | undefined;
 }
 
 /** 确认结果：草稿新状态 + 写入的业务实体 id。 */
@@ -203,16 +215,25 @@ export class ConfirmAiDraftUseCase {
     switch (draft.draftType) {
       case 'task_breakdown': {
         const result = requireParsed(taskBreakdownResultSchema, value);
+        // 用户在草稿面板里改过/移除过的建议优先落库（UI 规范 §5 C1「可编辑、可移除
+        // 单项」）；未带 `tasks` 时回落到服务端草稿值。两者同形，写入走同一条普通
+        // 创建用例，不存在第二条可能漂移的实现。
+        const pending =
+          input.tasks ??
+          result.suggestions.map((suggestion) => ({
+            title: suggestion.title,
+            estimatedMinutes: suggestion.estimatedMinutes,
+          }));
         const created: string[] = [];
-        for (const suggestion of result.suggestions) {
+        for (const item of pending) {
           const task = await this.#deps.tasks.create(
             userId,
             {
-              title: suggestion.title,
+              title: item.title,
               status: 'inbox',
               lifeAreaId: null,
               dueDate: null,
-              estimatedMinutes: suggestion.estimatedMinutes,
+              estimatedMinutes: item.estimatedMinutes ?? null,
               minimumVersion: null,
               goalId: null,
               actionId: null,

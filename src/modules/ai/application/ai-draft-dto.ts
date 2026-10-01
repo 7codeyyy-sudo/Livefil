@@ -18,6 +18,7 @@
 import { z } from 'zod';
 
 import { EXPENSE_NOTE_MAX_LENGTH } from '../../expenses/domain/expense.ts';
+import { TASK_TITLE_MAX_LENGTH } from '../../tasks/domain/task.ts';
 import type { AiDraft, AiDraftStatus, AiDraftType } from '../domain/ai-draft.ts';
 import {
   MINUTES_PER_DAY,
@@ -99,19 +100,24 @@ export const aiDraftIdParamSchema = z.object({ draftId: z.uuid() }).strict();
  *
  * ## 为什么需要请求体，且是「可选」的
  *
- * §11 只写了「确认后调用普通任务/行动用例写入正式数据」，没给请求形状。但两件事
+ * §11 只写了「确认后调用普通任务/行动用例写入正式数据」，没给请求形状。但有些值
  * 必须由**客户端在确认时给出**，模型给不出来：
  *
  * 1. FR-082 明文「金额写入前必须确认」——金额是用户在确认界面上核对过的值，
  *    与服务端草稿里的原值可能不同（用户改了）；
  * 2. 开销草稿的 `categoryId` 允许为 `null`（模型不知道用户的分类 id），而
- *    `expenses.category_id` 是 NOT NULL——分类只能由用户在确认界面选定。
+ *    `expenses.category_id` 是 NOT NULL——分类只能由用户在确认界面选定；
+ * 3. 《UI 页面规范》§5 C1 写死任务建议行「**可编辑、可移除单项**」——用户在草稿
+ *    面板里改过的 `title` / `estimatedMinutes` 必须落库，否则「可编辑」只是空壳
+ *    （改了不生效）。UI 规范 §5 D 亦要求「AI 结果可编辑、可取消，确认前不写正式
+ *    数据」。
  *
- * 因此 `expense` 分组只在确认 `expense_parse` 草稿时必填（其余类型可省略整个
- * 请求体）。`amountMinor` 缺省时沿用草稿值（用户没改）。
+ * 因此两个分组都**可选**（其余类型可省略整个请求体），且各自只在对应草稿类型上
+ * 有意义：`expense` 用于 `expense_parse`，`tasks` 用于 `task_breakdown`。缺省时
+ * 沿用服务端草稿原值（用户没改）。
  *
- * 用 `/^[A-Z]{3}$/` 与 `calendarDay` 复刻 `expenseParseResultSchema` 的字段口径，
- * 避免「草稿校验一套、确认写入另一套」。
+ * 用 `/^[A-Z]{3}$/` 与 `calendarDay` 复刻 `expenseParseResultSchema` 的字段口径、
+ * 用 `TASK_TITLE_MAX_LENGTH` 复刻任务标题上限，避免「草稿校验一套、确认写入另一套」。
  */
 export const aiDraftConfirmBodySchema = z
   .object({
@@ -129,6 +135,25 @@ export const aiDraftConfirmBodySchema = z
         note: z.string().max(EXPENSE_NOTE_MAX_LENGTH).nullable().optional(),
       })
       .strict()
+      .optional(),
+    /**
+     * 用户在草稿面板里编辑后的任务建议（`task_breakdown`）。
+     *
+     * `min(1)` 而不是允许空数组：空数组是「把建议全删了再确认」，UI 侧已按 C1 的
+     * 「可移除单项」禁用确认（`rows.length === 0` 时按钮不可点），这里对越界客户端
+     * 明确返 400，而不是静默确认出一张零写入的草稿。
+     */
+    tasks: z
+      .array(
+        z
+          .object({
+            title: z.string().trim().min(1).max(TASK_TITLE_MAX_LENGTH),
+            estimatedMinutes: z.number().int().positive().nullable().optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(20)
       .optional(),
   })
   .strict();

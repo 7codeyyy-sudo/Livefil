@@ -1,0 +1,12 @@
+/**
+ * AI 数据范围告知行样式（《UI 页面规范》v0.22 §5 C4）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ */
+
+.notice {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}

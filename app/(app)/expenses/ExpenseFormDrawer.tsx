@@ -29,6 +29,7 @@ import type {
   GoalOptions,
 } from '../_lib/expense-api';
 import { fetchLifeAreas, localCalendarDate } from '../_lib/queries';
+import { ExpenseAiParseArea } from './ExpenseAiParseArea';
 import { ExpenseSelect } from './ExpenseSelect';
 import type { SelectGroup } from './ExpenseSelect';
 
@@ -427,6 +428,16 @@ export function ExpenseFormDrawer({
           </p>
         )}
       </div>
+
+      {/* 开销解析（§5 C3）：只在「记一笔」出现；AI 关闭时组件自身返回 null（§5 E）。 */}
+      {isEdit ? null : (
+        <ExpenseAiParseArea
+          categories={categories}
+          recentCategoryIds={recentCategoryIds}
+          defaultCurrencyCode={defaultCurrencyCode}
+          onSaved={onSaved}
+        />
+      )}
 
       {conflict === null || expense === null ? null : (
         <ConflictDialog

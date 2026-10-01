@@ -16,9 +16,11 @@ import {
 
 import { ApiRequestError, sendJson } from '../_lib/api-client';
 import { makeInboxQueryFn, type TaskItem } from '../_lib/queries';
+import { useAiEnabled } from '../_lib/use-ai-enabled';
 import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import { ConvertToActionModal } from './ConvertToActionModal';
 import { ScheduleTaskModal } from './ScheduleTaskModal';
+import { TaskBreakdownDraftDrawer } from './TaskBreakdownDraftDrawer';
 import styles from './InboxPanel.module.css';
 
 /**
@@ -52,6 +54,19 @@ export function InboxPanel() {
   // 确定的布尔值，把「还不知道」当 `false` 渲染成「总开关已关闭」是假话。
   const reminderGlobalEnabled = reminders.globalEnabled;
   const quickAddInputRef = useRef<HTMLInputElement>(null);
+
+  // AI 关闭态（§5 E）：`null`（还没读出来）与 `false` 都不渲染「拆分任务」入口。
+  const aiEnabled = useAiEnabled();
+  /** 「拆分任务」草稿面板的原文；`null` 表示面板未打开。 */
+  const [breakdownText, setBreakdownText] = useState<string | null>(null);
+
+  const startBreakdown = () => {
+    const text = pendingTitle.trim();
+    if (text === '') {
+      return;
+    }
+    setBreakdownText(text);
+  };
 
   // 顶栏「＋快速添加」跳转 `/inbox#quick-add`（UI v0.19 §5）：落页后聚焦输入框。
   useEffect(() => {
@@ -111,6 +126,19 @@ export function InboxPanel() {
     }
   };
 
+  // 入口只在 AI 开着时出现（§5 E）：`undefined` 表示不渲染那个次按钮。
+  const breakdownEntry = aiEnabled === true ? startBreakdown : undefined;
+  const breakdownDrawer =
+    breakdownText === null ? null : (
+      <TaskBreakdownDraftDrawer
+        text={breakdownText}
+        onClose={() => {
+          setBreakdownText(null);
+        }}
+        onConfirmed={refetch}
+      />
+    );
+
   if (state.status === 'loading') {
     return (
       <section className={styles.section}>
@@ -120,7 +148,9 @@ export function InboxPanel() {
           onChange={setPendingTitle}
           onSubmit={addToInbox}
           adding={adding}
+          onBreakdown={breakdownEntry}
         />
+        {breakdownDrawer}
         <div className={styles.skeleton}>
           <Skeleton />
           <Skeleton width="90%" />
@@ -139,7 +169,9 @@ export function InboxPanel() {
           onChange={setPendingTitle}
           onSubmit={addToInbox}
           adding={adding}
+          onBreakdown={breakdownEntry}
         />
+        {breakdownDrawer}
         <ErrorState
           title="收件箱没能加载"
           description="数据没能取回来。可以先重试。"
@@ -162,7 +194,9 @@ export function InboxPanel() {
           onChange={setPendingTitle}
           onSubmit={addToInbox}
           adding={adding}
+          onBreakdown={breakdownEntry}
         />
+        {breakdownDrawer}
         <EmptyState
           title="收件箱是空的"
           description="在上面的输入框记下第一条任务，之后再安排到具体的时间。"
@@ -179,7 +213,9 @@ export function InboxPanel() {
         onChange={setPendingTitle}
         onSubmit={addToInbox}
         adding={adding}
+        onBreakdown={breakdownEntry}
       />
+      {breakdownDrawer}
 
       {selected.size > 0 ? (
         <div className={styles.toolbar} role="toolbar" aria-label="批量操作">
@@ -330,10 +366,27 @@ type QuickAddFormProps = {
   readonly onChange: (next: string) => void;
   readonly onSubmit: () => void;
   readonly adding: boolean;
+  /**
+   * 「拆分任务」次按钮（§5 C1）。给出时才渲染——AI 关闭或还没读出来（§5 E）时
+   * 调用方传 `undefined`，入口不出现、也不留禁用态。
+   */
+  readonly onBreakdown?: (() => void) | undefined;
 };
 
-/** 首屏快速添加（§5：输入框在首屏，提交即进收件箱）。 */
-function QuickAddForm({ inputRef, title, onChange, onSubmit, adding }: QuickAddFormProps) {
+/**
+ * 首屏快速添加（§5：输入框在首屏，提交即进收件箱）。
+ *
+ * 「拆分任务」是输入框旁的**次按钮**（§5 C1 明文），它取当前输入框里的原文去生成
+ * 草稿；原文为空时不可点（没有可拆解的东西）。
+ */
+function QuickAddForm({
+  inputRef,
+  title,
+  onChange,
+  onSubmit,
+  adding,
+  onBreakdown,
+}: QuickAddFormProps) {
   return (
     <form
       id="quick-add"
@@ -355,6 +408,11 @@ function QuickAddForm({ inputRef, title, onChange, onSubmit, adding }: QuickAddF
       <Button type="submit" variant="primary" loading={adding}>
         添加
       </Button>
+      {onBreakdown === undefined ? null : (
+        <Button variant="secondary" disabled={title.trim() === '' || adding} onClick={onBreakdown}>
+          拆分任务
+        </Button>
+      )}
     </form>
   );
 }
