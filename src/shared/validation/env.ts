@@ -48,6 +48,18 @@ const AUTH_SECRET_MIN_LENGTH = 32;
 const DEFAULT_SYNC_PULL_LAG_MS = 5000;
 
 /**
+ * AI 相关默认值（RD-20260929-006 §1.6 表格，与 spike 冻结值逐一对应）。
+ *
+ * 只在「未配置」时兜底：`.env` 里写了就用写的，写错了直接报错——不做隐式纠正。
+ */
+const DEFAULT_AI_TIMEOUT_MS = 15_000;
+const DEFAULT_AI_MAX_INPUT_CHARS = 2_000;
+const DEFAULT_AI_MONTHLY_CALL_LIMIT = 200;
+/** 整数分＝ 50 元。 */
+const DEFAULT_AI_MONTHLY_COST_LIMIT_MINOR = 5_000;
+const DEFAULT_AI_RATE_LIMIT_PER_MINUTE = 10;
+
+/**
  * 判断字符串是否为受支持的数据库连接串。
  *
  * `new URL` 解析失败属于预期内的非法输入，显式返回 false；
@@ -88,6 +100,21 @@ const notEmptyString = (variableName: string) =>
   z.string().refine((value) => value.length > 0, {
     message: `${variableName} 不能是空字符串或纯空白`,
   });
+
+/**
+ * 非负整数型变量（毫秒数、条数、金额最小单位）。
+ *
+ * 写成字符串再转数字，理由同 `SYNC_PULL_LAG_MS`：`z.coerce.number()` 会把
+ * `''`（→ 0）、`'5s'`（→ NaN）一并悄悄接受或产生误导性错误，而把「每月调用上限」
+ * 配成 0 恰恰会让所有 AI 调用被拒。`^\d+$` 只放行纯数字串。
+ */
+const nonNegativeIntegerEnv = (variableName: string) =>
+  z
+    .string()
+    .refine((value) => /^\d+$/.test(value), {
+      message: `${variableName} 必须是非负整数，且不能为空`,
+    })
+    .transform((value) => Number(value));
 
 /**
  * 校验规则的组织原则：**每个变量只允许一条规则**。
@@ -149,6 +176,44 @@ const serverEnvSchema = z
       .optional(),
     AI_PROVIDER: notEmptyString('AI_PROVIDER').optional(),
     AI_API_KEY: notEmptyString('AI_API_KEY').optional(),
+    /**
+     * OpenAI 兼容协议的基址（RD-20260929-006 §1.6）。
+     *
+     * 只在此处校验「是个 http(s) 地址」；「是否允许明文 http」是**跨字段**规则
+     * （要读 `AI_ALLOW_INSECURE_BASE_URL`），放在下面的对象级 refine 里。
+     */
+    AI_BASE_URL: z
+      .string()
+      .refine((value) => /^https?:\/\/\S+$/.test(value), {
+        message: 'AI_BASE_URL 必须是 http:// 或 https:// 开头的地址，且不能为空',
+      })
+      .optional(),
+    /** 模型名。不硬编码在代码里，换档位只改配置。 */
+    AI_MODEL: notEmptyString('AI_MODEL').optional(),
+    /** 单次调用超时（毫秒），经 `AbortSignal.timeout`。默认 15000。 */
+    AI_TIMEOUT_MS: nonNegativeIntegerEnv('AI_TIMEOUT_MS').optional(),
+    /** 脱敏截断长度。默认 2000。 */
+    AI_MAX_INPUT_CHARS: nonNegativeIntegerEnv('AI_MAX_INPUT_CHARS').optional(),
+    /** 每用户每月调用上限。默认 200。 */
+    AI_MONTHLY_CALL_LIMIT: nonNegativeIntegerEnv('AI_MONTHLY_CALL_LIMIT').optional(),
+    /** 每用户每月成本上限（整数分）。默认 5000。 */
+    AI_MONTHLY_COST_LIMIT_MINOR: nonNegativeIntegerEnv('AI_MONTHLY_COST_LIMIT_MINOR').optional(),
+    /** 短窗口限流（每分钟）。默认 10。 */
+    AI_RATE_LIMIT_PER_MINUTE: nonNegativeIntegerEnv('AI_RATE_LIMIT_PER_MINUTE').optional(),
+    /**
+     * 允许明文 `http` 基址的显式开关，默认关闭。
+     *
+     * 只接受 `1` / `0`（兼容 `true` / `false`）：这是安全开关，含糊的取值
+     * （如 `'yes'`）必须报错而不是被当成 truthy 悄悄放行——放行一次，
+     * 密钥与用户内容就会明文出网。
+     */
+    AI_ALLOW_INSECURE_BASE_URL: z
+      .string()
+      .refine((value) => value === '1' || value === '0' || value === 'true' || value === 'false', {
+        message: 'AI_ALLOW_INSECURE_BASE_URL 必须是 1 或 0（也接受 true / false）',
+      })
+      .transform((value) => value === '1' || value === 'true')
+      .optional(),
   })
   // 条件必填：只有真正调用外部 AI 时才要求密钥，本地 mock 模式不强迫开发者配置密钥。
   //
@@ -163,6 +228,22 @@ const serverEnvSchema = z
       return !usesExternalProvider || value.AI_API_KEY !== undefined;
     },
     { message: `AI_API_KEY: 当 AI_PROVIDER 不是 ${MOCK_AI_PROVIDER} 时必须配置` },
+  )
+  // 跨字段安全规则：默认拒绝明文 `http` 基址。
+  //
+  // 放在对象级而不是 `AI_BASE_URL` 的变量级，是因为它必须读到另一个变量
+  // （`AI_ALLOW_INSECURE_BASE_URL`）。密钥与用户内容明文出网的代价不可逆，
+  // 因此放行必须是一次**显式**的配置动作，而不是「有人写了 http 也能跑」。
+  .refine(
+    (value) =>
+      !(
+        value.AI_BASE_URL?.startsWith('http://') === true &&
+        value.AI_ALLOW_INSECURE_BASE_URL !== true
+      ),
+    {
+      message:
+        'AI_BASE_URL: 明文 http 仅在本机开发时允许，且必须同时设置 AI_ALLOW_INSECURE_BASE_URL=1',
+    },
   );
 
 /** 校验通过后的服务端环境变量视图。可选变量未配置时保持 undefined，不做隐式占位。 */
@@ -174,6 +255,20 @@ export interface ServerEnv {
   readonly authSecret: string | undefined;
   readonly aiProvider: string;
   readonly aiApiKey: string | undefined;
+  readonly aiBaseUrl: string | undefined;
+  readonly aiModel: string | undefined;
+  /** 单次调用超时（毫秒）。缺省 15000。 */
+  readonly aiTimeoutMs: number;
+  /** 脱敏截断长度。缺省 2000。 */
+  readonly aiMaxInputChars: number;
+  /** 每用户每月调用上限。缺省 200。 */
+  readonly aiMonthlyCallLimit: number;
+  /** 每用户每月成本上限（整数分）。缺省 5000。 */
+  readonly aiMonthlyCostLimitMinor: number;
+  /** 短窗口限流（每分钟）。缺省 10。 */
+  readonly aiRateLimitPerMinute: number;
+  /** 是否允许明文 `http` 基址。缺省 false。 */
+  readonly aiAllowInsecureBaseUrl: boolean;
   /** 同步拉取的安全滞后窗口（毫秒）。缺省 5000。 */
   readonly syncPullLagMs: number;
 }
@@ -221,6 +316,15 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     authSecret: parsed.AUTH_SECRET,
     aiProvider: parsed.AI_PROVIDER ?? DEFAULT_AI_PROVIDER,
     aiApiKey: parsed.AI_API_KEY,
+    aiBaseUrl: parsed.AI_BASE_URL,
+    aiModel: parsed.AI_MODEL,
+    aiTimeoutMs: parsed.AI_TIMEOUT_MS ?? DEFAULT_AI_TIMEOUT_MS,
+    aiMaxInputChars: parsed.AI_MAX_INPUT_CHARS ?? DEFAULT_AI_MAX_INPUT_CHARS,
+    aiMonthlyCallLimit: parsed.AI_MONTHLY_CALL_LIMIT ?? DEFAULT_AI_MONTHLY_CALL_LIMIT,
+    aiMonthlyCostLimitMinor:
+      parsed.AI_MONTHLY_COST_LIMIT_MINOR ?? DEFAULT_AI_MONTHLY_COST_LIMIT_MINOR,
+    aiRateLimitPerMinute: parsed.AI_RATE_LIMIT_PER_MINUTE ?? DEFAULT_AI_RATE_LIMIT_PER_MINUTE,
+    aiAllowInsecureBaseUrl: parsed.AI_ALLOW_INSECURE_BASE_URL ?? false,
     syncPullLagMs: parsed.SYNC_PULL_LAG_MS ?? DEFAULT_SYNC_PULL_LAG_MS,
   });
 }

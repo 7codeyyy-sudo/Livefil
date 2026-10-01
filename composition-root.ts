@@ -37,6 +37,13 @@ import packageJson from './package.json';
 import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
+import type { AiProvider } from '@/modules/ai/domain/ai-provider.ts';
+import type { AiDraftRepository } from '@/modules/ai/domain/ai-draft-repository.ts';
+import type { AiUsageRepository } from '@/modules/ai/domain/ai-usage-repository.ts';
+import { createAiDraftRepository } from '@/modules/ai/infrastructure/ai-draft-repository.drizzle.ts';
+import { createAiUsageRepository } from '@/modules/ai/infrastructure/ai-usage-repository.drizzle.ts';
+import { createMockAiProvider } from '@/modules/ai/infrastructure/providers/mock-ai-provider.ts';
+import { createResilientAiProvider } from '@/modules/ai/infrastructure/providers/resilient-ai-provider.ts';
 import { DEFAULT_LIFE_AREAS } from '@/modules/life-areas/domain/default-life-areas.ts';
 import { createExpenseCategoryRepository } from '@/modules/expenses/infrastructure/expense-category-repository.drizzle.ts';
 import { createExpenseRepository } from '@/modules/expenses/infrastructure/expense-repository.drizzle.ts';
@@ -88,7 +95,9 @@ import type { SyncApplyPort, SyncRepository } from '@/modules/sync/domain/sync-r
 import { createSyncApplyPort } from '@/modules/sync/infrastructure/sync-apply.drizzle.ts';
 import { createSyncConflictRepository } from '@/modules/sync/infrastructure/sync-conflict-repository.drizzle.ts';
 import { createSyncRepository } from '@/modules/sync/infrastructure/sync-repository.drizzle.ts';
+import { InvariantError } from '@/shared/errors/app-error.ts';
 import { createAuditLogger, type AuditLogger } from '@/shared/telemetry/audit-event.ts';
+import { MOCK_AI_PROVIDER } from '@/shared/validation/env.ts';
 import { serverEnv } from '@/shared/validation/env.server.ts';
 
 /**
@@ -103,6 +112,7 @@ const APP_VERSION: string = packageJson.version;
 let databaseClient: DatabaseClient | null = null;
 let sessionTokenService: SessionTokenService | null = null;
 let auditLogger: AuditLogger | null = null;
+let aiProvider: AiProvider | null = null;
 
 /** 数据库客户端单例。缺 `DATABASE_URL` 时由连接工厂抛出 `DEPENDENCY_UNAVAILABLE`。 */
 function getDatabaseClient(): DatabaseClient {
@@ -133,6 +143,44 @@ export function getLifeAreaSeeds(): readonly LifeAreaSeed[] {
 export function getAuditLogger(): AuditLogger {
   auditLogger ??= createAuditLogger({ appVersion: APP_VERSION });
   return auditLogger;
+}
+
+/**
+ * AI provider 单例（AI-003）。
+ *
+ * 返回**领域端口类型**而非具体实现：调用方只该知道「有人能完成一次补全」，
+ * 不该知道它是 mock 还是哪个厂商的 HTTP 适配器。
+ *
+ * ## 为什么在装配期就拒绝非 mock 的配置
+ *
+ * 真实 provider 的 HTTP 适配器与真实密钥启用**不在本批范围**（PD-20260929-018 §五，
+ * 挂邀请测试期）。若这里静默返回 mock，配置成真实供应商的部署会以为自己在用真实
+ * 模型——这种「配置与行为不一致」比直接起不来更难排查。因此非 mock 时显式失败。
+ *
+ * 用 `InvariantError` 而不是 `DependencyUnavailableError`：后者表达的是「外部依赖
+ * 当下不可达」（502，调用方可以等等再试），而这里是**本机配置与本批能力不符**，
+ * 属于装配期就该拦下的配置错误，与 `session-signer` 缺 `AUTH_SECRET` 同一类
+ * （对外同为 500，日志侧当作待修信号）。
+ *
+ * ## 为什么套一层 resilience 装饰器
+ *
+ * 超时与重试是 provider 层的横切策略（RD-20260929-006 §1.3）；应用层不得引用
+ * 基础设施实现（依赖边界规则），所以只能在这里装配好后以端口形态注入用例。
+ */
+export function getAiProvider(): AiProvider {
+  if (aiProvider !== null) {
+    return aiProvider;
+  }
+  if (serverEnv.aiProvider !== MOCK_AI_PROVIDER) {
+    throw new InvariantError({
+      message: `真实 AI provider 未在本批启用（PD-20260929-018 §五 不在范围），请保持 AI_PROVIDER=${MOCK_AI_PROVIDER}`,
+      details: { variable: 'AI_PROVIDER' },
+    });
+  }
+  aiProvider = createResilientAiProvider({
+    provider: createMockAiProvider({ model: serverEnv.aiModel ?? MOCK_AI_PROVIDER }),
+  });
+  return aiProvider;
 }
 
 /**
@@ -167,6 +215,8 @@ export function getRepositories(): {
   readonly sync: SyncRepository;
   readonly syncApply: SyncApplyPort;
   readonly syncConflicts: SyncConflictRepository;
+  readonly aiDrafts: AiDraftRepository;
+  readonly aiUsage: AiUsageRepository;
 } {
   const db = getDatabaseClient().db;
   return {
@@ -190,6 +240,8 @@ export function getRepositories(): {
     sync: createSyncRepository(db),
     syncApply: createSyncApplyPort(db),
     syncConflicts: createSyncConflictRepository(db),
+    aiDrafts: createAiDraftRepository(db),
+    aiUsage: createAiUsageRepository(db),
   };
 }
 

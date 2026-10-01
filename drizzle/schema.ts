@@ -833,6 +833,118 @@ export const notificationDeliveries = pgTable(
   ],
 );
 
+/**
+ * AI 草稿（DB §4.13.1，Phase 9 落地 / AI-003）。
+ *
+ * ## 三条 CHECK 都是「契约的可执行表达」
+ *
+ * - **`status <> 'failed' ⇒ result_json IS NOT NULL`**：`pending` / 已确认 / 已取消 /
+ *   已过期的草稿必然携带结构化结果，"没有结果却处于可用态"是缺陷而不是合法状态；
+ * - `status='failed' ⇒ error_code IS NOT NULL`：失败必须留下原因（FR-084「记错误不记内容」），
+ *   这条约束与「不落 prompt 原文」是一体两面——留痕的是**原因码**，不是内容；
+ * - `draft_type` 四值 `IN`：枚举漂移在写入那一刻就被数据库挡住，而不是等到读出来才由应用层报错。
+ *
+ * `status` 未加 `IN` 约束：§4.13.1 的约束清单未列它，既有表体例（§4.12）也不对
+ * `status` 加 `IN` 约束，故保持一致；五值的把关落在领域层。
+ *
+ * **不设 `version` / `deleted_at`**：本批不入同步白名单（RD-20260929-009 裁定 5），
+ * 无跨端 CAS 与墓碑需求。索引均不加唯一约束——同输入去重「仅作查询加速」（§4.13.1）。
+ */
+export const aiDrafts = pgTable(
+  'ai_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 四值：task_breakdown / schedule_suggestion / expense_parse / review_summary。 */
+    draftType: varchar('draft_type', { length: 24 }).notNull(),
+    /** **脱敏前**输入的哈希（仅用于去重与追溯，原文不落库）。 */
+    inputHash: varchar('input_hash', { length: 64 }).notNull(),
+    /** **脱敏后**的输入。 */
+    sanitizedInput: text('sanitized_input').notNull(),
+    /** 结构化草稿；`status='failed'` 时允许为 NULL。 */
+    resultJson: jsonb('result_json'),
+    /** 五值：pending / confirmed / cancelled / expired / failed。 */
+    status: varchar('status', { length: 16 }).default('pending').notNull(),
+    /** `mock` 或真实 provider 名。 */
+    provider: varchar('provider', { length: 32 }).notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    /** 过期后对草稿 confirm 返 `CONFLICT`(409)。 */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** `status='failed'` 时必填（CHECK 兜底）；取值限 §4.13.1 五值，与 §1.4 API 错误码不同源。 */
+    errorCode: varchar('error_code', { length: 48 }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('ai_drafts_user_status_created_idx').on(table.userId, table.status, table.createdAt),
+    index('ai_drafts_user_expires_idx').on(table.userId, table.expiresAt),
+    index('ai_drafts_user_input_hash_created_idx').on(
+      table.userId,
+      table.inputHash,
+      table.createdAt,
+    ),
+    check(
+      'ai_drafts_result_json_check',
+      sql`${table.status} = 'failed' OR ${table.resultJson} IS NOT NULL`,
+    ),
+    check(
+      'ai_drafts_failed_error_code_check',
+      sql`${table.status} <> 'failed' OR ${table.errorCode} IS NOT NULL`,
+    ),
+    check(
+      'ai_drafts_draft_type_check',
+      sql`${table.draftType} IN ('task_breakdown', 'schedule_suggestion', 'expense_parse', 'review_summary')`,
+    ),
+  ],
+);
+
+/**
+ * AI 用量账本（DB §4.13.2，Phase 9 落地 / AI-003）。
+ *
+ * ## 追加式账本
+ *
+ * 只写不改：**不设 `updated_at` / `version` / `deleted_at`**（§4.13.2 明文）。
+ * 因此这里不复用 `commonColumns()`——那两个时间戳与乐观并发版本对一条「已发生的事实」
+ * 没有语义，加了只会让人以为可以改账。
+ *
+ * ## `status='skipped'` 是 mock 的落点
+ *
+ * mock 不占额度、记 `skipped`——否则本地开发与 CI 会耗尽真实额度口径（§4.13.2）。
+ * **不存 prompt、不存模型原始输入输出**（本节末句与接口 §11「不返回敏感 prompt」对齐）。
+ */
+export const aiUsage = pgTable(
+  'ai_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    /** 取值域同 `draft_type` 四值。 */
+    requestType: varchar('request_type', { length: 24 }).notNull(),
+    /** 供应商未提供时 NULL，不以 0 冒充。 */
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    /** 整数分；无报价时为 0（追加式账本不接受 NULL，口径见 §4.13.2）。 */
+    estimatedCostMinor: integer('estimated_cost_minor').default(0).notNull(),
+    /** success / failed / skipped。 */
+    status: varchar('status', { length: 16 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [index('ai_usage_user_created_idx').on(table.userId, table.createdAt)],
+);
+
+export type AiDraftRow = typeof aiDrafts.$inferSelect;
+export type NewAiDraftRow = typeof aiDrafts.$inferInsert;
+export type AiUsageRow = typeof aiUsage.$inferSelect;
+export type NewAiUsageRow = typeof aiUsage.$inferInsert;
+
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;
 export type RoutineRow = typeof routines.$inferSelect;
