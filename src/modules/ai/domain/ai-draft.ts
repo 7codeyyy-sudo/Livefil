@@ -92,7 +92,13 @@ export interface AiDraft {
   readonly id: string;
   readonly userId: string;
   readonly draftType: AiDraftType;
-  /** **脱敏前**输入的哈希（仅用于去重与追溯，原文不落库）。 */
+  /**
+   * **脱敏后**输入的 `sha256`（`input_hash`；仅用于去重与追溯，原文不落库）。
+   *
+   * 口径依 RD-20260929-006 §1.4 第 3 条＝`sha256(归一化后的 sanitized_input)`，
+   * 见 `ai-input-sanitizer.ts`（该文件的文件头记录了与 DB §4.13.1 列注释「脱敏前」
+   * 的口径差与取舍）。
+   */
   readonly inputHash: string;
   /** **脱敏后**的输入。 */
   readonly sanitizedInput: string;

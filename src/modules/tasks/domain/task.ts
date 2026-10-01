@@ -78,6 +78,16 @@ export type TaskReasonCode = (typeof TASK_REASON_CODES)[number];
 /** 标题长度上限（§4.5 的 `varchar(240)`）。 */
 export const TASK_TITLE_MAX_LENGTH = 240;
 
+/**
+ * 任务来源（DB §4.5 的 `source` 列，四值不扩）。
+ *
+ * - `manual`：用户在界面上手工录入（含批量与编辑保存）；
+ * - `ai`：由 AI 草稿确认后经普通创建用例写入（AI-004）；
+ * - `import`：由外部数据导入（该路径尚未实现，值先占位对齐 DB 注释）；
+ * - `recurrence`：由重复规则物化出来的实例。
+ */
+export type TaskSource = 'manual' | 'ai' | 'import' | 'recurrence';
+
 /** 任务实体。 */
 export interface Task {
   readonly id: string;
@@ -92,7 +102,7 @@ export interface Task {
   /** 日历日（YYYY-MM-DD），日界的时区语义由展示层处理。 */
   readonly dueDate: string | null;
   readonly recurrenceRule: unknown;
-  readonly source: 'manual' | 'ai' | 'import' | 'recurrence';
+  readonly source: TaskSource;
   readonly deletedAt: string | null;
   /**
    * 创建时刻（ISO）。不对外透出（DTO 层过滤），但重复任务的实例展开需要它：
@@ -113,6 +123,19 @@ export interface TaskCreateInput {
   readonly minimumVersion: string | null;
   readonly goalId: string | null;
   readonly actionId: string | null;
+  /**
+   * 来源；缺省时仓储落 `manual`（与 DB 默认值一致）。
+   *
+   * 单独留这个口是给 AI 确认路径用的：AI-004 的验收是「确认后调用普通任务创建
+   * 用例」，但创建出来的任务必须能被认出来自 AI（DB §4.5 的 `ai` 取值），否则
+   * 来源信息在写入那一刻就丢失了。
+   *
+   * 刻意写成 `source?: TaskSource`（不带显式的 `| undefined`）：本类型会被
+   * 消费方展开进 `Partial<Task>`（仓储 fake 的 `{ ...input }`），一旦把 `undefined`
+   * 写进值类型，`exactOptionalPropertyTypes` 下那次展开就不可赋值。同文件其它补丁
+   * 类型（`TaskPatch`）不带这个约束，故仍按惯例写 `| undefined`。
+   */
+  readonly source?: TaskSource;
 }
 
 /**

@@ -1,14 +1,19 @@
 /**
- * AI 草稿仓储端口（AI-003）。
+ * AI 草稿仓储端口（AI-003；AI-004~006 按需生长）。
  *
- * ## 为什么只有「写入」一个方法
+ * ## 端口按需生长
  *
- * AI-003 只需要把端口与表立起来。草稿的确认、取消、过期清扫与列表读取都由
- * AI-004~006 的用例驱动（《详细设计说明书》§4.5 第 7~8 步）——现在就把那些方法
- * 写上，等于为还没定型的输入形状做设计，写了也要改。**端口按需生长**，
- * 每一次新增方法都应当由一个具体用例逼出来。
+ * AI-003 只立了「写入」；确认 / 取消由 AI-004~006 的用例逼出，于是这里补齐
+ * 读取与**条件状态迁移**两项——每新增一个方法都对应着一个具体用例的真实需要。
+ *
+ * ## 为什么状态迁移是「条件更新」而不是「先读后写」
+ *
+ * 确认是「一次性消费」：同一个草稿被并发确认两次，只能有一次真正写入业务实体。
+ * 若做成「读状态 → 判断 → 写状态」，两次请求都会读到 `pending`，随后都写入。
+ * 条件更新（`WHERE status = from`）把判定与写入合成一条原子语句，并发时只有
+ * 一条命中，另一条拿到 `null` 由用例转成 409。
  */
-import type { AiDraft, NewAiDraft } from './ai-draft.ts';
+import type { AiDraft, AiDraftStatus, NewAiDraft } from './ai-draft.ts';
 
 export interface AiDraftRepository {
   /**
@@ -17,4 +22,24 @@ export interface AiDraftRepository {
    * @returns 落库后的完整草稿（含服务端生成的 id 与时间戳）。
    */
   create(input: NewAiDraft): Promise<AiDraft>;
+
+  /**
+   * 按 id 读取草稿，**限定当前用户**（非本人与不存在同义，一律 `null`）。
+   *
+   * @param userId 当前用户。
+   * @param draftId 草稿 id。
+   */
+  findById(userId: string, draftId: string): Promise<AiDraft | null>;
+
+  /**
+   * 条件状态迁移：仅当草稿当前状态等于 `from` 时才更新为 `to`。
+   *
+   * @returns 迁移后的草稿；行不存在、非本人或状态已不等于 `from` 时为 `null`。
+   */
+  transitionStatus(
+    userId: string,
+    draftId: string,
+    from: AiDraftStatus,
+    to: AiDraftStatus,
+  ): Promise<AiDraft | null>;
 }

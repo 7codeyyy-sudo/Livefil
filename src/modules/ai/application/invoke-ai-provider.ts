@@ -36,6 +36,7 @@ import {
 import { assertWithinAiQuota, type AiQuotaLimits } from '../domain/ai-policy.ts';
 import type { NewAiUsageRecord } from '../domain/ai-usage.ts';
 import type { AiUsageRepository } from '../domain/ai-usage-repository.ts';
+import { resolveAiBillingPeriod } from './ai-billing-period.ts';
 
 /**
  * 短窗口限流的窗口长度（毫秒）。
@@ -45,17 +46,6 @@ import type { AiUsageRepository } from '../domain/ai-usage-repository.ts';
  * 与「每分钟上限」的保护意图一致；代价是记账表上要按 `created_at` 范围扫。
  */
 const AI_RATE_WINDOW_MS = 60_000;
-
-/**
- * 本月起点（UTC 自然月）。
- *
- * 已知取舍：契约要求「自然月，按用户时区」，而 AI-003 的用例依赖清单里没有时区
- * 来源。这里先按 UTC 取月首——它最多让月初/月末的几小时落到相邻月份；等到
- * `GET /ai/usage`（AI-006）需要展示重置时刻时，应把用户时区一并注入并统一两处口径。
- */
-function startOfUtcMonth(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-}
 
 export interface InvokeAiProviderDependencies {
   /** provider 端口（已在组合根完成超时 + 重试包装）。 */
@@ -82,6 +72,14 @@ export interface InvokeAiProviderInput {
   /** 当前用户的 AI 开关与数据发送同意（由路由从用户设置读出后传入）。 */
   readonly aiEnabled: boolean;
   readonly aiDataConsent: boolean;
+  /**
+   * 当前用户时区（IANA 名），用于切「用户视角的自然月」额度窗口。
+   *
+   * RD-20260929-006 §1.5 的额度口径是「自然月，**按用户时区**」。传入时区而不是
+   * 在用例里查用户，是因为调用方（AI-004~006 的生成用例）本来就持有用户设置，
+   * 再查一次会多一次读。
+   */
+  readonly timezone: string;
   readonly requestType: AiRequestType;
   readonly systemPrompt: string;
   /** **已脱敏**的用户内容（脱敏属 AI-004）。 */
@@ -120,7 +118,7 @@ export class InvokeAiProviderUseCase {
     const startedAtMs = this.#now().getTime();
 
     this.#assertConsent(input);
-    await this.#assertQuota(input.userId);
+    await this.#assertQuota(input.userId, input.timezone);
 
     const request: AiCompletionRequest = {
       requestType: input.requestType,
@@ -190,10 +188,12 @@ export class InvokeAiProviderUseCase {
   }
 
   /** 预检：命中任一上限则抛 `RateLimitError`，**不发网络请求**。 */
-  async #assertQuota(userId: string): Promise<void> {
+  async #assertQuota(userId: string, timezone: string): Promise<void> {
     const now = this.#now();
+    // 月窗口与 `GET /ai/usage` 同源（`ai-billing-period.ts`），否则展示值与拦截点对不上。
+    const { start: monthStart } = resolveAiBillingPeriod(now, timezone);
     const [monthly, recent] = await Promise.all([
-      this.#usage.summarize(userId, startOfUtcMonth(now), now),
+      this.#usage.summarize(userId, monthStart, now),
       this.#usage.summarize(userId, new Date(now.getTime() - AI_RATE_WINDOW_MS), now),
     ]);
 

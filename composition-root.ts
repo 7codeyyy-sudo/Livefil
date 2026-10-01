@@ -38,12 +38,21 @@ import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
 import type { AiProvider } from '@/modules/ai/domain/ai-provider.ts';
+import type { AiQuotaLimits } from '@/modules/ai/domain/ai-policy.ts';
 import type { AiDraftRepository } from '@/modules/ai/domain/ai-draft-repository.ts';
 import type { AiUsageRepository } from '@/modules/ai/domain/ai-usage-repository.ts';
+import { ConfirmAiDraftUseCase } from '@/modules/ai/application/confirm-ai-draft.ts';
+import { GenerateAiDraftUseCase } from '@/modules/ai/application/generate-ai-draft.ts';
+import { GetAiUsageUseCase } from '@/modules/ai/application/get-ai-usage.ts';
+import { InvokeAiProviderUseCase } from '@/modules/ai/application/invoke-ai-provider.ts';
 import { createAiDraftRepository } from '@/modules/ai/infrastructure/ai-draft-repository.drizzle.ts';
 import { createAiUsageRepository } from '@/modules/ai/infrastructure/ai-usage-repository.drizzle.ts';
 import { createMockAiProvider } from '@/modules/ai/infrastructure/providers/mock-ai-provider.ts';
 import { createResilientAiProvider } from '@/modules/ai/infrastructure/providers/resilient-ai-provider.ts';
+import { ManageExpenseUseCase } from '@/modules/expenses/application/manage-expense.ts';
+import { ManageScheduleBlockUseCase } from '@/modules/scheduling/application/manage-scheduling.ts';
+import { ManageTaskUseCase } from '@/modules/tasks/application/manage-task.ts';
+import { createLogger } from '@/shared/telemetry/logger.ts';
 import { DEFAULT_LIFE_AREAS } from '@/modules/life-areas/domain/default-life-areas.ts';
 import { createExpenseCategoryRepository } from '@/modules/expenses/infrastructure/expense-category-repository.drizzle.ts';
 import { createExpenseRepository } from '@/modules/expenses/infrastructure/expense-repository.drizzle.ts';
@@ -181,6 +190,106 @@ export function getAiProvider(): AiProvider {
     provider: createMockAiProvider({ model: serverEnv.aiModel ?? MOCK_AI_PROVIDER }),
   });
   return aiProvider;
+}
+
+/**
+ * AI 额度与限流上限（AI-003/AI-006）。
+ *
+ * 从 env 读一次、以领域端口类型返回：调用方（用例、路由）只关心「上限是多少」，
+ * 不关心它来自哪个环境变量名。
+ */
+export function getAiQuotaLimits(): AiQuotaLimits {
+  return {
+    monthlyCallLimit: serverEnv.aiMonthlyCallLimit,
+    monthlyCostLimitMinor: serverEnv.aiMonthlyCostLimitMinor,
+    perMinuteLimit: serverEnv.aiRateLimitPerMinute,
+  };
+}
+
+/**
+ * AI 调用用例（AI-003）。
+ *
+ * 返回类型显式写成用例类：`InvokeAiProviderUseCase` 是本仓库对 AI 调用的**唯一**
+ * 入口，路由与 AI-004~006 的用例都经它发起调用——门禁、预检、记账、日志四条
+ * 横切逻辑因此只有一份实现。
+ */
+export function getInvokeAiProviderUseCase(): InvokeAiProviderUseCase {
+  const repositories = getRepositories();
+  return new InvokeAiProviderUseCase({
+    provider: getAiProvider(),
+    usage: repositories.aiUsage,
+    logger: createLogger(),
+    now: () => new Date(),
+    timeoutMs: serverEnv.aiTimeoutMs,
+    limits: getAiQuotaLimits(),
+    // 失败入账要写 `ai_usage.model`（非空），而失败时拿不到结果里的模型名，
+    // 故用配置态模型名兜底（与 `AI-003` 的既有口径一致）。
+    model: serverEnv.aiModel ?? MOCK_AI_PROVIDER,
+  });
+}
+
+/** AI 草稿生成用例（AI-004/005/006）。 */
+export function getGenerateAiDraftUseCase(): GenerateAiDraftUseCase {
+  const repositories = getRepositories();
+  return new GenerateAiDraftUseCase({
+    invoke: getInvokeAiProviderUseCase(),
+    drafts: repositories.aiDrafts,
+    users: repositories.users,
+    tasks: repositories.tasks,
+    reviewFacts: repositories.reviewFacts,
+    expenses: repositories.expenses,
+    now: () => new Date(),
+    maxInputChars: serverEnv.aiMaxInputChars,
+  });
+}
+
+/**
+ * AI 草稿确认 / 取消用例（AI-004/005/006）。
+ *
+ * 三个既有业务用例在这里就地装配：确认必须经它们写入正式数据（§11），
+ * 而它们各自的仓储依赖已在 {@link getRepositories} 里备齐。
+ */
+export function getConfirmAiDraftUseCase(): ConfirmAiDraftUseCase {
+  const repositories = getRepositories();
+  const audit = getAuditLogger();
+  return new ConfirmAiDraftUseCase({
+    drafts: repositories.aiDrafts,
+    tasks: new ManageTaskUseCase({
+      tasks: repositories.tasks,
+      goals: repositories.goals,
+      actions: repositories.actions,
+      lifeAreas: repositories.lifeAreas,
+      audit,
+    }),
+    schedules: new ManageScheduleBlockUseCase({
+      blocks: repositories.scheduleBlocks,
+      fixed: repositories.fixedCommitments,
+      tasks: repositories.tasks,
+      audit,
+    }),
+    expenses: new ManageExpenseUseCase({
+      expenses: repositories.expenses,
+      expenseCategories: repositories.expenseCategories,
+      lifeAreas: repositories.lifeAreas,
+      goals: repositories.goals,
+      actions: repositories.actions,
+      audit,
+    }),
+    users: repositories.users,
+    logger: createLogger(),
+    now: () => new Date(),
+  });
+}
+
+/** AI 用量查询用例（AI-006 的 `GET /ai/usage`）。 */
+export function getGetAiUsageUseCase(): GetAiUsageUseCase {
+  const repositories = getRepositories();
+  return new GetAiUsageUseCase({
+    usage: repositories.aiUsage,
+    users: repositories.users,
+    limits: getAiQuotaLimits(),
+    now: () => new Date(),
+  });
 }
 
 /**
