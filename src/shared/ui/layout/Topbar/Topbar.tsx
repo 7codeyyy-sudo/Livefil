@@ -35,6 +35,13 @@ export type TopbarProps = {
    * 的右端锚点。
    */
   readonly notificationBell?: ReactNode | undefined;
+  /**
+   * 帮助入口（AI-002，《UI 页面规范》v0.22 §5 B）。
+   *
+   * 与铃铛同属"应用级入口"：排在铃铛之后、「＋ 快速添加」主按钮之前——它不该
+   * 抢主按钮的右端锚点，也不该混进页面动作那一组。
+   */
+  readonly helpEntry?: ReactNode | undefined;
 };
 
 /**
@@ -55,7 +62,13 @@ export type TopbarProps = {
  * 快速添加输入框。此前它是无 onClick 的挂空入口（行为属 TASK-002，
  * 当时不存在）；PageActions 岛机制继续挂账，本批不实现。
  */
-export function Topbar({ isNavOpen, onOpenNav, pageActions, notificationBell }: TopbarProps) {
+export function Topbar({
+  isNavOpen,
+  onOpenNav,
+  pageActions,
+  notificationBell,
+  helpEntry,
+}: TopbarProps) {
   const router = useRouter();
   return (
     <header className={styles.topbar}>
@@ -78,6 +91,8 @@ export function Topbar({ isNavOpen, onOpenNav, pageActions, notificationBell }: 
           {notificationBell === undefined ? null : (
             <div className={styles.notificationBell}>{notificationBell}</div>
           )}
+
+          {helpEntry === undefined ? null : <div className={styles.helpEntry}>{helpEntry}</div>}
 
           <Button
             variant="primary"

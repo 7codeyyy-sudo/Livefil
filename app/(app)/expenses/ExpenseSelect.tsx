@@ -4,6 +4,7 @@ import { Fragment, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Input, Select } from '@/shared/ui/components';
+import type { FieldHintKey } from '@/shared/ui/components';
 
 import styles from './ExpenseSelect.module.css';
 
@@ -31,6 +32,8 @@ export type ExpenseSelectProps = {
   readonly searchLabel?: string | undefined;
   readonly error?: string | undefined;
   readonly hint?: string | undefined;
+  /** 字段解释（§5 B，AI-002）：透传给内层 `Select`，`?` 落在标签尾部。 */
+  readonly fieldHint?: FieldHintKey | undefined;
   readonly disabled?: boolean | undefined;
   /** 选择器下方的固定操作行（「管理分类」「＋ 新建分类」等）。 */
   readonly footer?: ReactNode | undefined;
@@ -58,6 +61,7 @@ export function ExpenseSelect({
   searchLabel,
   error,
   hint,
+  fieldHint,
   disabled,
   footer,
 }: ExpenseSelectProps) {
@@ -94,6 +98,7 @@ export function ExpenseSelect({
         value={value}
         error={error}
         hint={hint}
+        fieldHint={fieldHint}
         disabled={disabled}
         onChange={(event) => {
           onChange(event.target.value);

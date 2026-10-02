@@ -28,6 +28,7 @@ const FORBIDDEN_FIELD_NAME_FRAGMENTS: readonly string[] = [
   'session',
   'credential',
   'privatekey',
+  'prompt',
 ];
 
 /** 替换后的占位符。 */

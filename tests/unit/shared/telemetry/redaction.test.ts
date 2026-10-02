@@ -149,3 +149,41 @@ describe('不修改原对象', () => {
     expect(redacted).not.toBe(original);
   });
 });
+
+/**
+ * AI prompt 脱敏（RD-009 裁定 1 甲案·第 2 件）。
+ *
+ * 缺口来自本文件头部自陈的依据与实现不一致：《详细设计说明书》§9 的禁止清单
+ * 含「完整 AI prompt」，而 `FORBIDDEN_FIELD_NAME_FRAGMENTS` 此前只靠 200 字符
+ * 截断兜着——截断保留前 200 字符，与「不记录完整 AI prompt」的保守方向相反。
+ */
+describe('AI prompt 字段脱敏', () => {
+  it('prompt 字段整体替换为占位符，不放行前 200 字符', () => {
+    expect(isForbiddenFieldName('prompt')).toBe(true);
+
+    const longPrompt = '很长的一段模型输入'.repeat(40);
+    expect(longPrompt.length).toBeGreaterThan(MAX_TEXT_LENGTH);
+    expect(redactValue(longPrompt, 'prompt')).toBe(REDACTED_PLACEHOLDER);
+    expect(redactValue('短输入', 'prompt')).toBe(REDACTED_PLACEHOLDER);
+  });
+
+  it.each(['prompts', 'systemPrompt', 'prompt_text', 'PROMPT'])(
+    '变体 %s 归一化后同样命中',
+    (fieldName) => {
+      expect(isForbiddenFieldName(fieldName)).toBe(true);
+    },
+  );
+
+  it('嵌套结构中的 prompt 被替换，同级字段原样保留', () => {
+    const redacted = redactRecord({ context: { prompt: 'x', model: 'm' } });
+
+    expect(redacted).toEqual({ context: { prompt: REDACTED_PLACEHOLDER, model: 'm' } });
+  });
+
+  it('含 prompt 子串的无关字段同样被替换——保守方向正确，而非精确命中', () => {
+    // 与文件头的既有口径一致（同 `session` 命中 `sessionCount` 的先例）：
+    // 这里断言的是「宁可多脱一点」，不是「只会命中 prompt 本身」。
+    expect(isForbiddenFieldName('promptTokens')).toBe(true);
+    expect(isForbiddenFieldName('userPrompted')).toBe(true);
+  });
+});
