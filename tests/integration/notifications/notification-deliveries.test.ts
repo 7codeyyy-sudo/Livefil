@@ -18,8 +18,14 @@ import { describe, expect, it } from 'vitest';
 import { ManageNotificationDeliveryUseCase } from '../../../src/modules/notifications/application/manage-notification-delivery.ts';
 import { NOTIFICATION_LEVEL_RANK } from '../../../src/modules/notifications/domain/notification-rule.ts';
 import { listNotificationDeliveriesQuerySchema } from '../../../src/modules/notifications/application/notification-delivery-dto.ts';
-import type { NotificationDelivery } from '../../../src/modules/notifications/domain/notification-delivery.ts';
-import type { NotificationDeliveryRepository } from '../../../src/modules/notifications/domain/notification-delivery-repository.ts';
+import type {
+  ListNotificationDeliveriesOptions,
+  NotificationDeliveryRepository,
+} from '../../../src/modules/notifications/domain/notification-delivery-repository.ts';
+import type {
+  NotificationDelivery,
+  NotificationDeliveryPage,
+} from '../../../src/modules/notifications/domain/notification-delivery.ts';
 import {
   createFakeAuditLogger,
   createFakeDatabase,
@@ -31,7 +37,7 @@ const OTHER_USER_ID = 'user-other';
 
 function createFakeNotificationDeliveryRepository(
   _database: FakeDatabase,
-): NotificationDeliveryRepository {
+): NotificationDeliveryRepository & { __seed: (delivery: NotificationDelivery) => void } {
   const rows: NotificationDelivery[] = [];
 
   return {
@@ -56,17 +62,8 @@ function createFakeNotificationDeliveryRepository(
 
     async listByUser(
       userId: string,
-      options: {
-        readonly status?: string;
-        readonly onlyRetryable?: boolean;
-        readonly cursor?: string;
-        readonly limit: number;
-      },
-    ): Promise<{
-      readonly items: readonly NotificationDelivery[];
-      readonly nextCursor: string | null;
-      readonly hasMore: boolean;
-    }> {
+      options: ListNotificationDeliveriesOptions,
+    ): Promise<NotificationDeliveryPage> {
       let items = rows.filter((r) => r.userId === userId);
       if (options.status !== undefined) {
         items = items.filter((r) => r.status === options.status);
@@ -77,7 +74,7 @@ function createFakeNotificationDeliveryRepository(
         );
       }
       items = [...items].sort((a, b) => b.scheduledFor.localeCompare(a.scheduledFor));
-      const nextCursor = items.length > options.limit ? items[options.limit].id : null;
+      const nextCursor = items.length > options.limit ? items[options.limit]!.id : null;
       return {
         items: items.slice(0, options.limit),
         nextCursor,
@@ -94,11 +91,14 @@ function createFakeNotificationDeliveryRepository(
       if (index === -1) {
         throw new Error('not found');
       }
-      const existing = rows[index];
+      const existing = rows[index]!;
       if (existing.dismissedAt !== null) {
         return existing; // 幂等
       }
-      const updated: NotificationDelivery = { ...existing, dismissedAt: new Date().toISOString() };
+      const updated: NotificationDelivery = {
+        ...existing,
+        dismissedAt: new Date().toISOString(),
+      };
       rows[index] = updated;
       return updated;
     },
@@ -116,7 +116,7 @@ function createFakeNotificationDeliveryRepository(
     __seed(delivery: NotificationDelivery): void {
       rows.push(delivery);
     },
-  } as NotificationDeliveryRepository & { __seed: (delivery: NotificationDelivery) => void };
+  };
 }
 
 function makeDelivery(overrides: Partial<NotificationDelivery> = {}): NotificationDelivery {
@@ -218,7 +218,7 @@ describe('C 组 · 待处理 / 忽略 / 查询（点 9-11）', () => {
 
       const failedOnly = await deliveries.listByUser(userId, { status: 'failed', limit: 20 });
       expect(failedOnly.items).toHaveLength(1);
-      expect(failedOnly.items[0].id).toBe('f1');
+      expect(failedOnly.items[0]!.id).toBe('f1');
     });
 
     it('onlyRetryable：失败 + 未达上限 + next_retry_at 非空', async () => {
@@ -240,7 +240,7 @@ describe('C 组 · 待处理 / 忽略 / 查询（点 9-11）', () => {
 
       const retryable = await deliveries.listByUser(userId, { onlyRetryable: true, limit: 20 });
       expect(retryable.items).toHaveLength(1);
-      expect(retryable.items[0].id).toBe('r1');
+      expect(retryable.items[0]!.id).toBe('r1');
     });
 
     it('keyset 分页 meta', async () => {

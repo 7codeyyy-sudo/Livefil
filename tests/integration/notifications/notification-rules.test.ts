@@ -23,9 +23,13 @@ import {
 import type {
   NotificationRule,
   NotificationRuleCreateInput,
+  NotificationRulePage,
   NotificationRulePatch,
 } from '../../../src/modules/notifications/domain/notification-rule.ts';
-import type { NotificationRuleRepository } from '../../../src/modules/notifications/domain/notification-rule-repository.ts';
+import type {
+  ListNotificationRulesOptions,
+  NotificationRuleRepository,
+} from '../../../src/modules/notifications/domain/notification-rule-repository.ts';
 import { ConflictError, NotFoundError } from '../../../src/shared/errors/app-error.ts';
 import {
   createFakeAuditLogger,
@@ -45,17 +49,8 @@ function createFakeNotificationRuleRepository(_database: FakeDatabase): Notifica
   return {
     async listByUser(
       userId: string,
-      options: {
-        readonly targetType?: string;
-        readonly targetId?: string;
-        readonly cursor?: string;
-        readonly limit: number;
-      },
-    ): Promise<{
-      readonly items: readonly NotificationRule[];
-      readonly nextCursor: string | null;
-      readonly hasMore: boolean;
-    }> {
+      options: ListNotificationRulesOptions,
+    ): Promise<NotificationRulePage> {
       let items = rows.filter((r) => r.userId === userId);
       if (options.targetType !== undefined) {
         items = items.filter((r) => r.targetType === options.targetType);
@@ -64,7 +59,7 @@ function createFakeNotificationRuleRepository(_database: FakeDatabase): Notifica
         items = items.filter((r) => r.targetId === options.targetId);
       }
       items = [...items].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      const nextCursor = items.length > options.limit ? items[options.limit].id : null;
+      const nextCursor = items.length > options.limit ? items[options.limit]!.id : null;
       return {
         items: items.slice(0, options.limit),
         nextCursor,
@@ -113,7 +108,7 @@ function createFakeNotificationRuleRepository(_database: FakeDatabase): Notifica
       if (index === -1) {
         throw new NotFoundError('提醒规则不存在');
       }
-      const current = rows[index];
+      const current = rows[index]!;
       if (patch.remindAt !== undefined) {
         const duplicated = rows.find(
           (r) =>
@@ -150,8 +145,10 @@ function createFakeNotificationRuleRepository(_database: FakeDatabase): Notifica
   };
 }
 
-const parseCreate = (body: unknown) => createNotificationRuleSchema.parse(body);
-const parseUpdate = (body: unknown) => updateNotificationRuleSchema.parse(body);
+const parseCreate = (body: unknown): NotificationRuleCreateInput =>
+  createNotificationRuleSchema.parse(body) as NotificationRuleCreateInput;
+const parseUpdate = (body: unknown): NotificationRulePatch =>
+  updateNotificationRuleSchema.parse(body) as NotificationRulePatch;
 
 async function setup() {
   const _database = createFakeDatabase();
@@ -210,6 +207,7 @@ describe('A 组 · 规则契约（点 1-5）', () => {
         userId,
         parseCreate({
           targetType: 'review',
+          targetId: null,
           remindAt: '20:00:00',
           repeatRule: 'none',
           allowQuietHours: false,
@@ -219,7 +217,7 @@ describe('A 组 · 规则契约（点 1-5）', () => {
       expect(taskRule.targetType).toBe('task');
       expect(routineRule.targetType).toBe('routine');
       expect(reviewRule.targetType).toBe('review');
-      expect(reviewRule.targetId).toBeUndefined();
+      expect(reviewRule.targetId).toBeNull();
     });
 
     it('targetType/targetId 过滤', async () => {
