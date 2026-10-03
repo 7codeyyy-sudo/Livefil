@@ -18,6 +18,7 @@ import type { AsyncQueryState } from '@/shared/ui/components';
 
 import { formatMinorToHuman } from '../_lib/expense-api';
 import { fetchProfile } from '../_lib/identity-api';
+import { useAiEnabled } from '../_lib/use-ai-enabled';
 import {
   ADJUSTMENT_LABELS,
   addDays,
@@ -44,6 +45,7 @@ import type {
 
 import { AdjustmentConfirmDialog } from './AdjustmentConfirmDialog';
 import type { PendingAdjustment } from './AdjustmentConfirmDialog';
+import { WeeklyAiSummarySection } from './WeeklyAiSummarySection';
 
 import styles from './WeeklyReviewSection.module.css';
 
@@ -106,6 +108,9 @@ export function WeeklyReviewSection() {
   const router = useRouter();
   const toast = useToast();
   const online = useOnlineStatus();
+
+  // AI 关闭态（§5 E）：`null`（还没读出来）与 `false` 都不渲染摘要入口。
+  const aiEnabled = useAiEnabled();
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -251,6 +256,9 @@ export function WeeklyReviewSection() {
               });
             }}
           />
+
+          {/* AI 摘要区（§5 D）：落「理解偏差」段内、既有洞察列表之后，不破三段排序。 */}
+          {aiEnabled === true ? <WeeklyAiSummarySection weekStart={weekStart} /> : null}
 
           <AdjustmentsSection
             adjustments={

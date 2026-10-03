@@ -11,7 +11,12 @@
  * （EmptyState / LoadingState + Skeleton / ErrorState），UI-004 是异步取数
  * （AsyncState / useAsyncQuery）与离线提示（OfflineBanner / useOnlineStatus），
  * IAM-002 补 `Switch`（设置页的开关），SYNC-002 补同步状态横幅与冲突弹层
- * （`SyncStatusBanner` / `ConflictDialog`，《UI 页面规范》v0.20 §4.9）。
+ * （`SyncStatusBanner` / `ConflictDialog`，《UI 页面规范》v0.20 §4.9），
+ * NOTIFY-001 补提醒规则区（`ReminderRuleSection` / `ReminderRuleInlineArea`），
+ * AI-001 / AI-002 补引导条与帮助抽屉（`GuideBar` / `HelpDrawer`，
+ * 《UI 页面规范》v0.22 §5 A/B）及表单字段解释（`FieldHint`），
+ * Phase 9 补 AI 草稿三件套（`AiScopeNotice` / `AiConsentDialog` /
+ * `AiUnavailableNotice`，§5 C/D/E）。
  *
  * **浮层基建（`_internal/overlay`）刻意不出现在这里**：它是这几个组件共用的
  * 实现细节，不是对外 API（§2.4 明确「不对外导出通用浮层框架」）。
@@ -111,3 +116,20 @@ export type {
 } from './ReminderRuleSection/ReminderRuleSection';
 export { ReminderRuleInlineArea } from './ReminderRuleInlineArea/ReminderRuleInlineArea';
 export type { ReminderRuleInlineAreaProps } from './ReminderRuleInlineArea/ReminderRuleInlineArea';
+export { FieldHint, FieldHintText, useFieldHint } from './FieldHint/FieldHint';
+export type {
+  FieldHintKey,
+  FieldHintProps,
+  FieldHintState,
+  FieldHintTextProps,
+} from './FieldHint/FieldHint';
+export { formatGuideProgress, GuideBar } from './GuideBar/GuideBar';
+export type { GuideBarProps } from './GuideBar/GuideBar';
+export { HelpDrawer } from './HelpDrawer/HelpDrawer';
+export type { HelpDrawerGuideProgress, HelpDrawerProps } from './HelpDrawer/HelpDrawer';
+export { AiScopeNotice } from './AiScopeNotice/AiScopeNotice';
+export type { AiScopeNoticeProps } from './AiScopeNotice/AiScopeNotice';
+export { AiConsentDialog } from './AiConsentDialog/AiConsentDialog';
+export type { AiConsentDialogProps } from './AiConsentDialog/AiConsentDialog';
+export { AiUnavailableNotice } from './AiUnavailableNotice/AiUnavailableNotice';
+export type { AiUnavailableNoticeProps } from './AiUnavailableNotice/AiUnavailableNotice';

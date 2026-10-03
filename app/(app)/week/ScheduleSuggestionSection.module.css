@@ -1,0 +1,146 @@
+/**
+ * 排程建议区块样式（《UI 页面规范》v0.22 §5 C2）。
+ *
+ * 纪律：只引用在册令牌，不写颜色 / 字号 / 圆角 / 时长 / 层级字面量。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-height-section-title);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  color: var(--color-text-secondary);
+}
+
+/* 候选任务清单：勾选行 + 标题。 */
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.candidateTitle {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 建议块：C4 数据范围行 +「建议」Badge + 逐条建议。 */
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+}
+
+.editFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+/* 起止时间用等宽数字，纵向对齐不跳动（§5 C2 tabular-nums）。 */
+.time {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.taskName {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  color: var(--color-text-secondary);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}

@@ -1,0 +1,28 @@
+/**
+ * 字段解释样式（《UI 页面规范》v0.22 §5 B，AI-002）。
+ *
+ * 纪律：颜色 / 字号 / 圆角 / 时长 / 层级一律引用在册令牌，不写字面量。
+ * `24px` 是**几何尺寸**（与 Topbar 的 `26px` 品牌块同类，非 §2.4 五类取值），
+ * 取 24px 而不是控件默认的 40px：`?` 是标签行里的次级入口，按控件尺寸摆会
+ * 把 13px 的标签行撑成一整行；24px 也满足 WCAG 2.5.8 的最小点击目标下限。
+ */
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* `IconButton` 不接受 `className`（尺寸与样式归组件所有），所以由这个定位槽
+   覆盖它的方形尺寸——与 Topbar 汉堡按钮槽同一条做法。 */
+.toggle > button {
+  width: 24px;
+  height: 24px;
+  font-size: var(--font-size-caption);
+}
+
+.text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
