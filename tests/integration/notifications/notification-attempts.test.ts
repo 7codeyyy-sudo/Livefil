@@ -21,8 +21,8 @@ import {
   computeNextRetryAt,
   notificationRetryDelayMs,
   MAX_NOTIFICATION_ATTEMPTS,
-  NOTIFICATION_LEVEL_RANK,
 } from '../../../src/modules/notifications/domain/notification-delivery.ts';
+import { NOTIFICATION_LEVEL_RANK } from '../../../src/modules/notifications/domain/notification-rule.ts';
 import { reportNotificationAttemptSchema } from '../../../src/modules/notifications/application/notification-delivery-dto.ts';
 import type { NotificationDelivery } from '../../../src/modules/notifications/domain/notification-delivery.ts';
 import type { NotificationDeliveryRepository } from '../../../src/modules/notifications/domain/notification-delivery-repository.ts';
