@@ -104,9 +104,9 @@ describe('findProhibitedAdvice（点 16 输出后校验）', () => {
 
 describe('点 18 env 冻结（package.json 零新增依赖）', () => {
   it('依赖项未新增 AI provider 相关包', async () => {
-    const pkg = await import('../../../../package.json', {
-      assert: { type: 'json' },
-    });
+    // 路径从 tests/unit/ai/ 上溯三级即项目根；导入属性用 `with`
+    // （`assert` 已被 Node 22 / TypeScript 废弃：TS2880）。
+    const pkg = await import('../../../package.json', { with: { type: 'json' } });
     const depNames = Object.keys(pkg.dependencies ?? {});
     const forbidden = ['openai', 'cohere', 'anthropic', 'langchain', 'ai'];
     for (const name of forbidden) {

@@ -183,7 +183,15 @@ describe('AI API 端点契约（点 1-6）', () => {
       ),
     );
 
-    const endpoints = [
+    // 显式声明元素形状：不声明的话数组字面量会推出「有的成员带 body、有的不带」的
+    // 联合类型，再叠加 exactOptionalPropertyTypes，`fetch` 的重载就匹配不上（TS2769）。
+    type ProbeEndpoint = {
+      readonly method: 'GET' | 'POST';
+      readonly url: string;
+      readonly body?: unknown;
+    };
+
+    const endpoints: readonly ProbeEndpoint[] = [
       { method: 'POST' as const, url: '/api/v1/ai/drafts/task-breakdown', body: { text: 'x' } },
       {
         method: 'POST' as const,
@@ -210,7 +218,9 @@ describe('AI API 端点契约（点 1-6）', () => {
       const res = await fetch(ep.url, {
         method: ep.method,
         headers: { 'content-type': 'application/json' },
-        body: ep.body ? JSON.stringify(ep.body) : undefined,
+        // 无 body 时给 `null` 而不是 `undefined`：`RequestInit.body` 是
+        // `BodyInit | null`，但 exactOptionalPropertyTypes 下显式传 `undefined` 不合法。
+        body: ep.body ? JSON.stringify(ep.body) : null,
       });
       expect(res.status).toBeLessThan(400);
     }
