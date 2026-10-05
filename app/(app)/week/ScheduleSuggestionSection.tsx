@@ -27,6 +27,9 @@ const SCOPE_TEXT = '你所选的任务与可用时间';
 /** 可用时间的默认值（分钟）。 */
 const DEFAULT_AVAILABLE_MINUTES = '60';
 
+/** 空结果态文案（§5 C2 小补；2026-10-05 口定，覆盖 PM v0.24 流程）。 */
+const EMPTY_RESULT_TEXT = '这次没给出建议。你可以手动安排，或重新生成。';
+
 /** 选来做排程建议的候选任务（`GET /tasks?status=inbox`）。 */
 interface CandidateTask {
   readonly id: string;
@@ -46,6 +49,8 @@ interface SuggestionRow {
 type DraftState =
   | { readonly status: 'idle' }
   | { readonly status: 'loading' }
+  /** 空结果（`status='failed'` 或零建议）＝空态、非故障。 */
+  | { readonly status: 'empty' }
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly rows: readonly SuggestionRow[] };
 
@@ -134,6 +139,11 @@ async function fetchCandidateTasks(signal: AbortSignal): Promise<readonly Candid
  *
  * 开关开但 provider 故障（`ApiRequestError` = 504/502/429）时出错误行 + 「手动安排」，
  * 后者打开既有排程创建弹层——手动路径始终可用，不自动切换、不弹窗。
+ *
+ * ## 空结果不是故障
+ *
+ * 生成返 200 但零建议（`status='failed'`）时走**空态**（说明 + 「重新生成」+「手动安排」），
+ * 不渲染错误行——「AI 暂不可用」只用于真故障与 AI 关闭态（RD-20260929-009 终审 (c)）。
  */
 export function ScheduleSuggestionSection({
   weekStart,
@@ -188,8 +198,10 @@ export function ScheduleSuggestionSection({
       });
       const data = envelope.data;
       draftIdRef.current = data.draftId;
+      // 空结果（`status='failed'` 或零建议）＝**空态、非故障**：E 错误行只留真故障与
+      // AI 关闭态，这里给空态说明 + 重新生成 + 手动安排（RD-20260929-009 终审 (c) 小补）。
       if (data.status === 'failed' || data.suggestions.length === 0) {
-        setDraft({ status: 'error' });
+        setDraft({ status: 'empty' });
         return;
       }
       setDraft({
@@ -376,6 +388,25 @@ export function ScheduleSuggestionSection({
           onRetry={generate}
           secondaryAction={{ label: '手动安排', onClick: () => onManualSchedule([...selected]) }}
         />
+      ) : null}
+
+      {draft.status === 'empty' ? (
+        <div className={styles.empty}>
+          <p className={styles.hint}>{EMPTY_RESULT_TEXT}</p>
+          <div className={styles.rowActions}>
+            <Button variant="ghost" onClick={generate}>
+              重新生成
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onManualSchedule([...selected]);
+              }}
+            >
+              手动安排
+            </Button>
+          </div>
+        </div>
       ) : null}
 
       {draft.status === 'ready' ? (

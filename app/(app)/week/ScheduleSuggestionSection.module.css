@@ -71,6 +71,14 @@
   gap: var(--space-2);
 }
 
+/* 空结果态（§5 C2 小补）：说明 + 「重新生成」/「手动安排」，与故障错误行分列。 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
 /* 建议块：C4 数据范围行 +「建议」Badge + 逐条建议。 */
 .suggestions {
   display: flex;
