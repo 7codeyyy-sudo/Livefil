@@ -26,6 +26,9 @@ const SCOPE_TEXT = '你勾选的这几类本周数据';
 /** 空态文案（§5 D，冻结）。 */
 const EMPTY_TEXT = '本周摘要在你选择数据后生成，不会自动运行。';
 
+/** 空结果态文案（§5 D 小补；2026-10-05 口定，覆盖 PM v0.24 流程）。 */
+const EMPTY_RESULT_TEXT = '这次没生成摘要。你可以手填本周复盘，或重新生成。';
+
 /** 底部禁区行（§5 D / FR-083，冻结；「AI建议」之间无空格）。 */
 const FORBIDDEN_LINE = 'AI建议仅供参考，不提供医疗、心理、投资或借贷判断。';
 
@@ -46,6 +49,8 @@ type Stage =
   | { readonly status: 'idle' }
   | { readonly status: 'selecting' }
   | { readonly status: 'loading' }
+  /** 空结果（`status='failed'` 或空摘要）＝空态、非故障。 */
+  | { readonly status: 'empty' }
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly text: string };
 
@@ -74,9 +79,9 @@ export type WeeklyAiSummarySectionProps = {
  *
  * ## 已知取舍
  *
- * 生成失败（`status='failed'`，按 200 返回空摘要）与 provider 故障共用同一错误行
- * ——二者对用户的下一步（重试）相同，但「AI 暂不可用」对空结果并不精确，已在
- * 交付报告中如实标注。
+ * 空结果（`status='failed'`，按 200 返回空摘要）与 provider 故障**分列两态**：前者是
+ * 空态（说明 + 「重新生成」），后者才是错误行——「AI 暂不可用」只用于真故障与 AI 关闭态
+ * （RD-20260929-009 终审 (c) 小补，2026-10-05）。
  */
 export function WeeklyAiSummarySection({ weekStart }: WeeklyAiSummarySectionProps) {
   const aiEnabled = useAiEnabled();
@@ -116,9 +121,10 @@ export function WeeklyAiSummarySection({ weekStart }: WeeklyAiSummarySectionProp
       });
       const data = envelope.data;
       const text = summaryToText(data.summary);
-      // 生成失败按 §1.3 返 200 + 空载荷：没有可编辑的正文，落错误行 + 重试。
+      // 空结果（`status='failed'` 或空摘要）＝**空态、非故障**：E 错误行只留真故障与
+      // AI 关闭态，这里给空态说明 + 重新生成（RD-20260929-009 终审 (c) 小补）。
       if (data.status === 'failed' || text === '') {
-        setStage({ status: 'error' });
+        setStage({ status: 'empty' });
         return;
       }
       draftIdRef.current = data.draftId;
@@ -238,6 +244,20 @@ export function WeeklyAiSummarySection({ weekStart }: WeeklyAiSummarySectionProp
               void runGenerate(selected);
             }}
           />
+        </div>
+      ) : null}
+
+      {stage.status === 'empty' ? (
+        <div className={styles.empty}>
+          <p className={styles.hint}>{EMPTY_RESULT_TEXT}</p>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              void runGenerate(selected);
+            }}
+          >
+            重新生成
+          </Button>
         </div>
       ) : null}
 

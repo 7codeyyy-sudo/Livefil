@@ -56,6 +56,21 @@
   line-height: var(--line-height-body);
 }
 
+/* 空结果态（§5 C1 小补）：说明 + 「重新生成」，与故障错误行分列。 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
 .rows {
   display: flex;
   flex-direction: column;

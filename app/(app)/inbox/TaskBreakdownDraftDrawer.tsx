@@ -24,6 +24,9 @@ import styles from './TaskBreakdownDraftDrawer.module.css';
 /** 〔本次主动提交的内容〕的替换文本（C4 冻结句式里的占位）。 */
 const SCOPE_TEXT = '你输入的这段描述';
 
+/** 空结果态文案（§5 C1 小补；2026-10-05 口定，覆盖 PM v0.24 流程）。 */
+const EMPTY_RESULT_TEXT = '这次没拆出可用的任务。你可以手动新建，或重新生成。';
+
 /** 可编辑的一行建议（本地态；行 id 用于 React key，与服务端无关联）。 */
 interface EditableRow {
   readonly id: string;
@@ -33,6 +36,8 @@ interface EditableRow {
 
 type DraftState =
   | { readonly status: 'loading' }
+  /** 空结果（`status='failed'` 或零建议）＝空态、非故障。 */
+  | { readonly status: 'empty' }
   | { readonly status: 'error' }
   | {
       readonly status: 'ready';
@@ -134,9 +139,10 @@ export function TaskBreakdownDraftDrawer({
           return;
         }
         const data = envelope.data;
-        // `status='failed'` 按 200 返回空载荷，与"没有结果"同形：给错误行 + 重试。
+        // 空结果（`status='failed'` 或零建议）＝**空态、非故障**：E 错误行只留真故障与
+        // AI 关闭态，这里给空态说明 + 重新生成（RD-20260929-009 终审 (c) 小补）。
         if (data.status === 'failed' || data.suggestions.length === 0) {
-          setDraft({ status: 'error' });
+          setDraft({ status: 'empty' });
           return;
         }
         setDraft({
@@ -278,6 +284,15 @@ export function TaskBreakdownDraftDrawer({
         ) : null}
 
         {draft.status === 'error' ? <AiUnavailableNotice onRetry={regenerate} /> : null}
+
+        {draft.status === 'empty' ? (
+          <div className={styles.empty}>
+            <p className={styles.emptyText}>{EMPTY_RESULT_TEXT}</p>
+            <Button variant="ghost" onClick={regenerate}>
+              重新生成
+            </Button>
+          </div>
+        ) : null}
 
         {expired ? (
           <div className={styles.expired}>
