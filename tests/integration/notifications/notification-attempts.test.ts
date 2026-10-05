@@ -6,16 +6,21 @@
  * - 点 12：sent 上报（status=sent、error_code/next_retry_at 置空、channel 翻转 browser、attempt_count+1、last_attempt_at 落值）
  * - 点 13：可重试失败（CONSTRUCT_FAILED/DELIVERY_INTERNAL_ERROR）：递增后 <3 → next_retry_at＝指数 + jitter（±20%）；≥3 → NULL 停止
  * - 点 14：不可重试失败（PERMISSION_DENIED/UNSUPPORTED）：next_retry_at＝NULL 不再重试
- * - 点 15：错误语义五连（服务端权威字段提交 → 400；404 不复用 403；终态/达上限 → 409；Idempotency-Key 重放 → 409 不二次递增）
+ * - 点 15：错误语义五连（服务端权威字段提交 → 400；404 不复用 403；终态/达上限 → 409；Idempotency-Key 同键重放 → 409 不二次递增、换键 → 自然计数）
  * - 点 16：FR-071 落点（failed 行在 pending 可见且 errorCode 回带四值之一）
  *
  * 真实可执行策略（无数据库）：
  * 1. `computeNextRetryAt` / `notificationRetryDelayMs` 是纯函数，直接断言退避公式；
  * 2. `reportNotificationAttemptSchema` 是 DTO schema，直接断言入参拦截；
- * 3. `ManageNotificationDeliveryUseCase.reportAttempt` 的接口契约由假仓储模拟语义。
+ * 3. `ManageNotificationDeliveryUseCase.reportAttempt` 的接口契约由假仓储模拟语义；
+ * 4. 幂等键语义按**路由同构**验证：`withIdempotency` 配进程内存储替身，断言重放与换键。
  */
 import { describe, expect, it } from 'vitest';
 
+import type { NextRequest } from 'next/server';
+
+import { withIdempotency, type IdempotencyStore } from '../../../app/_lib/idempotency.ts';
+import { ValidationError } from '../../../src/shared/errors/app-error.ts';
 import { ManageNotificationDeliveryUseCase } from '../../../src/modules/notifications/application/manage-notification-delivery.ts';
 import {
   computeNextRetryAt,
@@ -23,7 +28,10 @@ import {
   MAX_NOTIFICATION_ATTEMPTS,
 } from '../../../src/modules/notifications/domain/notification-delivery.ts';
 import { NOTIFICATION_LEVEL_RANK } from '../../../src/modules/notifications/domain/notification-rule.ts';
-import { reportNotificationAttemptSchema } from '../../../src/modules/notifications/application/notification-delivery-dto.ts';
+import {
+  reportNotificationAttemptSchema,
+  toNotificationAttemptResultDto,
+} from '../../../src/modules/notifications/application/notification-delivery-dto.ts';
 import type {
   ListNotificationDeliveriesOptions,
   NotificationDeliveryRepository,
@@ -32,6 +40,7 @@ import type {
   NotificationDelivery,
   NotificationDeliveryPage,
   NotificationErrorCode,
+  ReportNotificationAttemptInput,
 } from '../../../src/modules/notifications/domain/notification-delivery.ts';
 import {
   createFakeAuditLogger,
@@ -164,6 +173,55 @@ async function setup() {
   return { _database, deliveries, audit, useCase, userId: user.id };
 }
 
+/**
+ * 幂等存储的进程内替身。
+ *
+ * 逐条对齐 `src/infrastructure/idempotency/idempotency-store.drizzle.ts` 的三种区分：
+ * 新键 → `claimed`；同键同指纹且已完成 → `replay`；同键同指纹但未完成 → `in-progress`；
+ * 同键**不同指纹** → 400（把同一个键用在了另一个请求上）。
+ */
+function createInMemoryIdempotencyStore(): IdempotencyStore {
+  const rows = new Map<string, { requestHash: string; completed: boolean; snapshot: unknown }>();
+  const idOf = (userId: string, key: string): string => `${userId}\u0000${key}`;
+
+  return {
+    async claim(userId, key, requestHash) {
+      const id = idOf(userId, key);
+      const row = rows.get(id);
+      if (row === undefined) {
+        rows.set(id, { requestHash, completed: false, snapshot: null });
+        return { outcome: 'claimed' };
+      }
+      if (row.requestHash !== requestHash) {
+        throw new ValidationError('Idempotency-Key 已被用于另一个不同的请求');
+      }
+      if (row.completed) {
+        return { outcome: 'replay', snapshot: row.snapshot };
+      }
+      return { outcome: 'in-progress' };
+    },
+    async complete(userId, key, snapshot) {
+      const row = rows.get(idOf(userId, key));
+      if (row !== undefined) {
+        row.completed = true;
+        row.snapshot = snapshot;
+      }
+    },
+    async release(userId, key) {
+      rows.delete(idOf(userId, key));
+    },
+  };
+}
+
+/** 只带 `withIdempotency` 真正会读的三样（请求头、方法、路径）的请求替身。 */
+function attemptRequest(key: string, deliveryId: string): NextRequest {
+  return {
+    headers: new Headers({ 'Idempotency-Key': key }),
+    method: 'POST',
+    url: `http://localhost/api/v1/notification-deliveries/${deliveryId}/attempt`,
+  } as unknown as NextRequest;
+}
+
 describe('D 组 · 第 8 端点 attempt（点 12-16）', () => {
   describe('点 12：sent 上报', () => {
     it('status=sent、error_code/next_retry_at 置空、channel 翻转 browser、attempt_count+1、last_attempt_at 落值', async () => {
@@ -267,11 +325,64 @@ describe('D 组 · 第 8 端点 attempt（点 12-16）', () => {
       ).rejects.toThrow('conflict');
     });
 
-    it('Idempotency-Key 重放 → 409 IDEMPOTENCY_REPLAY 不二次递增（路由已接线，假仓储缺头透传）', async () => {
-      // 真身路由已接线（见 app/api/v1/notification-deliveries/[deliveryId]/attempt/route.ts），
-      // 但当前假仓储 reportAttempt 未接收 Idempotency-Key 头，无法在此断言。
-      // 记录契约事实：带 Idempotency-Key 重放同一请求 → 409 IDEMPOTENCY_REPLAY，attempt_count 不二次递增。
-      expect(true).toBe(true); // 占位：记录缺测事实，不消化为 skip
+    it('同 key 重放 → 409 IDEMPOTENCY_REPLAY，attempt_count 不二次递增', async () => {
+      const { deliveries, useCase, userId } = await setup();
+      const now = new Date('2026-09-30T09:00:00.000Z');
+      deliveries.__seed(makeDelivery({ id: 'idem', status: 'pending', attemptCount: 0 }));
+      const payload: ReportNotificationAttemptInput = {
+        outcome: 'failed',
+        errorCode: 'NOTIFICATION_CONSTRUCT_FAILED',
+      };
+
+      // 与路由同构：request → withIdempotency(…, useCase.reportAttempt) → 响应信封。
+      const store = createInMemoryIdempotencyStore();
+      const report = () =>
+        withIdempotency(
+          attemptRequest('attempt-key-1', 'idem'),
+          userId,
+          payload,
+          store,
+          async () => {
+            const reported = await useCase.reportAttempt(userId, 'idem', payload, now);
+            return { status: 200, body: { data: toNotificationAttemptResultDto(reported) } };
+          },
+        );
+
+      const first = await report();
+      expect(first.status).toBe(200);
+
+      const replayed = await report();
+      expect(replayed.status).toBe(409);
+      expect(replayed.body).toEqual({
+        error: { code: 'IDEMPOTENCY_REPLAY', message: '该操作已经处理过' },
+      });
+
+      // 「不二次递增」的实证：重放没有再次执行用例。
+      const pending = await deliveries.listPending(userId);
+      expect(pending.find((d) => d.id === 'idem')!.attemptCount).toBe(1);
+    });
+
+    it('换 key → 自然计数（各次上报独立递增）', async () => {
+      const { deliveries, useCase, userId } = await setup();
+      const now = new Date('2026-09-30T09:00:00.000Z');
+      deliveries.__seed(makeDelivery({ id: 'idem-rotate', status: 'pending', attemptCount: 0 }));
+      const payload: ReportNotificationAttemptInput = {
+        outcome: 'failed',
+        errorCode: 'NOTIFICATION_CONSTRUCT_FAILED',
+      };
+
+      const store = createInMemoryIdempotencyStore();
+      const report = (key: string) =>
+        withIdempotency(attemptRequest(key, 'idem-rotate'), userId, payload, store, async () => {
+          const reported = await useCase.reportAttempt(userId, 'idem-rotate', payload, now);
+          return { status: 200, body: { data: toNotificationAttemptResultDto(reported) } };
+        });
+
+      expect((await report('attempt-key-a')).status).toBe(200);
+      expect((await report('attempt-key-b')).status).toBe(200);
+
+      const pending = await deliveries.listPending(userId);
+      expect(pending.find((d) => d.id === 'idem-rotate')!.attemptCount).toBe(2);
     });
   });
 
