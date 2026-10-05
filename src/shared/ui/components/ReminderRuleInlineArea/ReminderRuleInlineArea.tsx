@@ -71,20 +71,31 @@ export function ReminderRuleInlineArea({
   const expansionRef = useRef<HTMLDivElement>(null);
   /** 上一帧的展开态：用来区分「本行自己收起」与「初始就是收起」。 */
   const wasExpanded = useRef(false);
+  /**
+   * 用户是否刚从**本行的**「收起」按钮折叠了这一行。
+   *
+   * 为什么需要它：`document.activeElement` 在 effect 里已经不可靠——「收起」按钮位于
+   * 展开区内部，折叠时随展开区一起卸载，浏览器随即把焦点回退到 `body`。等 effect 跑到，
+   * `root.contains(document.activeElement)` 恒为假，焦点就永久落在 `body` 上（§5 A 的
+   * 「收起后焦点归还触发铃铛」被静默违反）。所以在**点击那一刻**先记下意图。
+   */
+  const collapseRequested = useRef(false);
 
   useEffect(() => {
     if (expanded) {
       // §5 A：展开后焦点移至创建行首个输入（提醒时间）。
       expansionRef.current?.querySelector<HTMLInputElement>('input[type="time"]')?.focus();
     } else if (wasExpanded.current) {
-      // §5 A：收起后焦点归还触发铃铛。但只有焦点**还在本行**时才归还——
-      // 「同屏至多展开一行」会让旧行被动折叠，那一刻焦点已经移到用户刚点开的新行，
-      // 无条件归还等于把焦点从用户手里抢回来。
+      // §5 A：收起后焦点归还触发铃铛。两种来源都要归还：焦点**还在本行**（如再次点铃铛），
+      // 或用户刚点了本行的「收起」（此刻焦点已因按钮卸载落到 body）。
+      // 反例必须排除：「同屏至多展开一行」会让旧行被动折叠，那一刻焦点已经移到用户
+      // 刚点开的新行，无条件归还等于把焦点从用户手里抢回来——所以两个条件都不能放宽。
       const root = rootRef.current;
-      if (root !== null && root.contains(document.activeElement)) {
+      if (root !== null && (root.contains(document.activeElement) || collapseRequested.current)) {
         root.querySelector<HTMLButtonElement>(TRIGGER_SELECTOR)?.focus();
       }
     }
+    collapseRequested.current = false;
     // 这里只做 `focus()`，不在 effect 里写状态（React 19 的 set-state-in-effect 会报错）。
     wasExpanded.current = expanded;
   }, [expanded]);
@@ -107,7 +118,14 @@ export function ReminderRuleInlineArea({
 
           <div className={styles.collapseRow}>
             {/* §5 A：「再次触发铃铛或行内『收起』（低强调）折叠」。 */}
-            <Button variant="ghost" onClick={onToggleExpanded}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                // 先记下「是本行主动收起」，再让宿主改态——见 `collapseRequested` 说明。
+                collapseRequested.current = true;
+                onToggleExpanded();
+              }}
+            >
               收起
             </Button>
           </div>
