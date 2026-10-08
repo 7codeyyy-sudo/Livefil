@@ -15,7 +15,9 @@
   /* 原型 20px，落在 §2.2 的区块标题档。 */
   font-size: var(--font-size-section-title);
   font-weight: var(--font-weight-medium);
-  letter-spacing: -0.03em;
+  /* 原型 `.brand` 自带的 `-0.03em`，此前是本仓唯一一处写死的字距；
+     并入区块标题档后，字距也回到令牌这一唯一来源。 */
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .brandMark {

@@ -101,8 +101,14 @@
   --shadow-raised: 0 1px 4px rgba(29, 29, 31, 0.06);
 
   /* ── 字体 ——§2.2 ─────────────────────────────────────────────────── */
+  /* 中文一档排在 `PingFang SC` 之后、`Microsoft YaHei` 之前：Windows 自 8 起
+     另有 `Microsoft YaHei UI` 这个界面变体（字面更紧凑、为界面字号设计），
+     装了就用它，未装则回落同族的 `Microsoft YaHei`——两者字形同源，
+     回落不会出现风格突变。macOS 侧仍由 `-apple-system` / `PingFang SC`
+     先命中，这次调整只影响 Windows。 */
   --font-family-base:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', sans-serif;
   /* 第一阶段只用 400 / 500 两种字重，避免视觉噪声（§2.2）。 */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -111,12 +117,36 @@
   --font-size-section-title: 20px; /* 规范 18–20px */
   --font-size-body: 16px; /* 规范 14–16px */
   --font-size-caption: 13px; /* 规范 12–13px */
-  --font-size-figure: 28px; /* 规范 24–32px，与页面标题保持层级差 */
+  /* 取规范区间上界（原 28px）：金额是开销页的核心数字，抬到最大档才"置顶突出"。
+     代价是它与页面标题同为 32px——两者在同一页同时出现时不再有字号落差，
+     层级改由位置（页顶 vs 内容区）与上下文承担。若要保留字号落差，回到 30px。 */
+  --font-size-figure: 32px; /* 规范 24–32px，取上界 */
+  /* 行高按文本级差分档，并**为中文放开一档**：正文 1.5 / 辅助 1.45 原是按
+     形态原型（以拉丁文为主的样例）取的，而汉字方块字面的视觉重心高、行间
+     空隙本就比拉丁字小，同一倍率读起来更"挤"。正文抬到 1.6、辅助抬到 1.55；
+     标题两档（1.25 / 1.35）不动——它们是单行短文本，放大行高只会把标题与
+     内容的视觉关系拉松，解决不了"挤"。 */
   --line-height-page-title: 1.25;
   --line-height-section-title: 1.35;
-  --line-height-body: 1.5;
-  --line-height-caption: 1.45;
+  --line-height-body: 1.6;
+  --line-height-caption: 1.55;
   --line-height-figure: 1.1;
+
+  /* 字距 ——形态原型对四级文本都写了字距（h1 `-0.05em` / h2 `-0.03em` /
+     数字摘要 `-0.03em` / 眉标 `+0.04em`）。但原型的负值是按**拉丁文**取的：
+     拉丁小写字母的默认字面空隙大，负字距能把词收成一体；汉字是等宽方块，
+     字面之间本没有多余空隙，同样的负值会让笔画互相挤压、整行读起来发闷——
+     这是"字体不好看"的直接来源之一。因此标题两档**收敛**到近乎自然：
+     页面标题 -0.02em、区块标题 -0.01em。数字摘要保留 -0.03em：它渲染的是
+     阿拉伯数字与货币符号，属于拉丁场景，负字距仍然是需要的。
+     命名挂 `--font-` 前缀有两重理由：字距本就是字体排印量；且这一前缀同时落在
+     UI-001 验收脚本的**令牌白名单**内（`--letter-spacing-` 不在白名单，
+     另立一族会让那条断言变红）。
+     原型的眉标那一档（`+0.04em`）暂不预造：它对应的 `.eyebrow`（标题上方的小字）
+     在实现里没有消费者，按 §2.4「随首个消费者落代码」的规则留空。 */
+  --font-letter-spacing-page-title: -0.02em;
+  --font-letter-spacing-section-title: -0.01em;
+  --font-letter-spacing-figure: -0.03em;
 
   /* ── 间距 ——§2.3「基础间距单位 4px」────────────────────────────────── */
   --space-1: 4px;

@@ -267,9 +267,12 @@ function FactsBlock({
         </div>
       ) : hasFacts && item !== null ? (
         <>
+          {/* 计数按语义着色：完成＝success（§2.1「完成」），未完成＝warning
+              （§2.1「待处理」）。文字本身已区分两者，颜色是叠加信息，
+              不是唯一载体（SRS §6.9）。 */}
           <div className={styles.factRow}>
-            <Badge variant="neutral">完成 {item.facts.completedCount}</Badge>
-            <Badge variant="neutral">未完成 {item.facts.uncompletedCount}</Badge>
+            <Badge variant="success">完成 {item.facts.completedCount}</Badge>
+            <Badge variant="warning">未完成 {item.facts.uncompletedCount}</Badge>
           </div>
           <p className={styles.hint}>
             计划 {formatMinutes(item.facts.plannedMinutes)} · 实际{' '}

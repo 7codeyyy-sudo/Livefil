@@ -26,6 +26,7 @@
   line-height: var(--line-height-section-title);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .hint {

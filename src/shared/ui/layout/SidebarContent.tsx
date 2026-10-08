@@ -38,9 +38,13 @@ export type SidebarContentProps = {
  *
  * ## 账户区为什么是静态的
  *
- * 「我的生活 / 云端账号 / 头像」是原型里的账户区，真实语义属 IAM（Phase 2）。
+ * 「我的生活 / 本地模式 / 头像」是原型里的账户区，真实语义属 IAM（Phase 2）。
  * 这里照原型渲染形态但**不接行为**——它不是链接、点击无响应，也就不会
  * 造出一个指向不存在页面的死链，或假装账户体系已经存在。
+ *
+ * 副标题取「本地模式」而不是原型的「云端账号」：第一阶段是本地单用户批次，
+ * 云端账号整体挂账（决策 T-006），设置页顶部也写着「本地模式 · 数据仅保存在
+ * 本环境」。照原型写「云端账号」等于在导航里承诺一个并不存在的能力。
  */
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const todayLabel = useTodayLabel();
@@ -83,7 +87,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
           </span>
           <span className={styles.profileText}>
             <strong className={styles.profileName}>我的生活</strong>
-            <small className={styles.profileMeta}>云端账号</small>
+            <small className={styles.profileMeta}>本地模式</small>
           </span>
         </div>
       </div>

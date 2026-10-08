@@ -97,9 +97,11 @@
   line-height: var(--line-height-caption);
 }
 
+/* 空日文案是**正文**，不是输入框占位符：`--color-text-placeholder` 的令牌定义
+   限定在「输入框占位文字」，用在这里既越界又过淡（对比度不足）。 */
 .emptyDay {
   margin: 0;
-  color: var(--color-text-placeholder);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
 }
