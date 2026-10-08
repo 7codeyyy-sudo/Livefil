@@ -274,7 +274,7 @@ export function TodayPanel() {
         </section>
       )}
 
-      <section aria-label="时间线">
+      <section aria-label="时间线" data-tour="today-timeline">
         <h2 className={styles.heading}>时间线</h2>
         {view.blocks.length === 0 ? (
           <p className={styles.hint}>
@@ -537,7 +537,7 @@ export function TodayPanel() {
         </section>
       )}
 
-      <section aria-label="未安排">
+      <section aria-label="未安排" data-tour="today-unscheduled">
         <h2 className={styles.heading}>未安排</h2>
         {view.unscheduledTasks.length === 0 ? (
           <p className={styles.hint}>没有待安排的任务。</p>

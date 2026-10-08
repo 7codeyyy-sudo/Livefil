@@ -245,6 +245,7 @@ export function ExpensesPanel() {
       <div className={styles.actionsBar}>
         <Button
           variant="primary"
+          data-tour="expenses-create"
           onClick={() => {
             setFormState({ mode: 'create' });
           }}

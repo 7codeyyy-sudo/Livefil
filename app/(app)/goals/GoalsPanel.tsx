@@ -69,14 +69,17 @@ function GoalList({
   }
   if (state.items.length === 0) {
     return (
-      <EmptyState
-        title="还没有目标"
-        description="在上面写下你想改变的一件事，给它一个可衡量的结果。"
-      />
+      // 空态也算「目标列表」（§ B 表：`goals-list` 含空态），故与有数据时同一锚点。
+      <div data-tour="goals-list">
+        <EmptyState
+          title="还没有目标"
+          description="在上面写下你想改变的一件事，给它一个可衡量的结果。"
+        />
+      </div>
     );
   }
   return (
-    <ul className={styles.list}>
+    <ul className={styles.list} data-tour="goals-list">
       {state.items.map((goal) => (
         <li key={goal.id} className={styles.row}>
           <a className={styles.rowLink} href={`/goals/${goal.id}`}>
@@ -137,6 +140,7 @@ function CreateGoalForm({ onCreated }: { readonly onCreated: () => void }) {
   return (
     <form
       className={styles.createForm}
+      data-tour="goals-create"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();

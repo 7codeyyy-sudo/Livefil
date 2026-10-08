@@ -19,7 +19,7 @@ export type AiScopeNoticeProps = {
  *
  * ## 为什么是纯展示件
  *
- * 与 `GuideBar` / `AsyncState` 同一边界：它只接收替换文本、不做任何状态或取数，
+ * 与 `AsyncState` 同一边界：它只接收替换文本、不做任何状态或取数，
  * 因此不带 `'use client'`，可在任意层复用（含首次确认 `Modal` 的正文）。
  */
 export function AiScopeNotice({ scope }: AiScopeNoticeProps) {

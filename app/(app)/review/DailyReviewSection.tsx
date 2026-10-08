@@ -121,7 +121,7 @@ export function DailyReviewSection() {
   };
 
   return (
-    <div className={styles.section}>
+    <div className={styles.section} data-tour="review-daily">
       <div className={styles.toolbar}>
         <Input
           label="日期"
