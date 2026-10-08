@@ -9,7 +9,7 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-7);
 }
 
 /* 「记一笔」固定入口：在筛选条之上，不随列表滚动消失。 */
@@ -18,20 +18,96 @@
   align-items: center;
 }
 
+/*
+ * 筛选条（A5）：四个字段一行排开 + 条尾操作，窄屏纵折。
+ *
+ * 字段数从五个收成四个（日期范围＝一格），并且筛选区不再配搜索框，
+ * 四个格子结构一致、等高，因此不会再出现「某个字段被挤到第二行、右侧全空」
+ * 或「同排底端参差」。列宽用 `fr` 显式给定，不随窗口宽度自己算列数。
+ */
 .filterBar {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-end;
-  padding: var(--space-4);
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface-soft);
 }
 
-.clearFilter {
+.filterGrid {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  /*
+   * 日期范围一格 + 分类 / 生活领域 / 目标 各一格。
+   * 日期格给 300px 下限：里面并排两个日期框，每个约 144px，足以完整显示
+   * `yyyy/mm/dd` 与日历图标；其余三格按 1fr 均分剩余宽度。
+   */
+  grid-template-columns: minmax(300px, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* 日期范围：同一个字段内的两个日期框并排。 */
+.dateRange {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/*
+ * 原生日期控件的固有首选宽度（Chromium 约 163px）会作为栅格子项的
+ * `min-width: auto` 生效，使输入框溢出格子、压到相邻的日期框上。
+ * 压到 0 后由轨道决定宽度，内容仍放得下。
+ */
+.dateRange input {
+  min-width: 0;
+}
+
+/*
+ * 条尾操作（A5「条尾」，低强调）。
+ *
+ * 上方留出一个「标签行」的高度（caption 字号 × 行高，再加标签与控件的间距
+ * `--space-1`），落点与各字段的控件行顶边一致；再补两档控件高度的差值一半，
+ * 使 40px 的低强调按钮与 48px 的输入控件**垂直居中对齐**，而不是顶边齐平。
+ */
+.filterTrailing {
   display: flex;
-  align-items: flex-end;
+  flex: none;
+  gap: var(--space-2);
+  padding-top: calc(
+    var(--font-size-caption) * var(--line-height-caption) + var(--space-1) +
+      (var(--size-control-md) - var(--size-control-sm)) / 2
+  );
+}
+
+/* 中屏：两列。四列要每个字段都站得住（日期格 300px + 三格各 150px 以上 + 间距），
+   实测内容区上限 1136px、条尾两枚按钮时，只有 ≥1440px 才给得出。 */
+@media (max-width: 1439px) {
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 窄屏：筛选条纵折，条尾操作落成独立一行、右对齐。 */
+@media (max-width: 1023px) {
+  .filterBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterTrailing {
+    justify-content: flex-end;
+    padding-top: 0;
+  }
+}
+
+/* 手机：单列（A5「窄屏纵折」）。 */
+@media (max-width: 767px) {
+  .filterGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .skeleton {

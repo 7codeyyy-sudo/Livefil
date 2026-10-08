@@ -47,6 +47,13 @@ body {
   line-height: var(--line-height-body);
   color: var(--color-text-primary);
   background-color: var(--color-bg-page);
+  /* 禁止浏览器**合成**字重与斜体（形态原型的 `:root` 亦有此声明）。
+     为什么必要：本项目只用 400 / 500 两档字重（§2.2），而中文字体
+     （Windows 的 Microsoft YaHei、macOS 的 PingFang SC）通常只有 400 / 700
+     两档。请求 500 时，部分平台会去**合成伪粗**——在原字面上描边加粗，
+     结果是笔画糊边、字面发胀，比不加粗更难看。显式关掉合成后，500 稳定地
+     落到最近的实有字重，渲染结果可预期，不再取决于平台映射的运气。 */
+  font-synthesis: none;
 }
 
 h1,
@@ -66,4 +73,60 @@ dd {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/**
+ * 路由切换过渡（View Transitions，《UI 页面规范》§6）。
+ *
+ * 触发点在 `app/(app)/template.tsx`：它给页面内容挂了 `enter="page-fade"` /
+ * `exit="page-fade"`，浏览器据此把**旧页面快照**与**新页面快照**排成一对，
+ * 分别在 `::view-transition-old` / `::view-transition-new` 两个伪元素上播放。
+ * 这两个伪元素不在组件内部，选择器无法被 CSS Modules 作用域化，所以只能写在
+ * 全局层——本文件是唯一合适的位置。
+ *
+ * ## 为什么退场与入场**不重叠**
+ *
+ * 同时做交叉淡入淡出时，两帧快照的透明度在相加不到 1（各 0.5 时合计 0.75），
+ * 中段会透出页面底色，观感是「整页冲淡了一下」而不是「干净地换了一页」。
+ * 因此让退场先跑完，入场再延迟同样的时长起步：先关、再开。
+ *
+ * ## 纪律
+ *
+ * 只动 `opacity`（纯淡入、无位移——§1.1 禁止夸张渐入与位移类「科技感」效果），
+ * 时长与缓动全部引用 §2.4 的动效令牌，不在组件里写时长字面量。
+ * 引用令牌的另一个作用：`prefers-reduced-motion` 在 tokens.css **单点**降级为
+ * 近零时长时，这两个伪元素继承根元素的自定义属性，过渡自动归零，本文件不必
+ * 再写一份减少动效的媒体查询（§2.4 要求降级只在令牌层做一次）。
+ */
+
+::view-transition-old(.page-fade) {
+  animation: var(--duration-fast) var(--ease-standard) both page-fade-out;
+}
+
+::view-transition-new(.page-fade) {
+  animation: var(--duration-base) var(--ease-standard) var(--duration-fast) both page-fade-in;
+}
+
+@keyframes page-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 过渡期间浏览器把快照覆盖层铺满视口并截获指针事件；不放开的话，这段时间里的
+   点击会全部落空（覆盖层收到、真页面收不到）。 */
+::view-transition {
+  pointer-events: none;
 }

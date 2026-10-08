@@ -423,7 +423,23 @@ export function ExpensesPanel() {
   );
 }
 
-/** 筛选条：日期范围 / 分类 / 生活领域 / 目标（窄屏纵折，各自可清空）。 */
+/**
+ * 筛选条（A5）：日期范围 / 分类 / 生活领域 / 目标 + 条尾操作。
+ *
+ * ## 为什么是四个字段而不是五个
+ *
+ * A5 的口径是「日期范围 / 分类 / 生活领域 / 目标」——日期范围**是一个**字段。
+ * 此前把起止日期拆成两个独立字段，于是五个字段塞进四列栅格，必然有一个
+ * （目标）被挤到第二行、右侧三格全空；而且三个「搜索框 + 选择框」两段结构的
+ * 字段比日期字段高一大截，同一行里底端参差。现在日期范围收进一格（两个日期框
+ * 并排），筛选区不再配搜索框（原生 `select` 仍可键入首字跳转），四个字段结构
+ * 一致、高度一致，一行齐平。
+ *
+ * ## 条尾
+ *
+ * 「清除筛选」按 A5 落在条尾（任一生效时才出现）；「管理分类」同为低强调操作，
+ * 一并在条尾右对齐。
+ */
 function FilterBar({
   filter,
   categories,
@@ -460,71 +476,69 @@ function FilterBar({
 
   return (
     <div className={styles.filterBar}>
-      <Input
-        label="起始日期"
-        type="date"
-        value={filter.from}
-        onChange={(event) => {
-          update({ from: event.target.value });
-        }}
-      />
-      <Input
-        label="结束日期"
-        type="date"
-        value={filter.to}
-        onChange={(event) => {
-          update({ to: event.target.value });
-        }}
-      />
-      <ExpenseSelect
-        label="分类"
-        searchable
-        searchLabel="搜索分类"
-        placeholder="全部分类"
-        value={filter.categoryId}
-        groups={categoryGroups}
-        onChange={(next) => {
-          update({ categoryId: next });
-        }}
-        footer={
-          <Button variant="ghost" onClick={onManageCategories}>
-            管理分类
-          </Button>
-        }
-      />
-      <ExpenseSelect
-        label="生活领域"
-        searchable
-        searchLabel="搜索生活领域"
-        placeholder="全部领域"
-        value={filter.lifeAreaId}
-        groups={[
-          { label: '', options: areas.map((area) => ({ value: area.id, label: area.name })) },
-        ]}
-        onChange={(next) => {
-          update({ lifeAreaId: next });
-        }}
-      />
-      <ExpenseSelect
-        label="目标"
-        searchable
-        searchLabel="搜索目标"
-        placeholder="全部目标"
-        value={filter.goalId}
-        groups={[
-          { label: '', options: goals.map((goal) => ({ value: goal.id, label: goal.name })) },
-        ]}
-        onChange={(next) => {
-          update({ goalId: next });
-        }}
-      />
-      {hasActiveFilter(filter) ? (
-        <div className={styles.clearFilter}>
+      <div className={styles.filterGrid}>
+        <div className={styles.dateRange}>
+          <Input
+            label="起始日期"
+            type="date"
+            value={filter.from}
+            onChange={(event) => {
+              update({ from: event.target.value });
+            }}
+          />
+          <Input
+            label="结束日期"
+            type="date"
+            value={filter.to}
+            onChange={(event) => {
+              update({ to: event.target.value });
+            }}
+          />
+        </div>
+
+        <ExpenseSelect
+          label="分类"
+          placeholder="全部分类"
+          value={filter.categoryId}
+          groups={categoryGroups}
+          onChange={(next) => {
+            update({ categoryId: next });
+          }}
+        />
+        <ExpenseSelect
+          label="生活领域"
+          placeholder="全部领域"
+          value={filter.lifeAreaId}
+          groups={[
+            { label: '', options: areas.map((area) => ({ value: area.id, label: area.name })) },
+          ]}
+          onChange={(next) => {
+            update({ lifeAreaId: next });
+          }}
+        />
+        <ExpenseSelect
+          label="目标"
+          placeholder="全部目标"
+          value={filter.goalId}
+          groups={[
+            { label: '', options: goals.map((goal) => ({ value: goal.id, label: goal.name })) },
+          ]}
+          onChange={(next) => {
+            update({ goalId: next });
+          }}
+        />
+      </div>
+
+      <div className={styles.filterTrailing}>
+        <Button variant="ghost" onClick={onManageCategories}>
+          管理分类
+        </Button>
+        {hasActiveFilter(filter) ? (
           <Button variant="ghost" onClick={() => onChange(EMPTY_EXPENSE_FILTER)}>
             清除筛选
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -9,5 +9,17 @@
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-page-title);
+  /* 页面标题的字距（令牌 `--font-letter-spacing-page-title`，取 -0.02em）：
+     汉字字面本无空隙，负值只做极轻的收束，不挤压笔画。 */
+  letter-spacing: var(--font-letter-spacing-page-title);
   color: var(--color-text-primary);
+  /* 页标题与页面内容的间距。原型 `.page-heading` 给的是 34px，实现里取最近的
+     令牌 `--space-8`（32px）——比原来的 24px 松一档，标题才与内容分开成两层。
+     全局层把 `h1…h6` 的默认外边距归零（`app/globals.css`），页面区
+     （`AppShell.module.css` 的 `.page`）也没有纵向 gap——两者叠加的结果是
+     标题与内容**零间距**，而此前只有设置页靠 `StatePage.module.css`
+     的 `.section { margin-top }` 补了 16px，其余六页都是贴着的。
+     放在这里而不是给 `.page` 加 gap：`margin` 会与相邻兄弟的上外边距**折叠**
+     （取两者较大值），设置页那 16px 因此被 32px 吸收而不是叠成 48px。 */
+  margin-bottom: var(--space-8);
 }

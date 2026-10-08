@@ -12,7 +12,7 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-7);
 }
 
 .weekNav {
@@ -51,6 +51,7 @@
   font-size: var(--font-size-section-title);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .subBlock {

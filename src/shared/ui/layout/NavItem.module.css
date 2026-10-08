@@ -40,10 +40,15 @@
 }
 
 /* 当前页：`aria-current` 同时是语义与选择器（见 NavItem.tsx 的说明）。
-   除了底色与文字色，还有更重的字重——状态不只靠颜色区分（SRS §6.9）。 */
+   底色与文字色**必须与 hover 不同**：两者同形时，「我在这一页」这个**常驻**
+   状态与「鼠标恰好划过这里」这个**瞬时**反馈就分不开。
+   强调色族（accent 文字 + accent-soft 底）正对应 §2.1「强调色＝当前状态」，
+   两枚都是既有令牌，零新增。字重同时提一档：状态不只靠颜色区分（SRS §6.9）。
+   特异性与本条规则相同（类 + 伪类 / 类 + 属性），靠源序在后压过 hover，
+   所以悬停当前项不会掉回 hover 形态。 */
 .item[aria-current='page'] {
-  color: var(--color-text-primary);
-  background-color: var(--color-surface-soft);
+  color: var(--color-accent);
+  background-color: var(--color-accent-soft);
   font-weight: var(--font-weight-medium);
 }
 

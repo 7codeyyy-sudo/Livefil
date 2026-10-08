@@ -4,12 +4,17 @@
  * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
  */
 
+/*
+ * 「搜索框 + 选择框」读作一个单元：两者间距收得比字段之间更紧，
+ * 但仍是字段内部标签间距（space-1）的两倍，不至于让下面的标签贴到上面的输入框。
+ */
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
+/* 固定操作行（「管理分类」等），`ExpenseFormDrawer` 的分类选择器仍在用。 */
 .footer {
   display: flex;
   flex-direction: column;

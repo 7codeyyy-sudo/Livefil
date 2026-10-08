@@ -5,15 +5,19 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-7);
 }
 
 .heading {
-  margin: 0 0 var(--space-2);
+  /* 区块标题与其下方内容的间距。原为 `--space-2`（8px），标题与内容几乎粘住——
+     它是全仓唯一一处这个写法。抬到 `--space-3`（12px）：仍明显小于区块之间的
+     28px，层次不会乱。 */
+  margin: 0 0 var(--space-3);
   color: var(--color-text-primary);
   font-size: var(--font-size-section-title);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .currentAction {

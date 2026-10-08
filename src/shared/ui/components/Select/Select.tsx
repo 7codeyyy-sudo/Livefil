@@ -27,9 +27,13 @@ export type SelectProps = {
 /**
  * 原生 `select`（§7「使用语义化 HTML 和原生 button、input、select」）。
  *
- * 刻意不做 `appearance: none` 自定义外观：那会同时丢掉原生的键盘行为、
- * 移动端滚轮选择器和系统级的可访问性支持，为的只是一致性更好的箭头。
- * 这笔交换不划算，样式只统一尺寸、边框与排版。
+ * 外观策略（2026-10-07 调整）：`select` 本体仍是原生元素——键盘行为、移动端
+ * 滚轮选择器、读屏支持全部保留；只关掉浏览器默认的控件外观，另用一枚纯装饰的
+ * 自绘箭头替代系统箭头，让各平台观感一致。**下拉展开后的面板仍由系统渲染**，
+ * 其高亮条与字体不受本项目样式控制（要改只能自造浮层，代价见下）。
+ *
+ * 箭头是 `aria-hidden` 的装饰节点：可访问名与全部语义仍来自 `select` 自身，
+ * 因此无障碍树与既有测试的查询方式都不受影响。
  */
 export function Select({ label, error, hint, fieldHint, children, ...rest }: SelectProps) {
   const id = useId();
@@ -61,15 +65,18 @@ export function Select({ label, error, hint, fieldHint, children, ...rest }: Sel
         </p>
       )}
 
-      <select
-        {...rest}
-        id={id}
-        className={styles.select}
-        aria-invalid={error !== undefined}
-        aria-describedby={describedBy === '' ? undefined : describedBy}
-      >
-        {children}
-      </select>
+      <span className={styles.control}>
+        <select
+          {...rest}
+          id={id}
+          className={styles.select}
+          aria-invalid={error !== undefined}
+          aria-describedby={describedBy === '' ? undefined : describedBy}
+        >
+          {children}
+        </select>
+        <span className={styles.chevron} aria-hidden="true" />
+      </span>
 
       {fieldHint === undefined ? null : <FieldHintText hint={fieldHint} state={fieldHintState} />}
 

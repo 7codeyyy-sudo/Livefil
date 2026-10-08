@@ -21,6 +21,7 @@
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-page-title);
+  letter-spacing: var(--font-letter-spacing-page-title);
 }
 
 .note {
@@ -40,6 +41,7 @@
   font-size: var(--font-size-section-title);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .row {

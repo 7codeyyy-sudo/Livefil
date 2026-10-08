@@ -313,11 +313,14 @@ function FactsSection({
       {/* 第 1 项：本周计划任务数（「状态总览行」与第 2 项同源，合并为同一行四枚
           Badge——同一事实两处各写一份口径是漂移的起点）。 */}
       <p className={styles.metricValue}>本周计划任务 {plannedTotal} 个</p>
+      {/* 四态按语义着色，而不是清一色灰：完成＝success（§2.1「完成」）、
+          部分完成与延期＝warning（§2.1「待处理」）、跳过＝neutral（主动跳过
+          不是偏差，不上警告色）。文字各自成词，颜色只是叠加信息。 */}
       <div className={styles.counts}>
-        <Badge variant="neutral">完成 {counts.completed}</Badge>
-        <Badge variant="neutral">部分完成 {counts.partial}</Badge>
+        <Badge variant="success">完成 {counts.completed}</Badge>
+        <Badge variant="warning">部分完成 {counts.partial}</Badge>
         <Badge variant="neutral">跳过 {counts.skipped}</Badge>
-        <Badge variant="neutral">延期 {counts.deferred}</Badge>
+        <Badge variant="warning">延期 {counts.deferred}</Badge>
       </div>
 
       {/* 第 3 项：计划 / 实际 / 差值三列数值对照（不做图）。 */}

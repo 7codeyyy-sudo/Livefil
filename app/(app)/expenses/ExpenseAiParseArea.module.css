@@ -49,6 +49,9 @@
   font-size: var(--font-size-figure);
   line-height: var(--line-height-figure);
   font-variant-numeric: tabular-nums;
+  /* 大号数字同样收紧字距（原型 `.summary-row strong` 的 `-0.03em`）：
+     配合等宽数字，位数多时整串更紧实、更好扫读。 */
+  letter-spacing: var(--font-letter-spacing-figure);
 }
 
 .actions {

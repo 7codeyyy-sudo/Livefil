@@ -1,6 +1,7 @@
 /** `GET /api/v1/today`（UI-007 / FR-030 的一屏聚合，接口 §6）。 */
 import { NextResponse } from 'next/server';
 
+import { resolveTodayTimeZone } from '@/modules/scheduling/application/resolve-today-timezone';
 import { buildTodayView, todayQuerySchema } from '@/modules/scheduling/application/today-view';
 import { toSuccessResponse } from '@/shared/errors/api-error-response.ts';
 import { REQUEST_ID_HEADER, resolveRequestId } from '@/shared/telemetry/request-id.ts';
@@ -16,7 +17,12 @@ export const GET = createApiRouteHandler(
     const session = await resolveSession(request);
     const query = parseOrThrow(todayQuerySchema, Object.fromEntries(request.nextUrl.searchParams));
     const repositories = getRepositories();
-    const view = await buildTodayView(session.userId, query, new Date(), {
+    // 客户端时区只当提示：非法时回落用户档案时区，避免裸 RangeError 变成 500。
+    const timezone = await resolveTodayTimeZone(query.timezone, async () => {
+      const profile = await repositories.users.findById(session.userId);
+      return profile?.settings.timezone ?? null;
+    });
+    const view = await buildTodayView(session.userId, { ...query, timezone }, new Date(), {
       blocks: repositories.scheduleBlocks,
       fixed: repositories.fixedCommitments,
       tasks: repositories.tasks,

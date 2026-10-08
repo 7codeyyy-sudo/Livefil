@@ -28,6 +28,7 @@ import {
   RemindersSection,
   TaskDefaultsSection,
 } from './PreferenceSections';
+import { AppearanceSection } from './AppearanceSection';
 import { LifeAreasSection } from './LifeAreasSection';
 import { adoptSaved, isAnyDirty, toDraft, toProfilePatch } from './settings-draft';
 import type { SectionBindings, SettingsDraft } from './settings-draft';
@@ -78,6 +79,11 @@ export function SettingsForm({ initial }: { readonly initial: UserDto }) {
       <TaskDefaultsSection {...bindings} />
       <RemindersSection {...bindings} />
       <AiSection {...bindings} />
+      {/*
+        外观偏好（UI-009）不吃 `bindings`：它不进服务端草稿，而是本机即时生效的
+        客户端偏好（见 `AppearanceSection` 文件说明）。
+      */}
+      <AppearanceSection />
 
       {/*
         脏页离开确认。用组件库的确认弹窗而不是 `window.confirm`：后者会阻塞

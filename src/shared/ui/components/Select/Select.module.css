@@ -1,8 +1,14 @@
 /**
- * Select 样式（UI-002 批次 1）。
+ * Select 样式（UI-002 批次 1；外观策略 2026-10-07 调整）。
  *
- * 与 Input 同构——同样的字段结构、同样的状态表达。刻意保留原生外观
- * （见组件注释）：只在尺寸、边框、排版上统一，不动 `appearance`。
+ * 与 Input 同构——同样的字段结构、同样的状态表达。
+ *
+ * ## 为什么现在关掉原生外观
+ *
+ * 原先刻意保留原生箭头（理由是不牺牲原生行为），但系统箭头在各平台形状、粗细、
+ * 位置都不同，与全站的圆角实心控件排在一起明显「不是一套」。改法是**只**关掉
+ * 控件外框：`select` 仍是原生元素，键盘、移动端滚轮、读屏全部照旧，损失的只是
+ * 系统箭头；箭头改由 `.chevron` 用两条边框画出来，取色走令牌。
  */
 
 .field {
@@ -29,10 +35,17 @@
   font-size: var(--font-size-caption);
 }
 
+/* 箭头定位容器：`select` 与自绘箭头同层，箭头绝对定位在右端。 */
+.control {
+  position: relative;
+  display: block;
+}
+
 .select {
   width: 100%;
   min-height: var(--size-control-md);
-  padding: 0 var(--space-3);
+  /* 右侧留出箭头位，避免长选项文字压到箭头上。 */
+  padding: 0 var(--space-8) 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
@@ -40,7 +53,27 @@
   font-family: var(--font-family-base);
   font-size: var(--font-size-body);
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
   transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+/*
+ * 自绘箭头：一个只有右边框与下边框的方块旋转 45°，即得到向下的 V 形。
+ * 取色一律走令牌（颜色字面量由 UI-001 验收脚本全局禁止）。
+ * `pointer-events: none` 保证点击穿透到 `select`；`aria-hidden` 由组件侧给出。
+ */
+.chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  width: 8px;
+  height: 8px;
+  margin-top: -6px;
+  border-right: 2px solid var(--color-text-secondary);
+  border-bottom: 2px solid var(--color-text-secondary);
+  transform: rotate(45deg);
+  pointer-events: none;
 }
 
 .select:focus-visible {
@@ -55,8 +88,27 @@
   cursor: not-allowed;
 }
 
+/* 禁用时箭头一并降到占位色，与文字同进退。 */
+.select:disabled ~ .chevron {
+  border-color: var(--color-text-placeholder);
+}
+
 .select[aria-invalid='true'] {
   border-color: var(--color-danger);
+}
+
+/*
+ * 展开面板内部由系统渲染：这里只能影响分组标题与选项的文字表现，各浏览器
+ * 支持程度不一（Chrome 对 option 内边距基本忽略），因此只做最小约定——
+ * 分组标题降为次文字色，避免「默认分类 / 自定义」比选项更抢眼。
+ */
+.select optgroup {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.select option {
+  color: var(--color-text-primary);
 }
 
 .error {
