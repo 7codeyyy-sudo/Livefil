@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
+import { BackgroundFieldContainer } from './_components/BackgroundFieldContainer';
 import { GuideProvider } from './_components/GuideProvider';
 import { HelpDrawerContainer } from './_components/HelpDrawerContainer';
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
@@ -37,10 +38,14 @@ import { NotificationsContainer } from './_components/NotificationsContainer';
  * 与引导进度都属应用层。`GuideProvider` 包住整个外壳，使**顶栏里的**帮助抽屉
  * 与**今日页页顶**的引导条共用同一份进度（抽屉要能"重新查看新手引导"，而它挂
  * 在每次都存在的顶栏上，状态只能活在共同祖先里）。
+ *
+ * 装饰性背景（UI-009）也挂在这里：它是固定定位、负层级的独立一层，与外壳内容
+ * 平级即可，不需要进入 `AppShell` 的任何一个插槽。它只在 `(app)` 组下生效。
  */
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
   return (
     <GuideProvider>
+      <BackgroundFieldContainer />
       <AppShell
         syncBanner={<SyncStatusContainer />}
         notificationBell={<NotificationsContainer />}

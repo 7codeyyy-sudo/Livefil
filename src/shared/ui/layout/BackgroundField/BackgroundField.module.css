@@ -1,0 +1,73 @@
+/**
+ * 全站装饰性背景的层容器与几何样式（UI-009）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ *
+ * 几何的**浓淡一律由逐帧写入的 `stroke-opacity` / `fill-opacity` 属性表达**，
+ * 这里只给「基准色」与几何属性——所以下面每个选择器都只声明一种颜色，深浅不在
+ * CSS 里分档。
+ */
+
+/* 固定层：铺满视口、不吃指针事件，层级走 `--z-background`（负值，低于一切内容）。 */
+.field {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-background);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 一张 SVG：几何在 JS 里算好，每帧只改线的端点。用 SVG 而不是 CSS 渐变，是因为
+   「真投影」这件事没法用渐变表达。贴在右下角、不铺满（留白是这套图的一部分）。 */
+.scene {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: block;
+  width: 80%;
+  height: 90%;
+  fill: none;
+  stroke: var(--color-bg-figure);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* 缩放的 SVG 里保持线宽恒定：几何放大缩小时线不该跟着变粗变细。 */
+.scene line,
+.scene path,
+.scene polyline,
+.scene polygon,
+.scene circle {
+  vector-effect: non-scaling-stroke;
+}
+
+/* 顶点圆点要实心：`.scene` 上的 `fill: none` 是给线用的。 */
+.scene circle {
+  fill: var(--color-bg-figure);
+  stroke: none;
+}
+
+/* 投影层：地面上的影子多边形、从顶点垂下的柱线、最近节点的外环。三者的颜色都比
+   主体淡一档（复用 `--color-border`），才会读成「影子」而不是「第二个物体」。
+   `.halo` 刻意写成 `.scene .halo`（两个类）：它的权重必须高于上面的
+   `.scene circle`，才能把圆点那份实心填充盖成「空心外环」。 */
+.scene .hullSoft {
+  fill: var(--color-border);
+  stroke: none;
+}
+
+.scene .hullCore {
+  fill: var(--color-bg-figure);
+  stroke: none;
+}
+
+.scene .pillar {
+  stroke: var(--color-border);
+  stroke-width: 0.9;
+}
+
+.scene .halo {
+  fill: none;
+  stroke: var(--color-bg-figure);
+  stroke-width: 1;
+}

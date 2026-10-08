@@ -1,0 +1,79 @@
+/**
+ * 外观偏好的分区样式（UI-009）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+/* 单选框组：单列纵向排列。每一档是一张可整块点击的卡片——点标签文字与点圆钮
+   等效，触控与键盘操作都更从容，不必去精确命中那颗小圆钮。 */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.option {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  cursor: pointer;
+}
+
+.option:hover {
+  background-color: var(--color-surface-soft);
+}
+
+/* 选中态：强调色边框 + 柔和底。`:has()` 让卡片整体跟随时被选中的那一档，
+   而不是只有中间的圆钮有变化。 */
+.option:has(.radio:checked) {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+/* 焦点必须清晰可见（§7）。写法与 Button 一致：outline 不参与布局。 */
+.option:has(.radio:focus-visible) {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 圆钮与首行文字对齐：给它一点上边距，否则会顶到卡片上沿。 */
+.radio {
+  margin: var(--space-1) 0 0;
+  accent-color: var(--color-accent);
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.optionLabel {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+}
+
+.optionNote {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+/* 分区脚注：说明同步与减少动效两条边界。用辅助档字号与次级文字色，它是解释。 */
+.note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}

@@ -11,10 +11,14 @@ export type SettingsSectionProps = {
   readonly title: string;
   readonly description?: string | undefined;
   /** 本分区是否有未保存的修改。 */
-  readonly dirty: boolean;
-  readonly saving: boolean;
-  readonly error: string | null;
-  readonly onSave: () => void;
+  readonly dirty?: boolean | undefined;
+  readonly saving?: boolean | undefined;
+  readonly error?: string | null | undefined;
+  /**
+   * 保存动作。**省略即表示本分区没有「保存」这一步**（如即时生效的外观偏好），
+   * 此时页脚整块不渲染。既有四个分区都传了它，渲染结果不变。
+   */
+  readonly onSave?: (() => void) | undefined;
   readonly children: ReactNode;
 };
 
@@ -31,13 +35,19 @@ export type SettingsSectionProps = {
  *
  * §7 要求"不仅靠颜色传达信息"。徽章的 `未保存` 三个字就是那个非颜色的通路，
  * 颜色只负责让它更容易被扫到。
+ *
+ * ## 没有保存动作的分区
+ *
+ * 外观偏好（UI-009）是**即时生效**、无「保存」按钮的，因此 `onSave` 改为可选：
+ * 省略它就没有页脚（也就没有脏标记与保存按钮）。既有四个分区照旧传入全部字段，
+ * 渲染出的 DOM 与本组件改造前完全一致。
  */
 export function SettingsSection({
   title,
   description,
-  dirty,
-  saving,
-  error,
+  dirty = false,
+  saving = false,
+  error = null,
   onSave,
   children,
 }: SettingsSectionProps) {
@@ -61,20 +71,22 @@ export function SettingsSection({
 
       <div className={styles.body}>{children}</div>
 
-      <footer className={styles.footer}>
-        {/* 错误用 `role="alert"`：保存是用户主动发起的动作，失败必须被立刻播报，
-            而不是等他下次扫到。 */}
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-        {/* 没改动时禁用保存：一个点了什么都不会发生的按钮，比一个灰掉的按钮
-            更容易让人怀疑"是不是没生效"。 */}
-        <Button variant="primary" loading={saving} disabled={!dirty} onClick={onSave}>
-          保存
-        </Button>
-      </footer>
+      {onSave === undefined ? null : (
+        <footer className={styles.footer}>
+          {/* 错误用 `role="alert"`：保存是用户主动发起的动作，失败必须被立刻播报，
+              而不是等他下次扫到。 */}
+          {error === null ? null : (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          {/* 没改动时禁用保存：一个点了什么都不会发生的按钮，比一个灰掉的按钮
+              更容易让人怀疑"是不是没生效"。 */}
+          <Button variant="primary" loading={saving} disabled={!dirty} onClick={onSave}>
+            保存
+          </Button>
+        </footer>
+      )}
     </section>
   );
 }
