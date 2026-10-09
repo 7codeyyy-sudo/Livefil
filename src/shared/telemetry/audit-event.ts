@@ -56,6 +56,11 @@ export type AuditEventType =
   | 'DATA_UPDATED'
   | 'DATA_DELETED'
   | 'DATA_RESTORED'
+  // 账户删除三态（OPS-002，接口 §13 删除面；批 1 扩列——SRS §6.7「删除数据」
+  // 语义的账户级展开，类目不新增；三态须可区分，故不复用 DATA_DELETED 一词打尽）
+  | 'ACCOUNT_DELETION_REQUESTED'
+  | 'ACCOUNT_DELETION_CANCELLED'
+  | 'ACCOUNT_DELETION_PURGED'
   // 导出和导入数据
   | 'DATA_EXPORTED'
   | 'DATA_IMPORTED'
@@ -97,6 +102,9 @@ export const AUDIT_CATEGORY_BY_EVENT_TYPE: Readonly<Record<AuditEventType, Audit
     DATA_UPDATED: 'data-mutation',
     DATA_DELETED: 'data-mutation',
     DATA_RESTORED: 'data-mutation',
+    ACCOUNT_DELETION_REQUESTED: 'data-mutation',
+    ACCOUNT_DELETION_CANCELLED: 'data-mutation',
+    ACCOUNT_DELETION_PURGED: 'data-mutation',
     DATA_EXPORTED: 'data-portability',
     DATA_IMPORTED: 'data-portability',
     AI_INVOCATION_STARTED: 'ai-invocation',

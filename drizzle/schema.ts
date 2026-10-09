@@ -471,7 +471,20 @@ export const routineSteps = pgTable(
     ...commonColumns(),
   },
   (table) => [
-    uniqueIndex('routine_steps_position_unique').on(table.routineId, table.position),
+    /**
+     * 活跃步骤的位置唯一（DB §4.7「(routine_id, position) 唯一且从 0 连续」）。
+     *
+     * **部分索引（`WHERE deleted_at IS NULL`，批 1 迁移 0009 由全局索引改来）**：
+     * 软删语义要求唯一性只约束「在用行」——全局唯一会让一条已软删步骤**永久
+     * 占住它的位置**，导入 replace（契约 §13：先软删既有、再写入文件）与任何
+     * 「删一步再补一步」的编辑都会被墓碑行挡住。同一模式已在仓库内有先例：
+     * `life_areas_user_active_name_unique`（归档项不占名）与
+     * `tasks_template_due_unique`（模板行才参与）。索引名不变——只放宽、不收紧，
+     * 既有数据与既有约束断言零影响。
+     */
+    uniqueIndex('routine_steps_position_unique')
+      .on(table.routineId, table.position)
+      .where(sql`deleted_at is null`),
     // 同步增量拉取（DB §4.18.1(4)）。
     index('routine_steps_user_updated_idx').on(table.userId, table.updatedAt, table.id),
   ],
@@ -1041,10 +1054,46 @@ export const emailVerificationCodes = pgTable(
   ],
 );
 
+/**
+ * 账户删除请求（OPS-002，接口 §13 删除面；批 1 迁移 0009）。
+ *
+ * 三态一行记全：发起（`requested_at`）→ 撤销（`cancelled_at`，7 天窗口内）
+ * 或到期清理（`purged_at`，由 `scripts/` 层的到期清理脚本写入——cron 面接线
+ * 归批 3 OPS-006）。`purge_at = requested_at + 7 天`（契约冻结八定值：撤销窗 7 天）。
+ *
+ * **一行只代表一次请求**：活跃期间重复发起返回既有行（幂等，不叠新行）；
+ * 撤销后再发起会新建行。不设 `version`——本表只由单用户自己的请求推进，
+ * 无跨端 CAS 需求（同 §4.13 精简理由）。
+ */
+export const deletionRequests = pgTable(
+  'deletion_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 发起时刻；撤销窗与到期判定的基准。 */
+    requestedAt: timestamp('requested_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** `requested_at + 7 天`（契约冻结值）；到期由清理脚本执行物理删除。 */
+    purgeAt: timestamp('purge_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** 窗口内撤销即置值（非空＝该请求已失效）。 */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+    /** 清理脚本完成物理删除后置值（非空＝已执行）。 */
+    purgedAt: timestamp('purged_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    // 活跃请求定位与到期扫描（脚本按 purge_at 扫，小表全扫可接受）。
+    index('deletion_requests_user_idx').on(table.userId, table.purgeAt),
+  ],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
 export type EmailVerificationCodeRow = typeof emailVerificationCodes.$inferSelect;
 export type NewEmailVerificationCodeRow = typeof emailVerificationCodes.$inferInsert;
+export type DeletionRequestRow = typeof deletionRequests.$inferSelect;
+export type NewDeletionRequestRow = typeof deletionRequests.$inferInsert;
 
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;

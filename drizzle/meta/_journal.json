@@ -64,6 +64,13 @@
       "when": 1791525702961,
       "tag": "0008_tan_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791539739182,
+      "tag": "0009_long_earthquake",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,20 @@ import packageJson from './package.json';
 import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
+import { createExportReader } from '@/modules/data-management/infrastructure/export-reader.drizzle.ts';
+import { createImportGateway } from '@/modules/data-management/infrastructure/import-gateway.drizzle.ts';
+import { createRecycleRepository } from '@/modules/data-management/infrastructure/recycle.drizzle.ts';
+import { createDeletionRequestRepository } from '@/modules/data-management/infrastructure/deletion-request.drizzle.ts';
+import { createInMemoryExportStore } from '@/modules/data-management/infrastructure/export-store.memory.ts';
+import { createInMemoryImportPreviewStore } from '@/modules/data-management/infrastructure/import-store.memory.ts';
+import type { ExportReader } from '@/modules/data-management/domain/data-ports.ts';
+import type { ImportGateway } from '@/modules/data-management/domain/data-ports.ts';
+import type { RecycleRepository } from '@/modules/data-management/domain/data-ports.ts';
+import type { DeletionRequestRepository } from '@/modules/data-management/domain/data-ports.ts';
+import type {
+  ExportStore,
+  ImportPreviewStore,
+} from '@/modules/data-management/domain/data-ports.ts';
 import { createAccountRepository } from '@/modules/identity/infrastructure/user-repository.drizzle.ts';
 import { createSessionRepository } from '@/modules/identity/infrastructure/session-repository.drizzle.ts';
 import { createVerificationCodeRepository } from '@/modules/identity/infrastructure/verification-code-repository.drizzle.ts';
@@ -149,6 +163,14 @@ let rateLimiter: RateLimiter | null = null;
 let passwordHasher: PasswordHasher | null = null;
 let verificationCodeCrypto: VerificationCodeCrypto | null = null;
 let emailSender: EmailSender | null = null;
+/**
+ * data-management 的两个内存单例（OPS-002）。
+ *
+ * **必须进程级缓存**：作业与预览都是有状态的短期对象，每次请求新建等于
+ * 「导出完就查不到自己的作业」。单实例边界与限流同口径（RD-015 披露）。
+ */
+let exportStore: ExportStore | null = null;
+let importPreviewStore: ImportPreviewStore | null = null;
 
 /** 数据库客户端单例。缺 `DATABASE_URL` 时由连接工厂抛出 `DEPENDENCY_UNAVAILABLE`。 */
 function getDatabaseClient(): DatabaseClient {
@@ -196,10 +218,23 @@ export function getEmailSender(): EmailSender {
 /**
  * 限流器单例（AUTH-002）——**必须进程级共享**：
  * 进程内滑动窗口的状态挂在实例上，每请求新建等于没有限流（RD-012 §4.2）。
+ * data-management 的限流消费同一实例（端口结构兼容，键按 `data:` 前缀分域）。
  */
 export function getRateLimiter(): RateLimiter {
   rateLimiter ??= createInMemoryRateLimiter();
   return rateLimiter;
+}
+
+/** 导出作业内存单例（OPS-002，短期下载语义——见文件头单例理由）。 */
+export function getExportStore(): ExportStore {
+  exportStore ??= createInMemoryExportStore();
+  return exportStore;
+}
+
+/** 导入预览内存单例（OPS-002，30 分钟时限）。 */
+export function getImportPreviewStore(): ImportPreviewStore {
+  importPreviewStore ??= createInMemoryImportPreviewStore();
+  return importPreviewStore;
 }
 
 /** 首启播种用的领域名单（归属 `life-areas` 领域，这里只是转交）。 */
@@ -367,6 +402,10 @@ export function getRepositories(): {
   readonly accounts: AccountRepository;
   readonly sessions: SessionRepository;
   readonly verificationCodes: VerificationCodeRepository;
+  readonly dataExport: ExportReader;
+  readonly dataImport: ImportGateway;
+  readonly recycle: RecycleRepository;
+  readonly deletionRequests: DeletionRequestRepository;
   readonly lifeAreas: LifeAreaRepository;
   readonly expenseCategories: ExpenseCategoryRepository;
   readonly expenses: ExpenseRepository;
@@ -395,6 +434,10 @@ export function getRepositories(): {
     accounts: createAccountRepository(db),
     sessions: createSessionRepository(db),
     verificationCodes: createVerificationCodeRepository(db),
+    dataExport: createExportReader(db),
+    dataImport: createImportGateway(db),
+    recycle: createRecycleRepository(db),
+    deletionRequests: createDeletionRequestRepository(db),
     lifeAreas: createLifeAreaRepository(db),
     expenseCategories: createExpenseCategoryRepository(db),
     expenses: createExpenseRepository(db),
