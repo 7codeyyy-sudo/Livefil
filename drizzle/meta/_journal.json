@@ -57,6 +57,13 @@
       "when": 1790764705021,
       "tag": "0007_jittery_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791525702961,
+      "tag": "0008_tan_bruce_banner",
+      "breakpoints": true
     }
   ]
 }
