@@ -24,6 +24,13 @@ export interface SessionCookieAttributes {
   readonly sameSite: 'lax';
   readonly secure: boolean;
   readonly path: '/';
+  /**
+   * 会话有效期（秒）。**仅认证部署传入**——单参调用（本地部署）不输出本键，
+   * 保持「随浏览器会话存在」的原语义（IAM-001 现状零改动，既有验收断言无此键）；
+   * 认证部署与 `sessions.expires_at`（30 天）对齐，滑动续期时顺延重发
+   * （RD-012 §3 流 4）。
+   */
+  readonly maxAge?: number;
 }
 
 /**
@@ -37,14 +44,22 @@ export interface SessionCookieAttributes {
  *   因此按环境判定，而不是恒定 true。
  * - `path: '/'`：整个站点都需要它。
  *
- * 不设 `maxAge`/`expires`：会话 Cookie 随浏览器会话存在，本地模式没有
- * "记住我多久"的需求，给一个过期时间只会制造一个需要解释的数字。
+ * 不设 `maxAge`/`expires`（单参调用）是刻意的：会话 Cookie 随浏览器会话存在，
+ * 本地模式没有"记住我多久"的需求，给一个过期时间只会制造一个需要解释的数字。
+ * 认证部署经第二参数显式传入 `maxAge`——两态互斥生效，同一函数。
+ *
+ * @param isProduction 是否生产环境（决定 `secure`）。
+ * @param maxAgeSeconds 认证部署的会话有效期（秒）；不传则不输出 `maxAge` 键。
  */
-export function sessionCookieAttributes(isProduction: boolean): SessionCookieAttributes {
-  return {
-    httpOnly: true,
-    sameSite: 'lax',
+export function sessionCookieAttributes(
+  isProduction: boolean,
+  maxAgeSeconds?: number,
+): SessionCookieAttributes {
+  const base = {
+    httpOnly: true as const,
+    sameSite: 'lax' as const,
     secure: isProduction,
-    path: '/',
+    path: '/' as const,
   };
+  return maxAgeSeconds === undefined ? base : { ...base, maxAge: maxAgeSeconds };
 }
