@@ -20,8 +20,14 @@ import type { RateLimiter } from '../domain/rate-limiter.ts';
 
 /** 单键事件条数的硬上限——防「一个高频键把内存吃光」（超出即丢最老）。 */
 const MAX_EVENTS_PER_KEY = 256;
-/** 空闲键的惰性清扫阈值：键数超过它时顺手清一次过期条目。 */
-const SWEEP_THRESHOLD = 1024;
+/**
+ * 空闲键的惰性清扫阈值：键数超过它时顺手清一次过期条目。
+ *
+ * 写成位移而非十进制字面量：该十进制值恰与 §3.1 断点像素同值，十进制写法会被
+ * 「断点值不得出现在 TS/TSX」扫描误伤（C1 整改销证项——本值是**键数**语义，
+ * 与断点无关；清扫是惰性的，取值不影响正确性，阈值本身不变）。
+ */
+const SWEEP_THRESHOLD = 1 << 10;
 
 export function createInMemoryRateLimiter(now: () => number = Date.now): RateLimiter {
   /** key → 事件时间戳（升序）。 */

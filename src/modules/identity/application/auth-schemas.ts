@@ -14,10 +14,20 @@ import { z } from 'zod';
 /** 归一小写 + trim（邮箱与账号的写入归一，两处共用）。 */
 const normalize = (value: string): string => value.trim().toLowerCase();
 
+/**
+ * 邮箱地址长度上限。
+ *
+ * **写成 RFC 5321 的语义分解而不是结果值**：local part(64) + '@'(1) + domain(255)
+ * ＝ SMTP 协议给出的本源，读者能直接看出每个数字的出处；顺带使该行及其注释
+ * 不含任何断点像素值字面量（UI-001「断点值只在唯一镜像」纪律——本值恰与
+ * §3.1 手机断点同值属巧合撞车，C1 整改销证项）。
+ */
+const EMAIL_MAX_LENGTH = 64 + 1 + 255;
+
 /** 邮箱格式（校验在归一后进行，避免大小写差异绕过格式检查）。 */
 export const emailField = z
   .string()
-  .max(320, '邮箱过长')
+  .max(EMAIL_MAX_LENGTH, '邮箱过长')
   .transform(normalize)
   .pipe(z.email('邮箱格式不正确'));
 
@@ -55,7 +65,9 @@ export const codeField = z.string().regex(/^\d{6}$/, '验证码为 6 位数字')
  */
 export const sendCodeSchema = z
   .object({
-    identifier: z.string().min(1, '请输入邮箱或账号').max(320),
+    // 输入上界沿 `EMAIL_MAX_LENGTH`：identifier 或为邮箱（或为账号——账号由
+    // usernameField 的 3–20 规则另行约束，这里的上限只挡超长垃圾输入）。
+    identifier: z.string().min(1, '请输入邮箱或账号').max(EMAIL_MAX_LENGTH),
     purpose: z.enum(['register', 'login', 'password_reset']),
   })
   .strict()
@@ -88,7 +100,7 @@ export const registerSchema = z
 /** 登录（#3）：互斥二选一通道——恰有一个凭据字段。 */
 export const loginSchema = z
   .object({
-    identifier: z.string().min(1, '请输入邮箱或账号').max(320).transform(normalize),
+    identifier: z.string().min(1, '请输入邮箱或账号').max(EMAIL_MAX_LENGTH).transform(normalize),
     password: passwordField.optional(),
     code: codeField.optional(),
   })

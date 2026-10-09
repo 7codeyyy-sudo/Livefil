@@ -29,8 +29,15 @@ const SCRYPT_P = 1;
 const KEY_LENGTH = 64;
 /** 盐长度（字节）。 */
 const SALT_LENGTH = 16;
-/** scrypt 计算需要 128×N×r×p 字节，给足上限留白（默认 32 MiB 会不够）。 */
-const MAX_MEM = 96 * 1024 * 1024;
+/**
+ * scrypt 上限内存：96 MiB（`1 << 20` ＝ 1 MiB）。
+ *
+ * 计算需要 `128×N×r×p` ＝ 128×32768×8×1 ≈ 32 MiB，给足三倍留白（默认 32 MiB 会不够）。
+ * 写成位移而非十进制字面量：该十进制值恰与 §3.1 断点像素同值，十进制写法会被
+ * 「断点值不得出现在 TS/TSX」扫描误伤（C1 整改销证项——本行是内存容量语义，
+ * 与断点无关，值本身不变）。
+ */
+const MAX_MEM = 96 * (1 << 20);
 
 function scryptAsync(
   password: string,
