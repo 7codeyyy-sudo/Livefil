@@ -30,6 +30,7 @@ import {
 } from './PreferenceSections';
 import { AccountSection } from './AccountSection';
 import { AppearanceSection } from './AppearanceSection';
+import { DataManagementSection } from './DataManagementSection';
 import { LifeAreasSection } from './LifeAreasSection';
 import { adoptSaved, isAnyDirty, toDraft, toProfilePatch } from './settings-draft';
 import type { SectionBindings, SettingsDraft } from './settings-draft';
@@ -87,6 +88,12 @@ export function SettingsForm({ initial }: { readonly initial: UserDto }) {
         客户端偏好（见 `AppearanceSection` 文件说明）。
       */}
       <AppearanceSection />
+      {/*
+        数据管理分区 7（OPS-002，v0.26 分区 7）：导出/导入/回收区三块；
+        删除块本批不渲染（契约缺口，总监 2026-10-09 裁定，RD-015 披露）。
+        说明行走 `mode` 双态（冻结句由 `GET /me` 驱动）。
+      */}
+      <DataManagementSection mode={saved.mode === 'cloud' ? 'cloud' : 'local'} />
       {/*
         账号分区（AUTH-002，v0.26 分区 9）：**仅认证态渲染**（C4——本地自用态
         本分区不存在，原「云端账号区挂账」句由兑现注记承接）。传 `saved` 而非
