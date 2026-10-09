@@ -57,6 +57,9 @@ function toUser(row: UserRow): User {
     id: row.id,
     mode: toUserMode(row.mode),
     displayName: row.displayName,
+    // 认证面字段（AUTH-002）：账号设置分区只读行的来源。
+    email: row.email,
+    username: row.username,
     settings: {
       locale: row.locale,
       timezone: row.timezone,
@@ -171,12 +174,16 @@ export function createUserRepository(db: Database): UserRepository {
       userId: string,
       patch: UserSettingsPatch,
       expectedVersion: number,
+      displayName?: string | null,
     ): Promise<User> {
       return db.transaction(async (tx) => {
         const updated = await tx
           .update(users)
           .set({
             ...patch,
+            // 顶层列与设置分组分开放（AUTH-002 契约增补 #6）：displayName 不是
+            // UserSettings 的一员，混进 patch 会让两条语义在同一扩散里漂移。
+            ...(displayName === undefined ? {} : { displayName }),
             // 版本自增必须与 WHERE 同句完成：拆成"读—改—写"会留下窗口，
             // 两个并发写会同时通过检查（那正是乐观并发要防的场景）。
             version: sql`${users.version} + 1`,

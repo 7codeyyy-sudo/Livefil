@@ -20,6 +20,14 @@ export interface UserDto {
   readonly id: string;
   readonly mode: string;
   readonly displayName: string | null;
+  /**
+   * 认证面字段（AUTH-002，v0.26 分区 9 只读行）。
+   *
+   * 可选以保持既有客户端 stub 与本地模式兼容（本地用户恒 null）；
+   * **契约增补项**——随批 A 交付后的 doc/05 落卷窗口补记（RD-013 勘误清单 #14）。
+   */
+  readonly email?: string | null;
+  readonly username?: string | null;
   readonly locale: string;
   readonly timezone: string;
   readonly currencyCode: string;
@@ -40,6 +48,8 @@ export function toUserDto(user: User): UserDto {
     id: user.id,
     mode: user.mode,
     displayName: user.displayName,
+    email: user.email ?? null,
+    username: user.username ?? null,
     locale: user.settings.locale,
     timezone: user.settings.timezone,
     currencyCode: user.settings.currencyCode,

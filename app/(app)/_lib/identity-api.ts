@@ -56,6 +56,8 @@ export type ProfilePatch = Partial<{
   readonly reminderEnabled: boolean;
   readonly quietHoursStart: string | null;
   readonly quietHoursEnd: string | null;
+  /** 名字（AUTH-002 契约增补 #6：档 A 仅展示、可改可重复——账号分区改名入口）。 */
+  readonly displayName: string | null;
 }> & { readonly version: number };
 
 export function fetchProfile(signal: AbortSignal): Promise<ApiEnvelope<UserDto>> {

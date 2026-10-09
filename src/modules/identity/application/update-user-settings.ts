@@ -106,12 +106,12 @@ export class UpdateUserSettingsUseCase {
       throw new NotFoundError('用户不存在');
     }
 
-    const { version, ...patch } = request;
+    const { version, displayName, ...patch } = request;
 
     assertAiConsent(current, patch);
     assertQuietHours(current, patch);
 
-    const updated = await this.#users.updateSettings(userId, patch, version);
+    const updated = await this.#users.updateSettings(userId, patch, version, displayName);
 
     this.#audit.record({
       type: 'DATA_UPDATED',

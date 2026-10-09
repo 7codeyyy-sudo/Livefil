@@ -37,6 +37,16 @@ export interface User {
   readonly id: string;
   readonly mode: UserMode;
   readonly displayName: string | null;
+  /**
+   * 认证面字段（AUTH-002，账号设置分区只读行的数据源）。
+   *
+   * **可选**而非必填：`tests/helpers/fake-repositories.ts` 构造的本地用户
+   * 不带认证字段（`tests/` 是红线不可改），而本地用户的 email/username
+   * 本就恒 NULL——可选性如实表达了「这段数据属于云端账号语义」。
+   * 真实仓储（`toUser`）总是填充值。
+   */
+  readonly email?: string | null;
+  readonly username?: string | null;
   readonly settings: UserSettings;
   /**
    * 乐观并发版本（`PATCH /me` 用）。

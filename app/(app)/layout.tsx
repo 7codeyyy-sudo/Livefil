@@ -6,6 +6,7 @@ import { BackgroundFieldContainer } from './_components/BackgroundFieldContainer
 import { GuideTourLayer } from './_components/GuideTourLayer';
 import { GuideTourProvider } from './_components/GuideTourProvider';
 import { HelpDrawerContainer } from './_components/HelpDrawerContainer';
+import { SessionGuard } from './_components/SessionGuard';
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
 import { NotificationsContainer } from './_components/NotificationsContainer';
 
@@ -50,6 +51,9 @@ import { NotificationsContainer } from './_components/NotificationsContainer';
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
   return (
     <GuideTourProvider>
+      {/* 401 跳转守卫（AUTH-002，RD-012 §5.3）：只在 (app) 根注册——
+          登录页自身的 401 不触发跳转（防循环），本地部署下静默空转。 */}
+      <SessionGuard />
       <BackgroundFieldContainer />
       <AppShell
         syncBanner={<SyncStatusContainer />}

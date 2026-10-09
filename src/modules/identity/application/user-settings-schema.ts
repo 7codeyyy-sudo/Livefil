@@ -39,6 +39,13 @@ const quietHoursField = z
  */
 export const updateUserSettingsSchema = z
   .object({
+    /**
+     * 名字（AUTH-002 契约增补 #6，账号分区改名入口）。
+     *
+     * 档 A：可改、可重复、仅展示——**不参与登录**（PD-016 L107）。它不是
+     * `UserSettings` 的一员（那是设置分组），用例层拆出后经独立参数落库。
+     */
+    displayName: z.string().max(80).nullable().optional(),
     locale: z.enum(SUPPORTED_LOCALES).optional(),
     timezone: z
       .string()
