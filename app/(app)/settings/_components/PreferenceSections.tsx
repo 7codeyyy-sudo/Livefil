@@ -103,6 +103,7 @@ export function RegionSection(bindings: SectionBindings) {
     <SettingsSection
       title="地区与语言"
       description="影响日期、时间的显示方式与一周的起始日。"
+      tourAnchor="settings-region"
       dirty={isSectionDirty(draft, baseline, REGION_KEYS)}
       saving={saving}
       error={error}

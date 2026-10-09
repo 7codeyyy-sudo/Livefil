@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
 import { BackgroundFieldContainer } from './_components/BackgroundFieldContainer';
-import { GuideProvider } from './_components/GuideProvider';
+import { GuideTourLayer } from './_components/GuideTourLayer';
+import { GuideTourProvider } from './_components/GuideTourProvider';
 import { HelpDrawerContainer } from './_components/HelpDrawerContainer';
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
 import { NotificationsContainer } from './_components/NotificationsContainer';
@@ -35,16 +36,20 @@ import { NotificationsContainer } from './_components/NotificationsContainer';
  * 抽屉，而抽屉经 `OverlayPortal` 挂到 `body`，所以它虽然挂在顶栏也不占页头。
  *
  * 帮助入口（AI-002，UI v0.22 §5 B）走 `helpEntry` 槽，同理：路由到文案的映射
- * 与引导进度都属应用层。`GuideProvider` 包住整个外壳，使**顶栏里的**帮助抽屉
- * 与**今日页页顶**的引导条共用同一份进度（抽屉要能"重新查看新手引导"，而它挂
- * 在每次都存在的顶栏上，状态只能活在共同祖先里）。
+ * 与引导进度都属应用层。`GuideTourProvider` 包住整个外壳，使**顶栏里的**帮助
+ * 抽屉与**全屏导览层**共用同一份「已看过」进度（抽屉要能"重新查看新手引导"，
+ * 而它挂在每次都存在的顶栏上，状态只能活在共同祖先里）。
+ *
+ * 新手导览层（AI-007，UI v0.25「新手引导形态升版补节」）也挂在这里：§ A 要求
+ * 载体挂在 `(app)` 外壳层、**跨页存活**（分页触发、不跳路由）。它经
+ * `createPortal` 自行挂到 `body`，因此放在 `AppShell` 之后不影响外壳布局。
  *
  * 装饰性背景（UI-009）也挂在这里：它是固定定位、负层级的独立一层，与外壳内容
  * 平级即可，不需要进入 `AppShell` 的任何一个插槽。它只在 `(app)` 组下生效。
  */
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <GuideProvider>
+    <GuideTourProvider>
       <BackgroundFieldContainer />
       <AppShell
         syncBanner={<SyncStatusContainer />}
@@ -53,6 +58,7 @@ export default function AppGroupLayout({ children }: { readonly children: ReactN
       >
         {children}
       </AppShell>
-    </GuideProvider>
+      <GuideTourLayer />
+    </GuideTourProvider>
   );
 }

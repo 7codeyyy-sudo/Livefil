@@ -1,0 +1,129 @@
+/**
+ * 全屏新手导览层样式
+ * （《UI 页面规范》v0.25「新手引导形态升版补节」D，AI-007）。
+ *
+ * 纪律：颜色 / 时长 / 层级只引用令牌；外扩量、净距、描边宽等几何量由脚本与
+ * 本文件按需写字面量（§ D 归实现披露），不写 hex/ms/数字 z-index/px 圆角/px 字号。
+ *
+ * 层级：root 用 `--z-guide`（250）——高于 Modal/Drawer（200），被 Toast（300）
+ * 盖住。root 内部各元素**不写 z-index**，靠 DOM 顺序（高亮框 → 箭头 → 卡片）。
+ */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-guide);
+  animation: guideTourEnter var(--duration-base) var(--ease-standard);
+}
+
+/* 一次性淡入（非循环动画，§6）。退场不做过场：状态归零即卸载。 */
+@keyframes guideTourEnter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 高亮框：自身透明，靠「描边 + 光晕 + 巨型遮罩」三层 box-shadow 实现挖空。
+   显形前 `visibility: hidden`，由脚本摆好位后置为 visible（避免首帧闪一下）。 */
+.spotlight {
+  position: fixed;
+  visibility: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow:
+    0 0 0 2px var(--color-accent),
+    0 0 0 6px var(--color-focus-ring),
+    0 0 0 9999px var(--color-overlay);
+  pointer-events: none;
+  transition:
+    left var(--duration-base) var(--ease-standard),
+    top var(--duration-base) var(--ease-standard),
+    width var(--duration-base) var(--ease-standard),
+    height var(--duration-base) var(--ease-standard);
+}
+
+/* 箭头是替换元素：`inset: 0` 不足以撑满视口，必须显式给宽高。 */
+.arrow {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.arrowLine {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.arrowHead {
+  fill: var(--color-accent);
+}
+
+/* 标注卡：位置与高亮框同速同缓动地滑，两者节奏不一致会显得「不丝滑」。 */
+.card {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  width: min(340px, calc(100vw - var(--space-8)));
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  transition:
+    left var(--duration-base) var(--ease-standard),
+    top var(--duration-base) var(--ease-standard);
+}
+
+/* 卡片被压矮时（目标太高、屏幕太矮）只有文案区滚动、按钮固定。 */
+.body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  margin: var(--space-2) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
+}
+
+.text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+/* 手机竖屏（§3.1：320–767px）：卡片高度受限时仅文案区滚动（§ D）。 */
+@media (max-width: 767px) {
+  .card {
+    max-height: 46vh;
+  }
+}

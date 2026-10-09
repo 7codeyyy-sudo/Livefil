@@ -34,7 +34,12 @@ export function ReviewPanel() {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.segments} role="group" aria-label="复盘类型">
+      <div
+        className={styles.segments}
+        role="group"
+        aria-label="复盘类型"
+        data-tour="review-segments"
+      >
         <Button
           variant="ghost"
           aria-pressed={segment === 'daily'}

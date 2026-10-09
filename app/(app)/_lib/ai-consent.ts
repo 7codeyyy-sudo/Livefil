@@ -18,7 +18,7 @@ import { useSyncExternalStore } from 'react';
  *
  * `sessionStorage` 只在浏览器里存在：用 `useState` 惰性初值直接读会造成服务端 /
  * 客户端首帧不一致（水合不匹配），用 effect 里 `setState` 又会级联渲染（lint 禁）。
- * 与 `guide-store.ts` 同一做法：服务端快照恒为 `null`，客户端挂载后自行取真实
+ * 与 `guide/tour-store.ts` 同一做法：服务端快照恒为 `null`，客户端挂载后自行取真实
  * 快照并在水合之后重渲染。
  */
 

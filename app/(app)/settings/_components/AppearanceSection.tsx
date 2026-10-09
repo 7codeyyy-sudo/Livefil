@@ -57,7 +57,11 @@ export function AppearanceSection() {
   const groupName = useId();
 
   return (
-    <SettingsSection title="外观" description="选择右下角的装饰性背景。改动即时生效，无需保存。">
+    <SettingsSection
+      title="外观"
+      description="选择右下角的装饰性背景。改动即时生效，无需保存。"
+      tourAnchor="settings-appearance"
+    >
       <div className={styles.options} role="radiogroup" aria-label="背景样式">
         {BACKGROUND_CHOICES.map((value) => {
           const meta = CHOICE_META[value];

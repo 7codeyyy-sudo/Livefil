@@ -56,7 +56,7 @@ export function ExpenseCategoriesSection({
   onUpdated,
 }: ExpenseCategoriesSectionProps) {
   return (
-    <section className={styles.section} id="expense-categories">
+    <section className={styles.section} id="expense-categories" data-tour="expenses-categories">
       <h2 className={styles.title}>分类管理</h2>
       <p className={styles.description}>
         分类只服务开销：可以新增、重命名或停用。停用不会删除历史开销，随时可恢复。

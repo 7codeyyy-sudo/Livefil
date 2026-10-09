@@ -197,10 +197,13 @@ export function InboxPanel() {
           onBreakdown={breakdownEntry}
         />
         {breakdownDrawer}
-        <EmptyState
-          title="收件箱是空的"
-          description="在上面的输入框记下第一条任务，之后再安排到具体的时间。"
-        />
+        {/* 空态也算「列表容器」（§ B 表：`inbox-list` 含空态），故与有数据时同一锚点。 */}
+        <div data-tour="inbox-list">
+          <EmptyState
+            title="收件箱是空的"
+            description="在上面的输入框记下第一条任务，之后再安排到具体的时间。"
+          />
+        </div>
       </section>
     );
   }
@@ -247,7 +250,7 @@ export function InboxPanel() {
         </div>
       ) : null}
 
-      <ul className={styles.list}>
+      <ul className={styles.list} data-tour="inbox-list">
         {state.items.map((task) => (
           <li key={task.id} className={styles.row}>
             <Checkbox
@@ -391,6 +394,7 @@ function QuickAddForm({
     <form
       id="quick-add"
       className={styles.quickAdd}
+      data-tour="inbox-quick-add"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();

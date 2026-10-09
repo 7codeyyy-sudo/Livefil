@@ -13,8 +13,10 @@
  * IAM-002 补 `Switch`（设置页的开关），SYNC-002 补同步状态横幅与冲突弹层
  * （`SyncStatusBanner` / `ConflictDialog`，《UI 页面规范》v0.20 §4.9），
  * NOTIFY-001 补提醒规则区（`ReminderRuleSection` / `ReminderRuleInlineArea`），
- * AI-001 / AI-002 补引导条与帮助抽屉（`GuideBar` / `HelpDrawer`，
- * 《UI 页面规范》v0.22 §5 A/B）及表单字段解释（`FieldHint`），
+ * AI-001 / AI-002 补帮助抽屉（`HelpDrawer`，《UI 页面规范》v0.22 §5 B）
+ * 及表单字段解释（`FieldHint`）——原 AI-001 的 `GuideBar` 引导条已随
+ * AI-007（v0.25「新手引导形态升版补节」）**作废并删除**，其形态改由
+ * `app/(app)/_components/GuideTourLayer`（全屏导览层）承接，不入共享层出口，
  * Phase 9 补 AI 草稿三件套（`AiScopeNotice` / `AiConsentDialog` /
  * `AiUnavailableNotice`，§5 C/D/E）。
  *
@@ -123,10 +125,8 @@ export type {
   FieldHintState,
   FieldHintTextProps,
 } from './FieldHint/FieldHint';
-export { formatGuideProgress, GuideBar } from './GuideBar/GuideBar';
-export type { GuideBarProps } from './GuideBar/GuideBar';
 export { HelpDrawer } from './HelpDrawer/HelpDrawer';
-export type { HelpDrawerGuideProgress, HelpDrawerProps } from './HelpDrawer/HelpDrawer';
+export type { HelpDrawerProps, HelpDrawerTourProgress } from './HelpDrawer/HelpDrawer';
 export { AiScopeNotice } from './AiScopeNotice/AiScopeNotice';
 export type { AiScopeNoticeProps } from './AiScopeNotice/AiScopeNotice';
 export { AiConsentDialog } from './AiConsentDialog/AiConsentDialog';

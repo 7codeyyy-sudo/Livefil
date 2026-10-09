@@ -19,6 +19,13 @@ export type SettingsSectionProps = {
    * 此时页脚整块不渲染。既有四个分区都传了它，渲染结果不变。
    */
   readonly onSave?: (() => void) | undefined;
+  /**
+   * 新手导览锚点（AI-007，UI v0.25 § B 表）。
+   *
+   * 只作为**新增标记属性**落到分区根 `<section>` 上（`data-tour`），不改动分区的
+   * 语义、结构与既有样式。省略即不打锚点（只有「地区与语言」「外观」两处需要）。
+   */
+  readonly tourAnchor?: string | undefined;
   readonly children: ReactNode;
 };
 
@@ -49,13 +56,14 @@ export function SettingsSection({
   saving = false,
   error = null,
   onSave,
+  tourAnchor,
   children,
 }: SettingsSectionProps) {
   const titleId = useId();
   const descriptionId = useId();
 
   return (
-    <section className={styles.section} aria-labelledby={titleId}>
+    <section className={styles.section} aria-labelledby={titleId} data-tour={tourAnchor}>
       <header className={styles.header}>
         <h2 id={titleId} className={styles.title}>
           {title}
