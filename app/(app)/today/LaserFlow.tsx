@@ -344,6 +344,8 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
     let raf = 0;
     let last = 0;
     let visible = true;
+    /** 画布向下的延伸量（px，0 = 只用 CSS 兜底 `bottom: 0`）。见 render() 注释。 */
+    let bottomOffset = 0;
 
     /** 量卡片相对容器的位置（每帧读一次：卡片随数据/换行移动时不用手工失效）。 */
     const measure = (
@@ -389,8 +391,30 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
 
     const render = (): void => {
       const { width, height } = state;
-      const scale = Math.max(0.2, Math.min(width / 585, height / 507));
       let surface = measure(width, height);
+      /*
+       * 尺寸基准锚在「落点卡」上而不是画布上：预览稿里卡片 820px 宽对应约 1014
+       * 设计单位（由 507 高的参考盒反推）。这样画布为了「光束从屏幕顶落下」而
+       * 变高、或数据让卡片高度变化时，光束与光晕的**像素尺寸保持预览稿比例**；
+       * 旧口径 `min(宽比, 高比)` 会随画布变高把整个光晕一起放大。
+       * 理论兜底（无落点卡）时退回旧口径。
+       */
+      const scale = Math.max(
+        0.2,
+        surface.real ? (surface.right - surface.left) / 1014 : Math.min(width / 585, height / 507),
+      );
+      // 画布向下补到「落点卡」底边（无当前行动时，落点卡在舞台之外的下方——
+      // 时间线卡）：`bottom` 取负值把画布往下延伸。顶锚在舞台顶不动，因此
+      // 卡片几何（相对容器顶）不受影响；`bottomOffset` 与容器实高配合，
+      // 使这条计算在 ResizeObserver 后续回调里保持幂等（不会来回振荡）。
+      if (surface.real) {
+        const stageHeight = state.height - bottomOffset;
+        const desired = Math.max(0, Math.ceil(surface.bottom - stageHeight));
+        if (desired !== bottomOffset) {
+          bottomOffset = desired;
+          container.style.bottom = desired === 0 ? '0px' : `-${String(desired)}px`;
+        }
+      }
       let beamX = settings.beamPosition * width;
       if (surface.real) {
         const margin = surface.radius + 6;

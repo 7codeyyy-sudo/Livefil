@@ -500,6 +500,11 @@ interface CommitmentSeed {
 export function TodayPanel() {
   const revealRef = useRevealCards();
   const heroRef = useRef<HTMLElement | null>(null);
+  /**
+   * 时间线卡的 ref（UI-012 修复）：无「当前行动」时它就是光的**落点卡**——
+   * 光总要有一张卡可「击中」，否则只能在半空衰减（用户实测问题 ②）。
+   */
+  const timelineRef = useRef<HTMLElement | null>(null);
   const today = useAsyncQuery({
     queryKey: ['today'],
     queryFn: (signal) =>
@@ -710,13 +715,16 @@ export function TodayPanel() {
 
   return (
     <div className={styles.today} ref={revealRef}>
-      {/* ── 页头与激光舞台（UI-012）：舞台覆盖「页头 + 当前行动卡」——光束从
-          页面顶部坠下、穿过标题区落到卡片顶边（canvas 由 LaserFlow 组件渲染，
-          画布左右扩宽与裁切见该组件说明）。 ── */}
+      {/* ── 页头与激光舞台（UI-012）：舞台覆盖「页头 + 落点卡」——光束从屏幕顶部
+          坠下、穿过标题区落到落点卡顶边。**落点卡 = 有当前行动时的 hero，
+          否则第一张卡（时间线）**：光总要有一张卡可「击中」（canvas 由 LaserFlow
+          渲染，画布扩宽/向下补位/裁切见该组件与样式说明）。 ── */}
       <div className={styles.laserStage}>
         {/* 光效先于内容入场（DOM 序在前后文之上，卡片自身带定位层叠在上）；
             只在成功态挂载——骨架期没有「落点卡片」，没必要起 WebGL。 */}
-        {today.state.status === 'success' ? <LaserFlow surfaceRef={heroRef} /> : null}
+        {today.state.status === 'success' ? (
+          <LaserFlow surfaceRef={view?.currentAction != null ? heroRef : timelineRef} />
+        ) : null}
         {view === null ? null : <p className={styles.eyebrow}>{dayEyebrow(view.date)}</p>}
         <div className={styles.pageHead}>
           <div className={styles.headTitle}>
@@ -796,8 +804,9 @@ export function TodayPanel() {
 
             return (
               <>
-                {/* 时间线（甘特）*/}
+                {/* 时间线（甘特）——无当前行动时它即「落点卡」（ref 供激光测量）。 */}
                 <section
+                  ref={timelineRef}
                   aria-label="时间线"
                   data-tour="today-timeline"
                   data-reveal
