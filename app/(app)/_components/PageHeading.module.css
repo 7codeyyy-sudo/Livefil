@@ -12,7 +12,21 @@
   /* 页面标题的字距（令牌 `--font-letter-spacing-page-title`，取 -0.02em）：
      汉字字面本无空隙，负值只做极轻的收束，不挤压笔画。 */
   letter-spacing: var(--font-letter-spacing-page-title);
-  color: var(--color-text-primary);
+  /* 渐变墨色（v0.29，UI-012「渐变 + 对焦」的渐变半）：墨色在顶部、向下渐灰，
+     平面里多一层「光的方向」。起点取 `--color-text-primary`（两态自动换色），
+     收尾取 `--color-title-fade`。`color: transparent` 是渐变文字的标准写法，
+     语义文字仍在 DOM 里照常读出。 */
+  background-image: linear-gradient(168deg, var(--color-text-primary) 28%, var(--color-title-fade));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* 对焦入场（v0.29，UI-012「渐变 + 对焦」的对焦半）：从模糊到清晰一次性揭示，
+     零循环。时长 `calc(var(--duration-slow) * 3)`、延迟
+     `calc(var(--duration-slow) * 0.6)` 全部由令牌派生；
+     reduced-motion 不在此写媒体查询：tokens.css 在 reduce 下把 duration 归零，
+     动画瞬时完成即等效关闭（规范只允许令牌单点降级）。 */
+  animation: title-focus calc(var(--duration-slow) * 3) var(--ease-standard)
+    calc(var(--duration-slow) * 0.6) both;
   /* 页标题与页面内容的间距。UI-011（v0.27 §2.3）升格为 `--space-10`（40px）：
      预览稿 `f-type` 档的页标题大呼吸位，比区块间 56px 小、比区块标题→内容
      12px 大，三档递减是层次的来源。原型 `.page-heading` 为 34px，v0.12 起实现
@@ -21,31 +35,24 @@
      （`AppShell.module.css` 的 `.page`）也没有纵向 gap——两者叠加的结果是
      标题与内容**零间距**，所以间距必须由这里给出。
      放在这里而不是给 `.page` 加 gap：`margin` 会与相邻兄弟的上外边距**折叠**
-     （取两者较大值）。 */
+     （取两者较大值）。
+     个别页头（如 `/today` 的「标题 + 右侧数字」同排行）由该页在自己的样式里
+     局部消去此下距（`.headTitle h1 { margin-bottom: 0 }`），行距改由页头行
+     统一给出——这是局部覆写，不是本节契约的变化。 */
   margin-bottom: var(--space-10);
 }
 
-/* ── 逐字入场（UI-011 §6.1 SplitText）──────────────────────────────────────
-   每个字符一个 `span.ch`，`--i` 为字符序号（组件内联写入）。
-   时长 `calc(var(--duration-slow) * 5)`、错峰 `calc(var(--i) * var(--duration-base))`
-   全部由令牌派生；`backwards` 让首帧停在 from 态，避免动画开始前先闪现终态。
-   `display: inline-block` 是位移生效的前提（行内元素的 transform 无效），
-   汉字等宽盒不改变行盒高度——动画前后版式一致。
-   reduced-motion 不在此写媒体查询：tokens.css 在 reduce 下把 duration 全部
-   归为极小值，动画瞬时完成即等效关闭（规范只允许令牌单点降级）。 */
-.ch {
-  display: inline-block;
-  animation: ch-rise calc(var(--duration-slow) * 5) var(--ease-standard) backwards;
-  animation-delay: calc(var(--i) * var(--duration-base));
-}
-
-@keyframes ch-rise {
+/* 对焦入场的位移用 `translate`（4px 取 `--space-1`）；`filter` 的 9px 是
+   模糊半径（绘图参数，非设计取值）。 */
+@keyframes title-focus {
   from {
+    filter: blur(9px);
     opacity: 0;
-    transform: translateY(var(--space-10));
+    transform: translateY(var(--space-1));
   }
 
   to {
+    filter: blur(0);
     opacity: 1;
     transform: translateY(0);
   }

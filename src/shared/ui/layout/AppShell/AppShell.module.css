@@ -15,6 +15,15 @@
      会按内容的 min-content 撑开轨道——长 URL、宽表格、`nowrap` 的标签
      都会把整个外壳顶出横向滚动条（UI-002 的抽屉撞过同一个坑）。 */
   grid-template-columns: 232px minmax(0, 1fr);
+  /* 横向溢出裁剪（v0.29，UI-012）：今日页的 LaserFlow 画布左右各扩 420px，
+     画布本身超出视口——不裁剪会把页面撑宽、出现横向滚动。裁在应用根容器上
+     （而不是 html：html 的 overflow 会传播到视口，x/y 取值组合后裁剪不可靠）；
+     `clip` 不创建滚动容器，视口内的光晕照常可见、只裁掉视口外的部分。
+     第一行 `hidden` 是不支持 `clip` 的浏览器的回退（同下方 dvh 的写法）。
+     固定定位的后代（背景层、抽屉、Toast、导览层）不受影响：外壳不是它们的
+     包含块（无 transform/filter/will-change），overflow 裁不到它们。 */
+  overflow-x: hidden;
+  overflow-x: clip;
   /* 两行 height 是刻意的回退写法：不支持 `dvh` 的浏览器用第一行的 `100vh`，
      支持的第二行覆盖。移动端地址栏收放时 `vh` 不跟着变，
      外壳底部会露出一条页面底色。 */

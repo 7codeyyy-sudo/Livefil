@@ -74,7 +74,8 @@ test.describe('今日页（UI-007）', () => {
     await expect(page.getByText('阅读 30 分钟')).toBeVisible();
     await expect(page.getByText('线下坐班')).toBeVisible();
     await expect(page.getByText('整理书桌')).toBeVisible();
-    await expect(page.getByText('过期', { exact: true })).toBeVisible();
+    // v0.29（UI-012）：未安排行不再挂「过期」徽章，过期态由卡头计数与行内日期共同表达。
+    await expect(page.getByText('1 项 · 1 过期')).toBeVisible();
     await expect(page.getByText('最近两天完成得不多，要不要减轻一点？')).toBeVisible();
     // 可关闭（可忽略，不自动改计划）。
     await page.getByRole('button', { name: '知道了' }).click();

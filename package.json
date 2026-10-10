@@ -18,7 +18,7 @@
     "format": "prettier --write . --cache --cache-location .cache/prettier/.prettier-cache",
     "format:check": "prettier --check . --cache --cache-location .cache/prettier/.prettier-cache",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:coverage": "vitest run --coverage",

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { clientEnv } from '@/shared/validation/env.client';
@@ -9,6 +10,69 @@ import { PRIMARY_NAV_ITEMS, SETTINGS_NAV_ITEM } from './nav-items';
 import { useDayCard } from './use-day-card';
 
 import styles from './SidebarContent.module.css';
+
+/** 时间尺的范围与刻度（与今日页时间骨架同口径：08–22 基线、4 小时一笔）。 */
+const RULER_START_HOUR = 8;
+const RULER_END_HOUR = 22;
+const RULER_TICK_HOURS = [8, 12, 16, 20] as const;
+
+/** 尺上位置（0–100 的布局比例）：把当天分钟映射到 08–22 窗口，窗口外钳到端点。 */
+function rulerAt(minutes: number): number {
+  const start = RULER_START_HOUR * 60;
+  const end = RULER_END_HOUR * 60;
+  const clamped = Math.min(end, Math.max(start, minutes));
+  return ((clamped - start) / (end - start)) * 100;
+}
+
+/**
+ * 侧栏今日时间尺（UI-012，《UI 页面规范》v0.29 §3.2）。
+ *
+ * 形态语言与主区时间线一致（横尺 + 已过段 + 现在的竖线，**不用圆形**）：
+ * 强调色在这条尺上表达「当前时刻」，正是 §2.1 强调色（当前状态）的本义。
+ * 入场时已过段与现在线一起**一次性展开**（宽度/位移过渡，零循环），
+ * reduce 下由 tokens.css 单点归零自动收敛。整把尺是视觉辅助，对读屏隐藏
+ * （`aria-hidden`），语义由下方 note 文字承担——同一句话不读两遍。
+ *
+ * 位置是**内联百分比**（0–100 的布局比例，非设计取值，与主区时间骨架同例）；
+ * 宽度初值 0，下一帧写入目标值，过渡据此播一次展开。
+ */
+function DayRuler({ minutes }: { readonly minutes: number }) {
+  const [position, setPosition] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handle = requestAnimationFrame(() => {
+      setPosition(rulerAt(minutes));
+    });
+    return () => {
+      cancelAnimationFrame(handle);
+    };
+  }, [minutes]);
+
+  const at = (hour: number): { readonly left: string } => ({
+    left: `${String(rulerAt(hour * 60))}%`,
+  });
+
+  return (
+    <div className={styles.dayRuler} aria-hidden="true">
+      <span className={styles.rulerTrack}>
+        <span className={styles.rulerFill} style={{ width: `${String(position ?? 0)}%` }} />
+        <span className={styles.rulerNow} style={{ left: `${String(position ?? 0)}%` }} />
+      </span>
+      <span className={styles.rulerTicks}>
+        {RULER_TICK_HOURS.map((hour) => (
+          <span key={hour} className={styles.rulerTick} style={at(hour)} />
+        ))}
+      </span>
+      <span className={styles.rulerAxis}>
+        {RULER_TICK_HOURS.map((hour) => (
+          <span key={hour} className={styles.rulerLabel} style={at(hour)}>
+            {String(hour).padStart(2, '0')}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
 
 export type SidebarContentProps = {
   /**
@@ -64,21 +128,16 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
         <span className={styles.brandName}>{clientEnv.appName}</span>
       </Link>
 
-      {/* 日期升格（UI-011，v0.27 §3.2）：一行灰日期 → 日期 + 星期·第 N 周
-          + 当日进度细线 + 「今天已过 X%」。水合期间 `dayCard` 为 null，
-          本块渲染空骨架（与服务端产出一致），水合完成后填入真值。 */}
+      {/* 日期升格（UI-011）→ **今日时间尺**（UI-012，v0.29 §3.2）：日期 +
+          星期·第 N 周 + 08–22 横向时间尺 + 「今天已过 X%」。水合期间
+          `dayCard` 为 null，本块渲染空骨架（与服务端产出一致），水合完成后
+          填入真值并一次性展开。 */}
       <div className={styles.dateCard}>
         <p className={styles.date}>{dayCard?.date ?? ''}</p>
         <p className={styles.week}>{dayCard?.week ?? ''}</p>
+        {dayCard === null ? null : <DayRuler minutes={dayCard.minutes} />}
         {dayCard === null ? null : (
-          <>
-            {/* 进度线是绘图几何（装饰），对读屏隐藏；语义由下方 note 文字承担，
-                避免同一句话被读两遍。宽度 = 当天已过百分比（内联百分比非令牌量）。 */}
-            <span className={styles.dayTrack} aria-hidden="true">
-              <span className={styles.dayFill} style={{ width: `${String(dayCard.pct)}%` }} />
-            </span>
-            <span className={styles.dayNote}>今天已过 {String(dayCard.pct)}%</span>
-          </>
+          <span className={styles.dayNote}>今天已过 {String(dayCard.pct)}%</span>
         )}
       </div>
 

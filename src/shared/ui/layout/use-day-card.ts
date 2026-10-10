@@ -33,6 +33,14 @@ export type DayCard = {
   readonly week: string;
   /** 当天已过百分比（0–100，自然日 24 小时口径，四舍五入到整数）。 */
   readonly pct: number;
+  /**
+   * 当天已过分钟数（0 到一天的最后一分钟）。
+   *
+   * v0.29（UI-012）侧栏时间尺需要按「08–22 窗口」换算已过段的宽度，
+   * 百分比（`pct`，自然日口径）不够用——两个口径是刻意分开的：尺是
+   * 「现在在哪」的读数（08–22），note 是「今天已过多少」（自然日）。
+   */
+  readonly minutes: number;
 };
 
 const weekdayFormatter = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' });
@@ -59,6 +67,7 @@ function build(now: Date): DayCard {
     date: `${String(now.getMonth() + 1)}月${String(now.getDate())}日`,
     week: `${weekdayFormatter.format(now)} · 第 ${String(isoWeek(now))} 周`,
     pct: Math.round((minutes / MINUTES_PER_DAY) * 100),
+    minutes,
   };
 }
 
