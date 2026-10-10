@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
+import { AmbientField } from './_components/AmbientField';
 import { BackgroundFieldContainer } from './_components/BackgroundFieldContainer';
 import { GlareField } from './_components/GlareField';
 import { GuideTourLayer } from './_components/GuideTourLayer';
@@ -56,6 +57,9 @@ export default function AppGroupLayout({ children }: { readonly children: ReactN
           登录页自身的 401 不触发跳转（防循环），本地部署下静默空转。 */}
       <SessionGuard />
       <BackgroundFieldContainer />
+      {/* 环境层（UI-012）：噪声 + 窗格光——两层纯装饰的固定图层，与背景层
+          平级挂载（噪声在内容之上、窗格光在内容之下，层级见各自样式）。 */}
+      <AmbientField />
       {/* 悬停眩光的全局指针委托（UI-011 §6.1）：不渲染 DOM，只在挂载期间
           监听 document 指针移动，给带 `data-glare` 的元素写坐标。 */}
       <GlareField />

@@ -57,23 +57,79 @@
   letter-spacing: var(--font-letter-spacing-eyebrow);
 }
 
-/* 进度细线：2px 高、全圆端帽——线是绘图几何，不是设计取值（预览稿同注）。
-   轨道用最浅的 surface-soft，填充用墨色：一天的流逝不是「当前页」状态，
-   不占用强调色（§2.1 强调色＝当前状态）。 */
-.dayTrack {
-  display: block;
-  height: 2px;
-  margin-top: var(--space-3);
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-soft);
+/* ── 今日时间尺（UI-012，v0.29 §3.2）────────────────────────────────────
+   08–22 横尺：已过段（accent）+ 现在位置的竖线 + 整点刻度与轴标签。
+   轨道高 3px、端帽全圆（绘图几何而非设计取值，与主区时间骨架同注）。
+   已过段与现在线入场时一次性展开：时长与延迟由 --duration-slow 派生，
+   reduce 时令牌单点归零、展开瞬时完成。 */
+.dayRuler {
+  margin-top: var(--space-4);
 }
 
-.dayFill {
+.rulerTrack {
+  position: relative;
   display: block;
-  height: 100%;
+  height: 3px;
   border-radius: var(--radius-pill);
-  background-color: var(--color-text-primary);
+  background-color: var(--color-border);
+}
+
+/* 已过段：强调色——尺上表达「已过到现在」这一段，§2.1 强调色（当前状态）本义。 */
+.rulerFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  transition: width calc(var(--duration-slow) * 4) var(--ease-standard)
+    calc(var(--duration-slow) * 1.5);
+}
+
+/* 现在位置的竖线：与主区时间线「现在」指示同一视觉语言。 */
+.rulerNow {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  transition: left calc(var(--duration-slow) * 4) var(--ease-standard)
+    calc(var(--duration-slow) * 1.5);
+}
+
+.rulerTicks {
+  position: relative;
+  display: block;
+  height: 0;
+}
+
+/* 整点刻度：尺下的短竖线（1px×5px），比基线深一档（border-strong）。 */
+.rulerTick {
+  position: absolute;
+  top: 3px;
+  width: 1px;
+  height: 5px;
+  background-color: var(--color-border-strong);
+}
+
+.rulerAxis {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin-top: var(--space-2);
+}
+
+.rulerLabel {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .dayNote {
@@ -158,9 +214,9 @@
     font-size: 0;
   }
 
-  /* 日期卡整体让位：单栏里既放不下文字，也没有横向空间画进度线
-     （进度线是装饰，直接不渲染；文字保留在无障碍树里）。 */
-  .dayTrack {
+  /* 日期卡整体让位：单栏里既放不下文字，也没有横向空间画时间尺
+     （尺是装饰，直接不渲染；文字保留在无障碍树里）。 */
+  .dayRuler {
     display: none;
   }
 

@@ -1,0 +1,90 @@
+/**
+ * 环境层样式（UI-012）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ * 几何量（400×340、blur 9px 这类绘图参数）与既有背景层同例：就地书写并注明来源。
+ */
+
+/* ── 噪声层：静态颗粒（零循环）──────────────────────────────────────────
+   层级走 `--z-texture`（内容之上、遮罩之下）：卡片也要吃到颗粒，而浮层
+   面板保持干净表面。颗粒是 SVG 湍流、随主题换混合模式与不透明度（令牌两态）。 */
+.noise {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-texture);
+  pointer-events: none;
+  opacity: var(--noise-opacity);
+  mix-blend-mode: var(--noise-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── 窗格光：右上斜射的环境光 ────────────────────────────────────────────
+   与装饰背景同为负层级的一层（低于一切内容）；固定 400×340（预览稿实测的
+   光斑尺寸），斜置 -16°，一半在视口外（右上角掠入）。 */
+.dapple {
+  position: fixed;
+  top: -5%;
+  right: -3%;
+  width: 400px;
+  height: 340px;
+  z-index: var(--z-background);
+  pointer-events: none;
+  transform: rotate(-16deg);
+}
+
+/* 光本体：三层叠加——横窗缝、纵窗缝（都用页面底色把光遮出缝），
+   再压一层径向光斑（深/浅两级走 dapple 令牌）。blur 9px 为预览稿实测值。 */
+.window {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  filter: blur(9px);
+  background:
+    linear-gradient(0deg, transparent 0 46%, var(--color-bg-page) 46% 50%, transparent 50%),
+    linear-gradient(
+      90deg,
+      transparent 0 30%,
+      var(--color-bg-page) 30% 33%,
+      transparent 33% 62%,
+      var(--color-bg-page) 62% 65%,
+      transparent 65%
+    ),
+    radial-gradient(
+      120% 110% at 38% 32%,
+      var(--color-dapple-a) 0%,
+      var(--color-dapple-b) 55%,
+      transparent 78%
+    );
+}
+
+/* 叶影：三片不规则圆角块，同样用页面底色「挡光」；blur 13px 为预览稿实测值。 */
+.leaf {
+  position: absolute;
+  background: var(--color-bg-page);
+  filter: blur(13px);
+  border-radius: 58% 42% 55% 45% / 52% 58% 42% 48%;
+}
+
+.leaf1 {
+  width: 86px;
+  height: 54px;
+  right: 34px;
+  top: 42px;
+  transform: rotate(24deg);
+}
+
+.leaf2 {
+  width: 70px;
+  height: 46px;
+  right: 118px;
+  top: 128px;
+  transform: rotate(-32deg);
+}
+
+.leaf3 {
+  width: 58px;
+  height: 40px;
+  right: 28px;
+  top: 208px;
+  transform: rotate(12deg);
+}
