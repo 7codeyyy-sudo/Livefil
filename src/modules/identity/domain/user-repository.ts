@@ -36,8 +36,16 @@ export interface UserRepository {
    * 更新设置：单事务读—改—写回，带乐观并发。
    *
    * @param expectedVersion 调用方拿到的版本号。
+   * @param displayName 名字（AUTH-002 契约增补 #6）——**独立于 settings 分组**
+   * 的可选参数：`UserSettingsPatch` 只收设置字段，把顶层列混进去会让 fake 与
+   * 真实实现的 patch 语义分叉（tests/ 红线不可改，可选参数是唯一不破面的通路）。
    * @returns 写入后的新用户（`version` 已自增）。
    * @throws {ConflictError} 版本与库中不符时抛出（由实现负责抛领域错误）。
    */
-  updateSettings(userId: string, patch: UserSettingsPatch, expectedVersion: number): Promise<User>;
+  updateSettings(
+    userId: string,
+    patch: UserSettingsPatch,
+    expectedVersion: number,
+    displayName?: string | null,
+  ): Promise<User>;
 }

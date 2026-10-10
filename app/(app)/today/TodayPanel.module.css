@@ -8,6 +8,72 @@
   gap: var(--space-7);
 }
 
+/* 成功态根容器（UI-011）：区块化后**不设 gap**——区块间距由相邻 `.block`
+   的上下内边距相加构成（28+28=56，见规范 §2.3），再加 gap 会叠成 84px。
+   非区块元素（当前行动卡片、固定事项表单）自带 margin 补节奏。 */
+.blocks {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 区块卡片（§2.3 / UI-011 §6.1）：水平出血对消页面内边距，悬停只给 1px
+   描边不抬升。一次性入场由 `--i`（组件内联）错峰，延迟从令牌派生
+   （base/5 × 序号，与预览稿 `nth-of-type` 同值）；fill-mode 用 backwards——
+   延迟期停在起始帧，结束后回基础样式，不残留 transform 包含块。
+   reduced-motion 不写媒体查询：令牌在 reduce 下归为极小值，动画瞬时完成。 */
+.block {
+  margin-inline: calc(-1 * var(--space-4));
+  padding: var(--space-7) var(--space-4);
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--duration-base) var(--ease-standard);
+  animation: block-enter var(--duration-base) var(--ease-standard) backwards;
+  animation-delay: calc(var(--i) * var(--duration-base) / 5);
+}
+
+@keyframes block-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 悬停细描边：给「这块可操作」一个克制的信号，不做抬升、不做位移。 */
+.block:hover {
+  box-shadow: 0 0 0 1px var(--color-border);
+}
+
+/* 标题行：h2 左、定量小字右（等宽数字，「3 过期」不因数字宽度左右跳）。 */
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* 眉标：给区块一个语境（时点/去处/日期），不是装饰——只给有真实语境的三块。 */
+.eyebrow {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
+}
+
+.blockMeta {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .heading {
   /* 区块标题与其下方内容的间距。原为 `--space-2`（8px），标题与内容几乎粘住——
      它是全仓唯一一处这个写法。抬到 `--space-3`（12px）：仍明显小于区块之间的
@@ -21,6 +87,8 @@
 }
 
 .currentAction {
+  /* 与后随区块的描边留出呼吸（`.blocks` 无 gap，卡片自身补 margin）。 */
+  margin-bottom: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-left: 3px solid var(--color-accent);
@@ -70,6 +138,12 @@
   gap: var(--space-3);
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-border);
+  /* 微交互（UI-011 §6.1）：悬停浅底 + 眩光（见 `.blockRow[data-glare]`）。 */
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.blockRow:hover {
+  background-color: var(--color-surface-soft);
 }
 
 .blockTime {
@@ -133,6 +207,12 @@
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
   border-bottom: 1px solid var(--color-border);
+  /* 同 `.blockRow`：悬停浅底 + 眩光。 */
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.unscheduledRow:hover {
+  background-color: var(--color-surface-soft);
 }
 
 .overdueBadge {
@@ -146,8 +226,10 @@
 }
 
 .loadLine {
-  margin: 0;
-  color: var(--color-text-primary);
+  /* 摘要文字让位给上方的 figure 数字：与预览稿 summary-text 同档
+     （text-secondary），量感留给数字本身。 */
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
 }
@@ -193,4 +275,217 @@
 .formActions {
   display: flex;
   gap: var(--space-2);
+}
+
+/* 表单不是 `.block`：自带上距，与上一区块的描边留出呼吸。 */
+.formSlot {
+  margin-top: var(--space-4);
+}
+
+/* ── 时间骨架（UI-011 §6.1）08–22 基线 + 每 4 小时短刻度 + 「现在」线 ──────
+   只留一条基线：四边硬边方框在满是圆角的界面里读起来像没做完的表单控件。
+   左右各内缩一档：首末刻度标签是 `translateX(-50%)` 居中的，贴边画会裁掉半边。 */
+.ruler {
+  position: relative;
+  height: 44px;
+  margin: var(--space-4) var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 短刻度：从基线向上 4px。满高竖线会把一条基线又变回一张网格。 */
+.rulerLine {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+  background-color: var(--color-border);
+}
+
+.rulerLabel {
+  position: absolute;
+  bottom: var(--space-2);
+  transform: translateX(-50%);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 「现在」指示线是这个区块里唯一一处强调色——同一语义只画一次（不加顶点圆）。 */
+.rulerNow {
+  position: absolute;
+  top: 0;
+  bottom: -3px;
+  width: 1.5px;
+  background-color: var(--color-accent);
+}
+
+.rulerNowTag {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: var(--color-accent);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 建议项：把「常见固定事项」变成一次点击，空态因此有了出路。 */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* 安静文本项：无描边药丸、无彩点，只留一层几乎看不见的浅底。
+   `overflow: hidden` 把眩光收在圆角内（行是方角，不需要裁剪）。 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.chip:hover {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ── 悬停眩光（§6.1）：径向白光随指针位置浮现 ─────────────────────────────
+   只挂自带底色的元素（行的浅底 hover、chip 的浅底、primary 的近黑底）；
+   白底区块不挂——白色眩光在白底上等于看不见，挂了就是装饰。
+   `--gx/--gy` 由全局 `GlareField` 委托写入；行是方角，`inset: 0` 的
+   ::after 与行盒重合，无需 overflow 裁剪（chip 的裁剪在 `.chip` 里）。
+   时长 `calc(var(--duration-slow) * 3)` 令牌派生，只给 opacity 过渡。 */
+.blockRow[data-glare],
+.unscheduledRow[data-glare] {
+  position: relative;
+}
+
+.blockRow[data-glare]::after,
+.unscheduledRow[data-glare]::after,
+.chip[data-glare]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    var(--glare-size) circle at var(--gx, 50%) var(--gy, 50%),
+    var(--color-surface),
+    transparent
+  );
+  transition: opacity calc(var(--duration-slow) * 3) var(--ease-standard);
+}
+
+.blockRow[data-glare]:hover::after,
+.unscheduledRow[data-glare]:hover::after,
+.chip[data-glare]:hover::after {
+  opacity: var(--glare-opacity);
+}
+
+/* ── 今日摘要的数字与本周迷你条 ────────────────────────────────────────────
+   figure-cap 用眉标字阶起意，figure 用 figure 档给量——小字起意、大字给量。 */
+.figureCap {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
+}
+
+.figure {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-figure);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-figure);
+  letter-spacing: var(--font-letter-spacing-figure);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryViz {
+  margin-top: var(--space-4);
+}
+
+.weekHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-3);
+}
+
+.weekBars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  height: 44px;
+}
+
+.weekCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.weekBar {
+  width: 100%;
+  max-width: 20px;
+  /* 预览稿为 3px 字面量；令牌纪律下换 `--radius-sm`（20px 宽条渲染为胶囊端帽，
+     与预览稿的差异已在 UI-011 交付说明中如实记录）。 */
+  border-radius: var(--radius-sm);
+  background-color: var(--color-border);
+}
+
+/* 「今天」只挂在列上（与日期文字同宿主）；用墨色+字重标记，不借强调色——
+   这一屏的蓝已经花在「现在」指示线上，再竖一根蓝柱强调就被稀释成配色。 */
+.weekCol[data-today='true'] .weekBar {
+  background-color: var(--color-text-primary);
+}
+
+.weekDay {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+}
+
+.weekCol[data-today='true'] .weekDay {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── 手机档（§3.1 ≤767px）─────────────────────────────────────────────────
+   触屏没有 hover：按下态补回反馈；触控目标抬到 44px 下限；
+   区块出血收窄——页面内边距已是 16px，桌面那档会让悬停描边压在屏幕边缘上。 */
+@media (max-width: 767px) {
+  .block {
+    margin-inline: calc(-1 * var(--space-2));
+    padding-inline: var(--space-2);
+  }
+
+  .blockRow:active,
+  .unscheduledRow:active {
+    background-color: var(--color-surface-soft);
+  }
+
+  .chip {
+    min-height: var(--size-touch-min);
+  }
 }

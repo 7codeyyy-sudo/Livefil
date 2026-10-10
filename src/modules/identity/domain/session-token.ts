@@ -22,6 +22,15 @@ export interface SessionPayload {
   readonly userId: string;
   /** 签发时间（epoch 毫秒）。 */
   readonly issuedAt: number;
+  /**
+   * 认证部署的会话 id（AUTH-002 扩展，RD-012 §8.2）。
+   *
+   * 可选字段——本地令牌不携带（形状不变、既有令牌与测试零影响）；
+   * 云端令牌必须携带，由门禁的形状判定强制（`isCloudPayload`）。
+   */
+  readonly sessionId?: string;
+  /** 令牌前置快拒用的过期时刻（epoch 毫秒）；权威过期以 sessions 行为准。 */
+  readonly exp?: number;
 }
 
 /**

@@ -100,10 +100,24 @@ export const users = pgTable(
     defaultBufferMinutes: integer('default_buffer_minutes'),
     aiEnabled: boolean('ai_enabled').default(false).notNull(),
     aiDataConsent: boolean('ai_data_consent').default(false).notNull(),
+    /**
+     * 批 A 增列（AUTH-001，2026-10-09；《数据库设计文档》§4.1 批 A 注记）。
+     *
+     * `username`：档 A 登录标识 A-2。可空——本地用户恒 NULL，唯一索引对全 NULL
+     * 不生效（PG 语义），存量行零影响。写入前在应用层 trim + ASCII 小写归一，
+     * 于是唯一索引即「大小写不敏感」。字符集不含 `@`，与邮箱路径零重叠——
+     * 登录标识「含 @ 走邮箱、否则走 username」的单一判定规则由此成立。
+     */
+    username: varchar('username', { length: 30 }),
+    /** scrypt 编码串（`scrypt$N$r$p$salt$hash`）；本地用户恒 NULL。 */
+    passwordHash: varchar('password_hash', { length: 160 }),
+    /** 注册核码通过时写入、改邮箱成功时更新；云端用户恒非空（应用层不变式）。 */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true, mode: 'date' }),
     ...commonColumns(),
   },
   (table) => [
     uniqueIndex('users_email_unique').on(table.email),
+    uniqueIndex('users_username_unique').on(table.username),
     index('users_mode_idx').on(table.mode),
     /**
      * 「本地模式至多一个用户」的部分唯一索引（IAM-001 的幂等硬保证）。
@@ -119,6 +133,17 @@ export const users = pgTable(
     uniqueIndex('users_single_local_unique')
       .on(table.mode)
       .where(sql`mode = 'local'`),
+    /**
+     * 云端用户必须同时具备登录标识与凭据（AUTH-001，RD-012 §2.1）。
+     *
+     * 存量行清一色 `mode='local'`，约束对它们零破坏；应用层注册流程单事务写入
+     * email + password_hash，永远满足本约束——它防的是「绕过应用直插半成品
+     * cloud 行」这类漂移，而不是正常路径。
+     */
+    check(
+      'users_cloud_requires_credentials',
+      sql`mode = 'local' OR (email IS NOT NULL AND password_hash IS NOT NULL)`,
+    ),
   ],
 );
 
@@ -446,7 +471,20 @@ export const routineSteps = pgTable(
     ...commonColumns(),
   },
   (table) => [
-    uniqueIndex('routine_steps_position_unique').on(table.routineId, table.position),
+    /**
+     * 活跃步骤的位置唯一（DB §4.7「(routine_id, position) 唯一且从 0 连续」）。
+     *
+     * **部分索引（`WHERE deleted_at IS NULL`，批 1 迁移 0009 由全局索引改来）**：
+     * 软删语义要求唯一性只约束「在用行」——全局唯一会让一条已软删步骤**永久
+     * 占住它的位置**，导入 replace（契约 §13：先软删既有、再写入文件）与任何
+     * 「删一步再补一步」的编辑都会被墓碑行挡住。同一模式已在仓库内有先例：
+     * `life_areas_user_active_name_unique`（归档项不占名）与
+     * `tasks_template_due_unique`（模板行才参与）。索引名不变——只放宽、不收紧，
+     * 既有数据与既有约束断言零影响。
+     */
+    uniqueIndex('routine_steps_position_unique')
+      .on(table.routineId, table.position)
+      .where(sql`deleted_at is null`),
     // 同步增量拉取（DB §4.18.1(4)）。
     index('routine_steps_user_updated_idx').on(table.userId, table.updatedAt, table.id),
   ],
@@ -944,6 +982,118 @@ export type AiDraftRow = typeof aiDrafts.$inferSelect;
 export type NewAiDraftRow = typeof aiDrafts.$inferInsert;
 export type AiUsageRow = typeof aiUsage.$inferSelect;
 export type NewAiUsageRow = typeof aiUsage.$inferInsert;
+
+/**
+ * 认证部署的可吊销会话表（AUTH-001，《数据库设计文档》§4.19；RD-012 §2.2）。
+ *
+ * 甲案三要件（可吊销 + 多设备 + 设备标签）的落点。本地部署不写入本表——
+ * 本地会话仍为无状态 HMAC Cookie（详设 §8.1）。**不设 `version`/`deleted_at`/
+ * `token_hash`**：不入同步白名单、无 CAS 与墓碑需求，令牌完整性由 HMAC 签名
+ * 承担（选型论证见 RD-012 §2.3——签名令牌 + sessions 行 vs 不透明令牌 + token_hash，
+ * 终审裁定取前者），不留无写入路径的死列（对齐 §4.12.1 取舍）。
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    /** sessionId，签入令牌载荷（令牌＝HMAC 签名，载荷含 userId/sessionId/issuedAt/exp）。 */
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 登录时取 User-Agent 截断 + 去控制字符落存；不做 UA 解析库（零依赖）。 */
+    deviceLabel: varchar('device_label', { length: 120 }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    /** 更新节流 ≥5 分钟（防每请求写放大）。 */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    /** 签发＝now+30 天；半衰点（剩余 <15 天）滑动续期至 now+30 天。 */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** 吊销＝置值（登出/改密/重置/改邮箱/账户删除）；非空即失效，行状态为权威。 */
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    index('sessions_user_idx').on(table.userId),
+    index('sessions_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+/**
+ * 邮箱验证码存储（AUTH-001，《数据库设计文档》§4.20；RD-012 §2.4）。
+ *
+ * 挂账 5「邮件/验证码通道」解锁落点：6 位 / 10 分钟 / 错 5 次作废 / 每邮箱限流 /
+ * 统一文案防枚举（终审确认口径）。`code_hash` 为 HMAC-SHA256（AUTH_SECRET 分域
+ * 派生，消息＝`purpose|email|code`）——**不存明文**，库泄露 ≠ 码泄露。
+ * 跨 purpose 不可用；单活跃码（同 (email,purpose) 新发即同事务置旧码 consumed_at）。
+ */
+export const emailVerificationCodes = pgTable(
+  'email_verification_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** 归一小写。register 时用户尚不存在，故按 email 归属、不设 user_id。 */
+    email: varchar('email', { length: 320 }).notNull(),
+    /** register / login / password_reset / change_email。 */
+    purpose: varchar('purpose', { length: 16 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }).notNull(),
+    /** ≥5 作废（每次错验 +1，同码累计）。 */
+    attempts: smallint('attempts').default(0).notNull(),
+    /** created_at + 10 分钟。 */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** 验证成功/作废/被新码取代即置值；一次性。 */
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
+    /** 频控窗口计数依据。 */
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    // 每邮箱限流计数 + 单活跃码定位。
+    index('email_verification_codes_email_purpose_created_idx').on(
+      table.email,
+      table.purpose,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * 账户删除请求（OPS-002，接口 §13 删除面；批 1 迁移 0009）。
+ *
+ * 三态一行记全：发起（`requested_at`）→ 撤销（`cancelled_at`，7 天窗口内）
+ * 或到期清理（`purged_at`，由 `scripts/` 层的到期清理脚本写入——cron 面接线
+ * 归批 3 OPS-006）。`purge_at = requested_at + 7 天`（契约冻结八定值：撤销窗 7 天）。
+ *
+ * **一行只代表一次请求**：活跃期间重复发起返回既有行（幂等，不叠新行）；
+ * 撤销后再发起会新建行。不设 `version`——本表只由单用户自己的请求推进，
+ * 无跨端 CAS 需求（同 §4.13 精简理由）。
+ */
+export const deletionRequests = pgTable(
+  'deletion_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 发起时刻；撤销窗与到期判定的基准。 */
+    requestedAt: timestamp('requested_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** `requested_at + 7 天`（契约冻结值）；到期由清理脚本执行物理删除。 */
+    purgeAt: timestamp('purge_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** 窗口内撤销即置值（非空＝该请求已失效）。 */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+    /** 清理脚本完成物理删除后置值（非空＝已执行）。 */
+    purgedAt: timestamp('purged_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    // 活跃请求定位与到期扫描（脚本按 purge_at 扫，小表全扫可接受）。
+    index('deletion_requests_user_idx').on(table.userId, table.purgeAt),
+  ],
+);
+
+export type SessionRow = typeof sessions.$inferSelect;
+export type NewSessionRow = typeof sessions.$inferInsert;
+export type EmailVerificationCodeRow = typeof emailVerificationCodes.$inferSelect;
+export type NewEmailVerificationCodeRow = typeof emailVerificationCodes.$inferInsert;
+export type DeletionRequestRow = typeof deletionRequests.$inferSelect;
+export type NewDeletionRequestRow = typeof deletionRequests.$inferInsert;
 
 export type ScheduleBlockRow = typeof scheduleBlocks.$inferSelect;
 export type NewScheduleBlockRow = typeof scheduleBlocks.$inferInsert;

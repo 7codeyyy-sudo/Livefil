@@ -20,6 +20,12 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
 /** 表示「不调用外部 AI 服务」的供应商标识，也是本地开发的默认值。 */
 export const MOCK_AI_PROVIDER = 'mock';
 
+/** 部署形态（AUTH-002）：本地自用（默认）或认证部署。 */
+export type AppMode = 'local' | 'cloud';
+
+/** 邮件通道提供方（AUTH-002）：仅 dev/test 的 mock，或真实 HTTP API。 */
+export type EmailProvider = 'mock' | 'http';
+
 const DEFAULT_LOG_LEVEL: LogLevel = 'info';
 
 const DEFAULT_AI_PROVIDER = MOCK_AI_PROVIDER;
@@ -160,6 +166,41 @@ const serverEnvSchema = z
       })
       .optional(),
     /**
+     * 部署形态开关（AUTH-002，RD-012 §5.1，验收红线的判据来源）。
+     *
+     * 缺省 `local`——开发、CI、本地自用部署零配置即维持现状（local 分支行为
+     * 与现网逐字节一致）；`cloud` 为认证部署，关闭自动本地会话并启用 `/auth/cloud/*`。
+     * 选 env 而非初始化判据：部署形态是部署期事实，与 OPS-006「环境变量和密钥
+     * 分离」同层；隐式判据（如「配了邮件即 cloud」）会让配置与行为无声漂移。
+     */
+    APP_MODE: z
+      .string()
+      .refine((value) => value === 'local' || value === 'cloud', {
+        message: 'APP_MODE 取值必须是 local 或 cloud',
+      })
+      .transform((value) => value as AppMode)
+      .optional(),
+    /**
+     * 邮件通道提供方（AUTH-002，RD-012 §8.3）。
+     * `mock` 仅 dev/test 可用：不真正发信、不回传验证码（不做 devCode 后门）；
+     * 集成测试注入 fake `EmailSender` 端口取码。
+     */
+    EMAIL_PROVIDER: z
+      .string()
+      .refine((value) => value === 'mock' || value === 'http', {
+        message: 'EMAIL_PROVIDER 取值必须是 mock 或 http',
+      })
+      .transform((value) => value as EmailProvider)
+      .optional(),
+    EMAIL_API_URL: z
+      .string()
+      .refine((value) => /^https?:\/\/\S+$/.test(value), {
+        message: 'EMAIL_API_URL 必须是 http:// 或 https:// 开头的地址，且不能为空',
+      })
+      .optional(),
+    EMAIL_API_KEY: notEmptyString('EMAIL_API_KEY').optional(),
+    EMAIL_FROM: notEmptyString('EMAIL_FROM').optional(),
+    /**
      * 同步拉取的安全滞后窗口（毫秒，SYNC-001）。
      *
      * 与其余变量同样「提供即校验、不提供不报错」：缺省时用
@@ -244,6 +285,38 @@ const serverEnvSchema = z
       message:
         'AI_BASE_URL: 明文 http 仅在本机开发时允许，且必须同时设置 AI_ALLOW_INSECURE_BASE_URL=1',
     },
+  )
+  // 邮件通道条件必填（AUTH-002，RD-012 §8.3）：`EMAIL_PROVIDER=http` 时三件套必须齐全。
+  //
+  // 与 `AI_API_KEY` 同一先例——条件放在对象级才能读到 `EMAIL_PROVIDER` 的取值；
+  // 缺配置的失败发生在装配期（启动即暴露），而不是首个发码请求时才炸。
+  .refine(
+    (value) =>
+      value.EMAIL_PROVIDER !== 'http' ||
+      (value.EMAIL_API_URL !== undefined &&
+        value.EMAIL_API_KEY !== undefined &&
+        value.EMAIL_FROM !== undefined),
+    {
+      message: 'EMAIL_API_URL / EMAIL_API_KEY / EMAIL_FROM: 当 EMAIL_PROVIDER=http 时必须同时配置',
+    },
+  )
+  // 生产红线（AUTH-002，RD-012 §8.3）：认证部署的生产环境禁用 mock 邮件通道。
+  //
+  // mock 不真正发信——生产 cloud 配 mock 的表现是「验证码永远收不到」且**无启动报错**，
+  // 属于最难排查的「配置与行为不一致」（同 composition-root 拒绝非 mock AI 的理由）。
+  // dev/test 下 cloud+mock 合法（集成测试注入 fake 端口取码），只有
+  // 「生产 + 认证部署 + mock」三者同时成立才在启动时拒绝。
+  .refine(
+    (value) =>
+      !(
+        (value.APP_MODE ?? 'local') === 'cloud' &&
+        value.NODE_ENV === 'production' &&
+        (value.EMAIL_PROVIDER ?? 'mock') === 'mock'
+      ),
+    {
+      message:
+        'EMAIL_PROVIDER: 生产环境的认证部署（APP_MODE=cloud）必须使用 http 邮件通道，不得为 mock',
+    },
   );
 
 /** 校验通过后的服务端环境变量视图。可选变量未配置时保持 undefined，不做隐式占位。 */
@@ -271,6 +344,13 @@ export interface ServerEnv {
   readonly aiAllowInsecureBaseUrl: boolean;
   /** 同步拉取的安全滞后窗口（毫秒）。缺省 5000。 */
   readonly syncPullLagMs: number;
+  /** 部署形态（AUTH-002）。缺省 `local`——本地自用/开发/CI 零配置维持现状。 */
+  readonly appMode: AppMode;
+  /** 邮件通道提供方（AUTH-002）。缺省 `mock`。 */
+  readonly emailProvider: EmailProvider;
+  readonly emailApiUrl: string | undefined;
+  readonly emailApiKey: string | undefined;
+  readonly emailFrom: string | undefined;
 }
 
 /** 环境变量校验失败。`issues` 每项形如「变量名: 原因」，不含变量取值。 */
@@ -326,5 +406,10 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     aiRateLimitPerMinute: parsed.AI_RATE_LIMIT_PER_MINUTE ?? DEFAULT_AI_RATE_LIMIT_PER_MINUTE,
     aiAllowInsecureBaseUrl: parsed.AI_ALLOW_INSECURE_BASE_URL ?? false,
     syncPullLagMs: parsed.SYNC_PULL_LAG_MS ?? DEFAULT_SYNC_PULL_LAG_MS,
+    appMode: parsed.APP_MODE ?? 'local',
+    emailProvider: parsed.EMAIL_PROVIDER ?? 'mock',
+    emailApiUrl: parsed.EMAIL_API_URL,
+    emailApiKey: parsed.EMAIL_API_KEY,
+    emailFrom: parsed.EMAIL_FROM,
   });
 }

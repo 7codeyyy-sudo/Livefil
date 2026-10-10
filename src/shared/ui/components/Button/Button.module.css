@@ -45,12 +45,39 @@
 }
 
 .primary {
+  position: relative;
+  /* 溢出裁剪把光斑收在按钮圆角内，不流到页面上。 */
+  overflow: hidden;
   color: var(--color-on-primary);
   background-color: var(--color-primary-surface);
 }
 
 .primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
+}
+
+/* 悬停眩光（UI-011 §6.1）：径向白光随指针位置浮现。
+   `--gx/--gy` 由全局 `GlareField` 委托写入（百分比），未悬停时落默认 50%。
+   `pointer-events: none` 必须有——否则 `::after` 会替按钮本体接住指针，
+   hover 一进一出地抖。光斑尺寸/不透明度走 `--glare-*` 令牌，
+   时长 `calc(var(--duration-slow) * 3)` 令牌派生；只给 opacity 过渡，
+   不抬升不缩放（四条红线之「不加阴影卡片」同源）。 */
+.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    var(--glare-size) circle at var(--gx, 50%) var(--gy, 50%),
+    var(--color-surface),
+    transparent
+  );
+  transition: opacity calc(var(--duration-slow) * 3) var(--ease-standard);
+}
+
+.primary:hover:not(:disabled)::after {
+  opacity: var(--glare-opacity);
 }
 
 .secondary {

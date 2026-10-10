@@ -34,11 +34,33 @@ export type AuditEventType =
   // 登录成功/失败
   | 'AUTH_LOGIN_SUCCEEDED'
   | 'AUTH_LOGIN_FAILED'
+  // 批 A 扩列（2026-10-09：SRS §6.7 注记 + 详设 §8.2 扩列，母本＝RD-012 §7 #7）
+  // 注册成功/失败
+  | 'AUTH_REGISTER_SUCCEEDED'
+  | 'AUTH_REGISTER_FAILED'
+  // 验证码校验结果四态（成功/错误/过期/超限）
+  | 'AUTH_CODE_VERIFICATION_SUCCEEDED'
+  | 'AUTH_CODE_VERIFICATION_FAILED'
+  | 'AUTH_CODE_EXPIRED'
+  | 'AUTH_CODE_ATTEMPTS_EXHAUSTED'
+  // 密码重置请求与完成、改密码/改邮箱
+  | 'AUTH_PASSWORD_RESET_REQUESTED'
+  | 'AUTH_PASSWORD_RESET_SUCCEEDED'
+  | 'AUTH_PASSWORD_CHANGED'
+  | 'AUTH_EMAIL_CHANGED'
+  // 登出/会话吊销
+  | 'AUTH_LOGOUT_SUCCEEDED'
+  | 'AUTH_SESSION_REVOKED'
   // 创建、修改、删除和恢复数据
   | 'DATA_CREATED'
   | 'DATA_UPDATED'
   | 'DATA_DELETED'
   | 'DATA_RESTORED'
+  // 账户删除三态（OPS-002，接口 §13 删除面；批 1 扩列——SRS §6.7「删除数据」
+  // 语义的账户级展开，类目不新增；三态须可区分，故不复用 DATA_DELETED 一词打尽）
+  | 'ACCOUNT_DELETION_REQUESTED'
+  | 'ACCOUNT_DELETION_CANCELLED'
+  | 'ACCOUNT_DELETION_PURGED'
   // 导出和导入数据
   | 'DATA_EXPORTED'
   | 'DATA_IMPORTED'
@@ -64,10 +86,25 @@ export const AUDIT_CATEGORY_BY_EVENT_TYPE: Readonly<Record<AuditEventType, Audit
   Object.freeze({
     AUTH_LOGIN_SUCCEEDED: 'authentication',
     AUTH_LOGIN_FAILED: 'authentication',
+    AUTH_REGISTER_SUCCEEDED: 'authentication',
+    AUTH_REGISTER_FAILED: 'authentication',
+    AUTH_CODE_VERIFICATION_SUCCEEDED: 'authentication',
+    AUTH_CODE_VERIFICATION_FAILED: 'authentication',
+    AUTH_CODE_EXPIRED: 'authentication',
+    AUTH_CODE_ATTEMPTS_EXHAUSTED: 'authentication',
+    AUTH_PASSWORD_RESET_REQUESTED: 'authentication',
+    AUTH_PASSWORD_RESET_SUCCEEDED: 'authentication',
+    AUTH_PASSWORD_CHANGED: 'authentication',
+    AUTH_EMAIL_CHANGED: 'authentication',
+    AUTH_LOGOUT_SUCCEEDED: 'authentication',
+    AUTH_SESSION_REVOKED: 'authentication',
     DATA_CREATED: 'data-mutation',
     DATA_UPDATED: 'data-mutation',
     DATA_DELETED: 'data-mutation',
     DATA_RESTORED: 'data-mutation',
+    ACCOUNT_DELETION_REQUESTED: 'data-mutation',
+    ACCOUNT_DELETION_CANCELLED: 'data-mutation',
+    ACCOUNT_DELETION_PURGED: 'data-mutation',
     DATA_EXPORTED: 'data-portability',
     DATA_IMPORTED: 'data-portability',
     AI_INVOCATION_STARTED: 'ai-invocation',

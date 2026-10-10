@@ -3,9 +3,11 @@ import type { ReactNode } from 'react';
 import { AppShell } from '@/shared/ui/layout/AppShell/AppShell';
 
 import { BackgroundFieldContainer } from './_components/BackgroundFieldContainer';
+import { GlareField } from './_components/GlareField';
 import { GuideTourLayer } from './_components/GuideTourLayer';
 import { GuideTourProvider } from './_components/GuideTourProvider';
 import { HelpDrawerContainer } from './_components/HelpDrawerContainer';
+import { SessionGuard } from './_components/SessionGuard';
 import { SyncStatusContainer } from './_components/SyncStatusContainer';
 import { NotificationsContainer } from './_components/NotificationsContainer';
 
@@ -50,7 +52,13 @@ import { NotificationsContainer } from './_components/NotificationsContainer';
 export default function AppGroupLayout({ children }: { readonly children: ReactNode }) {
   return (
     <GuideTourProvider>
+      {/* 401 跳转守卫（AUTH-002，RD-012 §5.3）：只在 (app) 根注册——
+          登录页自身的 401 不触发跳转（防循环），本地部署下静默空转。 */}
+      <SessionGuard />
       <BackgroundFieldContainer />
+      {/* 悬停眩光的全局指针委托（UI-011 §6.1）：不渲染 DOM，只在挂载期间
+          监听 document 指针移动，给带 `data-glare` 的元素写坐标。 */}
+      <GlareField />
       <AppShell
         syncBanner={<SyncStatusContainer />}
         notificationBell={<NotificationsContainer />}

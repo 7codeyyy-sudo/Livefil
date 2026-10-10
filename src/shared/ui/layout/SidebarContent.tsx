@@ -6,7 +6,7 @@ import { clientEnv } from '@/shared/validation/env.client';
 
 import { NavItem } from './NavItem';
 import { PRIMARY_NAV_ITEMS, SETTINGS_NAV_ITEM } from './nav-items';
-import { useTodayLabel } from './use-today-label';
+import { useDayCard } from './use-day-card';
 
 import styles from './SidebarContent.module.css';
 
@@ -47,7 +47,7 @@ export type SidebarContentProps = {
  * 本环境」。照原型写「云端账号」等于在导航里承诺一个并不存在的能力。
  */
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
-  const todayLabel = useTodayLabel();
+  const dayCard = useDayCard();
 
   // 同 `NavItem` 里的说明：`exactOptionalPropertyTypes` 下不能把 `undefined`
   // 显式传给 `Link` 的 `onClick`，所以按需展开。
@@ -64,9 +64,29 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
         <span className={styles.brandName}>{clientEnv.appName}</span>
       </Link>
 
-      <p className={styles.date}>{todayLabel}</p>
+      {/* 日期升格（UI-011，v0.27 §3.2）：一行灰日期 → 日期 + 星期·第 N 周
+          + 当日进度细线 + 「今天已过 X%」。水合期间 `dayCard` 为 null，
+          本块渲染空骨架（与服务端产出一致），水合完成后填入真值。 */}
+      <div className={styles.dateCard}>
+        <p className={styles.date}>{dayCard?.date ?? ''}</p>
+        <p className={styles.week}>{dayCard?.week ?? ''}</p>
+        {dayCard === null ? null : (
+          <>
+            {/* 进度线是绘图几何（装饰），对读屏隐藏；语义由下方 note 文字承担，
+                避免同一句话被读两遍。宽度 = 当天已过百分比（内联百分比非令牌量）。 */}
+            <span className={styles.dayTrack} aria-hidden="true">
+              <span className={styles.dayFill} style={{ width: `${String(dayCard.pct)}%` }} />
+            </span>
+            <span className={styles.dayNote}>今天已过 {String(dayCard.pct)}%</span>
+          </>
+        )}
+      </div>
 
       <nav className={styles.list} aria-label="主导航">
+        {/* 分组眉标（UI-011，v0.27 §3.2）：业务五项归入「工作台」组，
+            结构靠眉标与组间距建立——不加边框、不加底色。
+            底部设置 + 账户组由既有 .bottom 结构分组承载，不加第二枚眉标。 */}
+        <p className={styles.groupLabel}>工作台</p>
         {PRIMARY_NAV_ITEMS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} onClick={onNavigate} />
         ))}

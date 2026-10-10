@@ -37,6 +37,34 @@ import packageJson from './package.json';
 import { createSessionSigner } from '@/infrastructure/auth/session-signer.ts';
 import { createDatabaseClient, type DatabaseClient } from '@/infrastructure/database/client.ts';
 import { createIdempotencyStore } from '@/infrastructure/idempotency/idempotency-store.drizzle.ts';
+import { createExportReader } from '@/modules/data-management/infrastructure/export-reader.drizzle.ts';
+import { createImportGateway } from '@/modules/data-management/infrastructure/import-gateway.drizzle.ts';
+import { createRecycleRepository } from '@/modules/data-management/infrastructure/recycle.drizzle.ts';
+import { createDeletionRequestRepository } from '@/modules/data-management/infrastructure/deletion-request.drizzle.ts';
+import { createInMemoryExportStore } from '@/modules/data-management/infrastructure/export-store.memory.ts';
+import { createInMemoryImportPreviewStore } from '@/modules/data-management/infrastructure/import-store.memory.ts';
+import type { ExportReader } from '@/modules/data-management/domain/data-ports.ts';
+import type { ImportGateway } from '@/modules/data-management/domain/data-ports.ts';
+import type { RecycleRepository } from '@/modules/data-management/domain/data-ports.ts';
+import type { DeletionRequestRepository } from '@/modules/data-management/domain/data-ports.ts';
+import type {
+  ExportStore,
+  ImportPreviewStore,
+} from '@/modules/data-management/domain/data-ports.ts';
+import { createAccountRepository } from '@/modules/identity/infrastructure/user-repository.drizzle.ts';
+import { createSessionRepository } from '@/modules/identity/infrastructure/session-repository.drizzle.ts';
+import { createVerificationCodeRepository } from '@/modules/identity/infrastructure/verification-code-repository.drizzle.ts';
+import { createScryptPasswordHasher } from '@/modules/identity/infrastructure/password-hasher.scrypt.ts';
+import { createVerificationCodeCrypto } from '@/modules/identity/infrastructure/verification-code-crypto.ts';
+import { createEmailSender } from '@/modules/identity/infrastructure/email-sender.http.ts';
+import { createInMemoryRateLimiter } from '@/modules/identity/infrastructure/rate-limiter.memory.ts';
+import type { AccountRepository } from '@/modules/identity/domain/account-repository.ts';
+import type { SessionRepository } from '@/modules/identity/domain/session.ts';
+import type { VerificationCodeRepository } from '@/modules/identity/domain/verification-code.ts';
+import type { PasswordHasher } from '@/modules/identity/domain/password-hasher.ts';
+import type { VerificationCodeCrypto } from '@/modules/identity/domain/verification-code.ts';
+import type { EmailSender } from '@/modules/identity/domain/email-sender.ts';
+import type { RateLimiter } from '@/modules/identity/domain/rate-limiter.ts';
 import type { AiProvider } from '@/modules/ai/domain/ai-provider.ts';
 import type { AiQuotaLimits } from '@/modules/ai/domain/ai-policy.ts';
 import type { AiDraftRepository } from '@/modules/ai/domain/ai-draft-repository.ts';
@@ -122,6 +150,27 @@ let databaseClient: DatabaseClient | null = null;
 let sessionTokenService: SessionTokenService | null = null;
 let auditLogger: AuditLogger | null = null;
 let aiProvider: AiProvider | null = null;
+/**
+ * 认证面的单例（AUTH-002）。
+ *
+ * - `rateLimiter` **必须是进程级单例**：进程内滑动窗口的状态挂在实例上，
+ *   每请求新建等于没有限流（RD-012 §4.2 单实例边界）。
+ * - scrypt 哈希器与验证码 crypto 无跨请求状态，但共享同一 AUTH_SECRET 派生，
+ *   单例省去重复派生。
+ * - `emailSender` 读 `serverEnv`（模块加载时已校验），单例即可。
+ */
+let rateLimiter: RateLimiter | null = null;
+let passwordHasher: PasswordHasher | null = null;
+let verificationCodeCrypto: VerificationCodeCrypto | null = null;
+let emailSender: EmailSender | null = null;
+/**
+ * data-management 的两个内存单例（OPS-002）。
+ *
+ * **必须进程级缓存**：作业与预览都是有状态的短期对象，每次请求新建等于
+ * 「导出完就查不到自己的作业」。单实例边界与限流同口径（RD-015 披露）。
+ */
+let exportStore: ExportStore | null = null;
+let importPreviewStore: ImportPreviewStore | null = null;
 
 /** 数据库客户端单例。缺 `DATABASE_URL` 时由连接工厂抛出 `DEPENDENCY_UNAVAILABLE`。 */
 function getDatabaseClient(): DatabaseClient {
@@ -141,6 +190,51 @@ function getDatabaseClient(): DatabaseClient {
 export function getSessionTokenService(): SessionTokenService {
   sessionTokenService ??= createSessionSigner({ secret: serverEnv.authSecret });
   return sessionTokenService;
+}
+
+/** 密码哈希器单例（AUTH-002；scrypt 无跨请求状态，单例省去重复装配）。 */
+export function getPasswordHasher(): PasswordHasher {
+  passwordHasher ??= createScryptPasswordHasher();
+  return passwordHasher;
+}
+
+/**
+ * 验证码 crypto 单例（AUTH-002）。
+ *
+ * 与 `getSessionTokenService` 同族：缺 `AUTH_SECRET` 时**装配期失败**
+ * （§8.3——启动暴露，而非首个发码请求才炸）。
+ */
+export function getVerificationCodeCrypto(): VerificationCodeCrypto {
+  verificationCodeCrypto ??= createVerificationCodeCrypto({ secret: serverEnv.authSecret });
+  return verificationCodeCrypto;
+}
+
+/** 邮件发送端口单例（AUTH-002；provider 与三件套由 env 跨字段规则约束）。 */
+export function getEmailSender(): EmailSender {
+  emailSender ??= createEmailSender();
+  return emailSender;
+}
+
+/**
+ * 限流器单例（AUTH-002）——**必须进程级共享**：
+ * 进程内滑动窗口的状态挂在实例上，每请求新建等于没有限流（RD-012 §4.2）。
+ * data-management 的限流消费同一实例（端口结构兼容，键按 `data:` 前缀分域）。
+ */
+export function getRateLimiter(): RateLimiter {
+  rateLimiter ??= createInMemoryRateLimiter();
+  return rateLimiter;
+}
+
+/** 导出作业内存单例（OPS-002，短期下载语义——见文件头单例理由）。 */
+export function getExportStore(): ExportStore {
+  exportStore ??= createInMemoryExportStore();
+  return exportStore;
+}
+
+/** 导入预览内存单例（OPS-002，30 分钟时限）。 */
+export function getImportPreviewStore(): ImportPreviewStore {
+  importPreviewStore ??= createInMemoryImportPreviewStore();
+  return importPreviewStore;
 }
 
 /** 首启播种用的领域名单（归属 `life-areas` 领域，这里只是转交）。 */
@@ -305,6 +399,13 @@ export function getGetAiUsageUseCase(): GetAiUsageUseCase {
  */
 export function getRepositories(): {
   readonly users: UserRepository;
+  readonly accounts: AccountRepository;
+  readonly sessions: SessionRepository;
+  readonly verificationCodes: VerificationCodeRepository;
+  readonly dataExport: ExportReader;
+  readonly dataImport: ImportGateway;
+  readonly recycle: RecycleRepository;
+  readonly deletionRequests: DeletionRequestRepository;
   readonly lifeAreas: LifeAreaRepository;
   readonly expenseCategories: ExpenseCategoryRepository;
   readonly expenses: ExpenseRepository;
@@ -330,6 +431,13 @@ export function getRepositories(): {
   const db = getDatabaseClient().db;
   return {
     users: createUserRepository(db),
+    accounts: createAccountRepository(db),
+    sessions: createSessionRepository(db),
+    verificationCodes: createVerificationCodeRepository(db),
+    dataExport: createExportReader(db),
+    dataImport: createImportGateway(db),
+    recycle: createRecycleRepository(db),
+    deletionRequests: createDeletionRequestRepository(db),
     lifeAreas: createLifeAreaRepository(db),
     expenseCategories: createExpenseCategoryRepository(db),
     expenses: createExpenseRepository(db),

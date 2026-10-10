@@ -443,9 +443,37 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * 401 处理器（AUTH-002，《接口文档》v0.8 双态总则；RD-012 §5.3）。
+ *
+ * 与 `setSyncWriteSink` 同一模式：**端口在消费方**——`api-client` 只提供
+ * 「401 发生了」这一事实的挂点，跳转策略由 `(app)` 根注册（带 `?next=` 同源
+ * 回跳），`(auth)` 组不注册（登录页自身的 401 是凭据错误行，触发跳转会造成
+ * 循环）。`api-client` 因此不需要知道任何路由。
+ *
+ * 认证部署才会产生 401（本地部署自动会话，§4.6）；本地部署下处理器即使
+ * 注册也永不触发——这正是「本地不受影响」判据在前端侧的对应。
+ */
+let unauthorizedHandler: (() => void) | null = null;
+
+/** 注册/注销 401 处理器（返回注销函数，便于在 effect 清理中调用）。 */
+export function setUnauthorizedHandler(handler: (() => void) | null): () => void {
+  unauthorizedHandler = handler;
+  return () => {
+    if (unauthorizedHandler === handler) {
+      unauthorizedHandler = null;
+    }
+  };
+}
+
 /** 把一个响应读成信封；失败一律转成 `ApiRequestError`。 */
 async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   if (!response.ok) {
+    // 401 先通知处理器再抛错：跳转与错误展示是两条并行的出口——页面可能仍要
+    // 把错误行渲染出来（登录页），而 `(app)` 页要跳登录（RD-012 §5.3）。
+    if (response.status === 401 && unauthorizedHandler !== null) {
+      unauthorizedHandler();
+    }
     throw new ApiRequestError(await readFailureMessage(response), response.status);
   }
 

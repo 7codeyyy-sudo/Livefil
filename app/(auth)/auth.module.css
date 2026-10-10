@@ -1,0 +1,135 @@
+/**
+ * 认证页容器与内联样式（AUTH-002，v0.26 UI-010 C0；RD-012 §9-B11）。
+ *
+ * 纪律：颜色 / 字号 / 圆角 / 时长 / 层级**只引用令牌**，本文件唯一例外是
+ * `.shell` 的 `max-width: 400px`——那是 UI-010 C0 明文预留的「**唯一新布局量**
+ * ＝auth 窄栏宽度」，按 §3.2「布局量非设计取值、集中单点」先例在此单点定值
+ * 并披露（RD-012 §9-B11 定值 400px），**不进 tokens.css、不做令牌**。
+ *
+ * 零装饰（C0）：无插画、无背景几何、无阴影堆叠——复用令牌族即高级。
+ */
+
+.shell {
+  /* 唯一新布局量（UI-010 C0 预留）：auth 窄栏宽度 = 400px（RD-012 B11）。
+     320–767 视口下 max-width 自然让位于 100% 宽（§3.1 全宽口径）。 */
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+}
+
+/** 步骤指示（caption 文本「第 n 步，共 3 步」——不新造 stepper，C1）。 */
+.caption {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/** 双 Tab 分段（C2）：沿 /review 分段的 aria-pressed 先例，不新造组件范式。 */
+.segments {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.segments button[aria-pressed='true'] {
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/** 表单级错误行（C2：失败行/限流行——inline，不用阻塞式浮层）。 */
+.alert {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+/** 页顶说明行（C2：401 跳转来由「请先登录后继续。」——中性提示，非错误）。 */
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+/** 密码规则 helper 行（C1：满足项转 success——非颜色通路＝每行自带勾/叉文案）。 */
+.rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+.ruleMet {
+  color: var(--color-success);
+}
+
+/** 页底次操作行（C1「已有账号？登录」/ C2「还没有账号？注册」）。 */
+.footer {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
+
+/** 次操作按钮行（「上一步」「重新发送」「忘记密码」——低强调并排）。 */
+.secondaryRow {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
