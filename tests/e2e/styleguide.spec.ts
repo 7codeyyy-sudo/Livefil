@@ -692,8 +692,8 @@ test.describe('批次 4：页面状态组件（EmptyState / LoadingState / Error
     // 原型 `.empty-state` 的虚线框——§4.6 明确这是空态专属语言
     expect(style.borderStyle).toBe('dashed');
     expect(style.borderWidth).toBe('1px');
-    // --radius-md = 14px（原型 16px 就近归整，不新增圆角档）
-    expect(style.borderRadius).toBe('14px');
+    // --radius-md = 16px（v0.29 UI-012 由 14px 升为卡片与表面档；不新增圆角档）
+    expect(style.borderRadius).toBe('16px');
     // --color-border = #e5e5e2
     expect(style.borderColor).toBe('rgb(229, 229, 226)');
 

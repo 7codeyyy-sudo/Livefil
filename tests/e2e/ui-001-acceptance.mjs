@@ -6,8 +6,8 @@
  *
  * 本脚本负责的是**纪律类断言**——那些「文件写对了但约束没成立」的失效模式：
  * 令牌是否真的只有一个来源、颜色是否真的没有第二处书写点、
- * 深色是否真的没被悄悄激活。取值与规范的一致性由
- * `tests/unit/shared/ui/tokens.test.ts` 负责，令牌是否真的生效由
+ * 深色的设置点是否真的受控（v0.29 起由「不激活」改判为白名单）。取值与规范
+ * 的一致性由 `tests/unit/shared/ui/tokens.test.ts` 负责，令牌是否真的生效由
  * `tests/e2e/tokens.spec.ts` 负责。
  */
 import assert from 'node:assert/strict';
@@ -41,8 +41,26 @@ const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.css'];
 /** 颜色字面量的三种写法。 */
 const COLOR_LITERAL_PATTERN = /#[0-9a-fA-F]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(/;
 
-/** 《UI 页面规范》§3.1 的断点像素值。 */
-const BREAKPOINT_PIXEL_PATTERN = /\b(320|767|768|1023|1024|1439|1440)\b/;
+/**
+ * 《UI 页面规范》§3.1 的断点像素值。
+ *
+ * v0.29（UI-012）精度修正：`320`/`1024` 同时是**字节与容量换算**里的常见
+ * 常数（典型如 `64 * 1024 * 1024`）——乘法表达式里的数字不是断点声明，
+ * 前后任一侧紧邻 `*` 的命中一律排除。`24 * 60` 那类「用算式绕开字面量」
+ * 的既有写法照旧放行（它们本就不含被禁数字）。
+ */
+const BREAKPOINT_PIXEL_PATTERN = /(?<!\*\s*)\b(320|767|768|1023|1024|1439|1440)\b(?!\s*[*×])/;
+
+/**
+ * `data-theme` 的**设置**写法（v0.29 UI-012）。
+ *
+ * 只认真实设置点：`setAttribute('data-theme' | "data-theme" | THEME_ATTRIBUTE)`
+ * 与 `dataset.theme = …`。注释与文档里的**提及**不再算违规——旧断言按纯文本
+ * 匹配，会把「解释这条纪律」的正常注释也一并禁掉（与 `tokens.css` 导入检查
+ * 早先踩过的同一个坑同源）。
+ */
+const THEME_SET_POINT_PATTERN =
+  /setAttribute\(\s*(?:'data-theme'|"data-theme"|THEME_ATTRIBUTE)|dataset\.theme\s*=/;
 
 /**
  * 令牌文件允许出现的自定义属性前缀（UI-002 批次 1 扩充）。
@@ -69,6 +87,8 @@ const ALLOWED_TOKEN_PREFIXES = [
   '--z-',
   // v0.27（UI-011）眩光两枚随首个消费者落地，前缀扩白名单（2026-10-09 用户授权同步）。
   '--glare-',
+  // v0.29（UI-012）材质（噪声）两枚随「噪声纹理」落地，前缀扩白名单。
+  '--noise-',
 ];
 
 /**
@@ -253,24 +273,48 @@ test('令牌文件之外不存在颜色字面量（纪律：语义色只有一�
   );
 });
 
-test('深色未被激活：没有 data-theme 设置点', () => {
-  // 令牌文件里的 `html[data-theme='dark']` 是**选择器定义**，允许存在；
-  // 这里查的是别处有没有人去**设置**这个属性。
+test('深色激活受控：data-theme 设置点仅限白名单（引导脚本 + 主题应用函数）', () => {
+  // v0.29（UI-012）深色激活后，原先的「零设置点」禁令改判为**白名单**：
+  // 令牌文件里的 `html[data-theme='dark']` 是选择器定义；真正的设置点只允许
+  // 两处——根布局的防闪引导脚本（首帧前落属性）与共享层主题模块的应用函数
+  // （切换时写属性）。任何第三处设置点都该被质疑：主题不同步类问题的标准来源。
+  const themeSetPointAllowlist = [
+    ROOT_LAYOUT_FILE,
+    path.join(PROJECT_ROOT, 'src', 'shared', 'ui', 'theme', 'theme-apply.ts'),
+  ];
+
   const sourceFiles = collectApplicationFiles().filter((file) => !isTokensFile(file));
-  const offenders = findMatches(sourceFiles, /data-theme/);
+  const allMatches = findMatches(sourceFiles, THEME_SET_POINT_PATTERN);
+  const offenders = allMatches.filter(
+    (item) => !themeSetPointAllowlist.some((allowed) => item.file === formatPath(allowed)),
+  );
 
   assert.deepEqual(
     offenders,
     [],
-    `深色只预留不激活，不得设置 data-theme：\n${offenders
+    `data-theme 的设置点只允许在白名单出现（注释与文档里的提及不算）：\n${offenders
       .map((item) => `  ${item.file}:${String(item.line)} ${item.content}`)
       .join('\n')}`,
   );
+
+  // 正向断言：白名单里至少有一处真的在设置属性——否则「把设置点全删了」
+  // 也会判绿，而那种绿恰恰意味着主题功能已经死了。
+  const allowlistedSetters = sourceFiles.filter(
+    (file) =>
+      themeSetPointAllowlist.some((allowed) => path.resolve(file) === path.resolve(allowed)) &&
+      THEME_SET_POINT_PATTERN.test(readProjectFile(file)),
+  );
+
+  assert.ok(
+    allowlistedSetters.length >= 1,
+    '白名单设置点至少一处应真实设置 data-theme（防「全删了也判绿」）',
+  );
 });
 
-test('深色未被激活：没有 prefers-color-scheme', () => {
-  // 用媒体查询实现深色会让系统深色用户直接看到**未验收**的样式，
-  // 等于绕过开关交付。这不只是风格问题。
+test('主题不跟随系统偏好：仍无 prefers-color-scheme', () => {
+  // v0.29 深色为**用户显式开关**驱动（设置页「外观」分区）。保留本禁令：
+  // 用媒体查询跟随系统会让系统深色用户绕过开关看到未验收样式，
+  // 这也与 tokens.css 文件头第 2 条纪律一致。
   const offenders = collectApplicationFiles()
     .filter((file) => !isTokensFile(file))
     .filter((file) => /prefers-color-scheme/.test(readProjectFile(file)))
@@ -279,14 +323,20 @@ test('深色未被激活：没有 prefers-color-scheme', () => {
   assert.deepEqual(offenders, [], `不得使用 prefers-color-scheme：\n${offenders.join('\n')}`);
 });
 
-test('深色占位块存在，但块内不声明任何颜色（值留空）', () => {
+test('深色档已激活：声明完整颜色族且 color-scheme 翻转为 dark', () => {
   const source = readProjectFile(TOKENS_FILE);
   const darkBlock = /html\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(source)?.[1];
 
-  assert.ok(darkBlock !== undefined, '应保留深色占位块，供将来激活时使用');
+  assert.ok(darkBlock !== undefined, '应保留深色档块（html[data-theme=dark]）');
+  assert.match(darkBlock, /color-scheme:\s*dark/, '深色块必须声明 color-scheme: dark');
+
+  // 「完整」不由数量下界单独承担（逐项取值由单元测试锁死）；这里只保证
+  // 它不是空壳、也不退化成只剩一两枚——数量下界取浅色契约的绝大多数。
+  const darkColorCount = [...darkBlock.matchAll(/--color-[a-z0-9-]+\s*:/g)].length;
+
   assert.ok(
-    !darkBlock.includes('--color-'),
-    '深色块内的颜色值必须留空：填入猜测值会在将来被误认为已验收的设计',
+    darkColorCount >= 20,
+    `深色块应声明完整颜色族（除分类色两态同值外），实际只有 ${String(darkColorCount)} 枚`,
   );
 });
 
@@ -296,6 +346,16 @@ test('断点未做成 CSS 变量，且 JS 侧没有第二份断点取值', () =>
   assert.ok(
     !/--[a-z-]*(breakpoint|screen)[a-z-]*\s*:/.test(tokensSource),
     'CSS 变量无法用于 @media 条件，断点不得做成变量',
+  );
+
+  // 自证（阴性结果不能当证据）：断点用法仍会被拦、字节换算不再误报。
+  assert.ok(
+    BREAKPOINT_PIXEL_PATTERN.test('if (width >= 1440) { open(); }'),
+    '断点像素用法应被拦下',
+  );
+  assert.ok(
+    !BREAKPOINT_PIXEL_PATTERN.test('const limit = 64 * 1024 * 1024;'),
+    '字节换算（乘法表达式）不应误报',
   );
 
   // 组件 CSS 里的媒体查询写像素值是允许的（那是 CSS 表达响应式的唯一方式）；

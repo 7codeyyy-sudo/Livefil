@@ -1,5 +1,12 @@
 /**
- * 今日页样式（UI-007，v0.20 §5）。纪律同 InboxPanel.module.css。
+ * 今日页样式（UI-007；版式 v0.29（UI-012）视觉方案 v2 采纳）。
+ *
+ * 结构语言：页面各区块一律以「卡片」承载——白/深底 + 1px 描边 + 16px 圆角 +
+ * 悬停描边加深与抬起 1px + 悬停边框光扫（一次性）；卡片滚进视口时逐张浮现。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ * 布局量（时间列宽 86px、时间尺高 64px 等绘图尺寸）与既有模块同例：就地书写
+ * 并注明来源。
  */
 
 .section {
@@ -8,54 +15,31 @@
   gap: var(--space-7);
 }
 
-/* 成功态根容器（UI-011）：区块化后**不设 gap**——区块间距由相邻 `.block`
-   的上下内边距相加构成（28+28=56，见规范 §2.3），再加 gap 会叠成 84px。
-   非区块元素（当前行动卡片、固定事项表单）自带 margin 补节奏。 */
-.blocks {
+.today {
   display: flex;
   flex-direction: column;
 }
 
-/* 区块卡片（§2.3 / UI-011 §6.1）：水平出血对消页面内边距，悬停只给 1px
-   描边不抬升。一次性入场由 `--i`（组件内联）错峰，延迟从令牌派生
-   （base/5 × 序号，与预览稿 `nth-of-type` 同值）；fill-mode 用 backwards——
-   延迟期停在起始帧，结束后回基础样式，不残留 transform 包含块。
-   reduced-motion 不写媒体查询：令牌在 reduce 下归为极小值，动画瞬时完成。 */
-.block {
-  margin-inline: calc(-1 * var(--space-4));
-  padding: var(--space-7) var(--space-4);
-  border-radius: var(--radius-md);
-  transition: box-shadow var(--duration-base) var(--ease-standard);
-  animation: block-enter var(--duration-base) var(--ease-standard) backwards;
-  animation-delay: calc(var(--i) * var(--duration-base) / 5);
-}
-
-@keyframes block-enter {
-  from {
-    opacity: 0;
-    transform: translateY(var(--space-2));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 悬停细描边：给「这块可操作」一个克制的信号，不做抬升、不做位移。 */
-.block:hover {
-  box-shadow: 0 0 0 1px var(--color-border);
-}
-
-/* 标题行：h2 左、定量小字右（等宽数字，「3 过期」不因数字宽度左右跳）。 */
-.blockHead {
+/* 卡片栈（v0.29 §2.3）：卡片之间 16px（`--space-4`，预览稿 14px 的归整值）。
+   注意与 `.laserStage` 的关系：舞台自带同值下距，所以「落点卡（hero/时间线）→
+   本栈第一张卡」与栈内卡距一致；栈内不再给单卡补 margin。 */
+.cards {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--space-4);
 }
 
-/* 眉标：给区块一个语境（时点/去处/日期），不是装饰——只给有真实语境的三块。 */
+/* ── 页头与激光舞台 ───────────────────────────────────────────────────── */
+
+/* 激光舞台：覆盖「页头 + 落点卡（hero 或时间线卡）」的定位上下文。canvas 由
+   LaserFlow 填入（向上溢出到屏幕顶、左右各扩 420px、必要时向下补到落点卡底边）；
+   裁切在 AppShell 层做（见其说明）。 */
+.laserStage {
+  position: relative;
+  margin-bottom: var(--space-4);
+}
+
+/* 眉标：页头的日期语境（11px/500/+0.04em），不是装饰。 */
 .eyebrow {
   margin: 0 0 var(--space-3);
   color: var(--color-text-secondary);
@@ -63,6 +47,257 @@
   font-weight: var(--font-weight-medium);
   line-height: 1.4;
   letter-spacing: var(--font-letter-spacing-eyebrow);
+}
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-7);
+}
+
+/* 标题容器：局部消去 PageHeading 的 40px 下距——本页页头是「标题 + 右侧数字」
+   同排行，行距由页头行统一给出（28px）；不消去的话 40px 会顶住行底、
+   把右侧数字推歪（见 PageHeading.module.css 的说明）。 */
+.headTitle h1 {
+  margin-bottom: 0;
+}
+
+.headFigure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.headFigureValue {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-figure);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-figure);
+  letter-spacing: var(--font-letter-spacing-figure);
+  font-variant-numeric: tabular-nums;
+}
+
+.headFigureCaption {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
+}
+
+/* ── 逐位数字滚轮（odometer）───────────────────────────────────────────── */
+
+.odo {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+}
+
+.odoCol {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  width: 0.6em;
+  text-align: center;
+}
+
+/* 滚轮条：三圈 0–9 竖排；位移由组件内联（起点第三圈、终点第二圈），
+   到位即停（一次性）。时长 `calc(var(--duration-slow) * 3.8)` 取自
+   预览稿实测值；缓动统一走 `--ease-standard`（缓动只允许引用 §2.4 动效令牌）。 */
+.odoStrip {
+  display: block;
+  line-height: 1;
+  will-change: transform;
+  transition: transform calc(var(--duration-slow) * 3.8) var(--ease-standard);
+}
+
+.odoStrip span {
+  display: block;
+  height: 1em;
+}
+
+/* ── 卡片：唯一的结构语言 ─────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  /* 独立层叠上下文：把卡内的一次性光效（边框光扫 ::after）收在卡内，
+     不与相邻卡片的绘制互相穿插。 */
+  isolation: isolate;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    translate var(--duration-fast) var(--ease-standard);
+}
+
+.card:hover {
+  border-color: var(--color-border-strong);
+  /* 抬起 1px：用独立的 `translate` 属性而不是 transform——入场动画
+     （fill: both）会锁定 transform，普通声明的 transform 会被动画填充值
+     覆盖；`translate` 与其独立合成，不冲突。 */
+  translate: 0 -1px;
+}
+
+/* 卡片 hover：边框光扫（一次性，跑完即熄、零循环）。光在**边框上**而不是卡内——
+   不与内容争夺注意力；conic 渐变 + 双 mask 抠出 1px 环（掩膜色只表达透明度，
+   任何不透明色等价，用关键字写法避开颜色字面量扫描——它不是设计取值）。 */
+@property --beam {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--beam),
+    transparent 0deg,
+    var(--color-beam) 42deg,
+    transparent 84deg
+  );
+  -webkit-mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card:hover::after {
+  animation: card-beam calc(var(--duration-slow) * 4.4) var(--ease-standard);
+}
+
+@keyframes card-beam {
+  0% {
+    --beam: 0deg;
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
+  100% {
+    --beam: 360deg;
+    opacity: 0;
+  }
+}
+
+/* ── 滚动浮现（IntersectionObserver 驱动，UI-012 §6.1）───────────────────
+   初始态由 JS 布防属性 `data-reveal-ready`（挂在页面根）控制——JS 未跑时
+   属性不存在、内容默认可见，不锁内容；卡片进入视口后 JS 写
+   `data-reveal-state="in"` 播一次性上浮（fill: both 保证动画后停在终态）。
+   `--i` 为卡片序号（组件内联），延迟从令牌派生（约 `--duration-slow` 的三成）。
+   状态走 data 属性而不是类名：这种「JS 注入的状态」是数据，不是样式变体。 */
+[data-reveal-ready] .card {
+  opacity: 0;
+}
+
+.card[data-reveal-state='in'] {
+  animation: card-in calc(var(--duration-slow) * 2.2) var(--ease-standard) both;
+  animation-delay: calc(var(--i, 0) * var(--duration-slow) * 0.3);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── hero（当前行动卡）────────────────────────────────────────────────── */
+
+/* 左缘给指示条让出一点距离（padding-left 比常规多一档）。 */
+.hero {
+  padding-left: calc(var(--space-5) + var(--space-1));
+}
+
+/* 左缘指示条：真实元素（::before 让位给光扫 ::after）。 */
+.heroBar {
+  position: absolute;
+  left: 0;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  width: 2px;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background-color: var(--color-accent);
+}
+
+.nowTag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+.nowTag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+}
+
+.actTitle {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
+}
+
+.actRange {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 卡片头 ───────────────────────────────────────────────────────────── */
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.heading {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-section-title);
+  letter-spacing: var(--font-letter-spacing-section-title);
 }
 
 .blockMeta {
@@ -74,54 +309,102 @@
   white-space: nowrap;
 }
 
-.heading {
-  /* 区块标题与其下方内容的间距。原为 `--space-2`（8px），标题与内容几乎粘住——
-     它是全仓唯一一处这个写法。抬到 `--space-3`（12px）：仍明显小于区块之间的
-     28px，层次不会乱。 */
-  margin: 0 0 var(--space-3);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-section-title);
-  letter-spacing: var(--font-letter-spacing-section-title);
+/* ── 甘特时间尺（UI-012 甘特化）────────────────────────────────────────── */
+
+.ruler {
+  position: relative;
+  height: 64px;
+  margin: var(--space-2) var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
-.currentAction {
-  /* 与后随区块的描边留出呼吸（`.blocks` 无 gap，卡片自身补 margin）。 */
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
+/* 短刻度：从基线向上 5px（满高竖线会把一条基线变回一张网格）。 */
+.rulerTick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 5px;
+  background-color: var(--color-border-strong);
+}
+
+.rulerLabel {
+  position: absolute;
+  bottom: var(--space-3);
+  transform: translateX(-50%);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 甘特块条：骑在基线上（bottom -5px 即半高 10px 的一半），全圆端帽。
+   三级状态：计划（柔和面 + 描边）/ 已完成（成功柔和底）/ 进行中（强调色 + 柔光环）。 */
+.gbar {
+  position: absolute;
+  bottom: -5px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard);
 }
 
-.currentLabel {
-  margin: 0;
-  color: var(--color-text-secondary);
+.gbarDone {
+  background-color: var(--color-success-soft);
+  border-color: transparent;
+}
+
+.gbarActive {
+  background-color: var(--color-accent);
+  border-color: transparent;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+/* 「现在」：竖线 + 胶囊（这个区块里唯一一处强调色对象，同一语义只画一次）。 */
+.rulerNow {
+  position: absolute;
+  top: 0;
+  bottom: -6px;
+  width: 1.5px;
+  background-color: var(--color-accent);
+}
+
+.nowPill {
+  position: absolute;
+  top: -6px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-2);
+  transform: translateX(-50%);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
   font-size: var(--font-size-caption);
-  line-height: var(--line-height-caption);
-}
-
-.currentTitle {
-  margin: var(--space-1) 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-body);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  white-space: nowrap;
 }
 
-.currentMeta {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-height-caption);
+/* 胶囊贴边对齐：靠近两端时不再以位置点为中心，避免溢出尺外（0%/100% 均可达）。 */
+.nowPillStart {
+  transform: none;
 }
+
+.nowPillEnd {
+  transform: translateX(-100%);
+}
+
+/* ── 时间线行 ─────────────────────────────────────────────────────────── */
 
 .blockList,
 .fixedList,
 .routineList,
-.unscheduledList,
+.todoList,
 .suggestionList {
   display: flex;
   flex-direction: column;
@@ -136,9 +419,9 @@
   /* 允许换行：行内提醒的展开区（`flex-basis: 100%`）据此落到整行下方（§5 A）。 */
   flex-wrap: wrap;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--color-border);
-  /* 微交互（UI-011 §6.1）：悬停浅底 + 眩光（见 `.blockRow[data-glare]`）。 */
+  padding: var(--space-2) var(--space-3);
+  margin-inline: calc(-1 * var(--space-3));
+  border-radius: var(--radius-sm);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
@@ -146,11 +429,42 @@
   background-color: var(--color-surface-soft);
 }
 
+/* 相邻行一条分隔线；悬停时线让位给整行浅底（圆角回收，浅底才完整）。 */
+.blockRow + .blockRow {
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+}
+
+.blockRow + .blockRow:hover {
+  border-radius: var(--radius-sm);
+}
+
+/* 行首时间列固定宽（预览稿实测 86px 对齐列，布局量）：两行时间纵向对齐，
+   扫视时不左右找。 */
 .blockTime {
-  flex: none;
+  flex: 0 0 86px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行状态点：默认墨弱（border-strong）；已完成 success、进行中 accent + 柔光环。 */
+.rowDot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border-strong);
+}
+
+.rowDotDone {
+  background-color: var(--color-success);
+}
+
+.rowDotActive {
+  background-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .blockTitle {
@@ -161,18 +475,91 @@
   overflow-wrap: anywhere;
 }
 
+/* 行右侧：状态标签 + 动作组。动作**浮出**而非常驻（§6.1 操作浮出）——
+   悬停或键盘聚焦（focus-within，保证 Tab 到按钮时可见）才显示；
+   触屏档常驻（见媒体查询）。 */
+.blockSide {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .blockActions {
+  display: inline-flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.blockRow:hover .blockActions,
+.blockRow:focus-within .blockActions {
+  opacity: 1;
+}
+
+/* ── 空态（时间线）：给出「为什么空 + 现在能做什么」────────────────────── */
+
+.empty {
   display: flex;
-  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-1) 0;
+}
+
+/* 迷你时间线画（纯几何，非插画、非 AI 装饰图）：一条基线 + 一个块条。 */
+.emptyArt {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.emptyArt::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 14px;
+  height: 1px;
+  background-color: var(--color-border-strong);
+}
+
+.emptyArt::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  bottom: 14px;
+  width: 26px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+}
+
+.emptyCopy {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
 }
 
-.doneBadge {
-  flex: none;
+.emptyTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.emptyDescription {
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
 }
+
+/* ── 固定事项：列表 + 建议 chips + 表单 ───────────────────────────────── */
 
 .fixedRow {
   padding: var(--space-2) 0;
@@ -181,6 +568,99 @@
   line-height: var(--line-height-body);
   border-bottom: 1px solid var(--color-border);
 }
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* 建议 chip：虚线边、透明底——「一次点击」的候选，不是已存在的数据；
+   悬停整枚点亮（描边转实、文字转强调色、浅底）。
+   高度 32px 是控件几何量（与既有 30px 同例），不新造尺寸令牌。 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.chip:hover {
+  border-style: solid;
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.chipPlus {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-body);
+  line-height: 1;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.chipTime {
+  color: var(--color-text-placeholder);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.chip:hover .chipPlus,
+.chip:hover .chipTime {
+  color: var(--color-accent);
+}
+
+.fixedFormSlot {
+  margin-top: var(--space-4);
+}
+
+.fixedForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 表单网格：进卡后再套一层浅底容器，把「一组字段」与卡面区分开
+   （「裸 input」问题的修复形态）。 */
+.formGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* 表单脚注：说明固定事项的行为事实（不是营销话术）。 */
+.formNote {
+  margin: 0;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* ── 例程与习惯 ───────────────────────────────────────────────────────── */
 
 .routineRow {
   display: flex;
@@ -198,49 +678,202 @@
   font-weight: var(--font-weight-medium);
 }
 
-.unscheduledRow {
+/* ── 未安排 ───────────────────────────────────────────────────────────── */
+
+.todoRow {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-body);
-  border-bottom: 1px solid var(--color-border);
-  /* 同 `.blockRow`：悬停浅底 + 眩光。 */
+  padding: var(--space-2) var(--space-3);
+  margin-inline: calc(-1 * var(--space-3));
+  border-radius: var(--radius-sm);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
-.unscheduledRow:hover {
+.todoRow:hover {
   background-color: var(--color-surface-soft);
 }
 
-.overdueBadge {
+.todoTitle {
+  flex: 1;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  overflow-wrap: anywhere;
+}
+
+.todoDue {
   flex: none;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.todoDueOver {
+  color: var(--color-warning);
+}
+
+/* 未安排卡头的过期计数：仅数字着色（§2.1 状态色用法），文字仍是「N 过期」。 */
+.overdueCount {
+  color: var(--color-warning);
+}
+
+/* ── 今日摘要：负荷数字 + 读数条 + 周条 ───────────────────────────────── */
+
+.summaryGrid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.summaryLeft {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 摘要语境词（「今日负荷」）用辅助档起意，量感留给大数字（小字起意、大字给量）。 */
+.summaryCaption {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-placeholder);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
 }
 
-.loadLine {
-  /* 摘要文字让位给上方的 figure 数字：与预览稿 summary-text 同档
-     （text-secondary），量感留给数字本身。 */
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-body);
+.summaryFigure {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-figure);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-figure);
+  letter-spacing: var(--font-letter-spacing-figure);
+  font-variant-numeric: tabular-nums;
 }
+
+/* 负荷读数条 + 文案：条宽 = 3 个 --space-12 + 1 个 --space-1（令牌派生，
+   预览稿 148px 的等价折算）。 */
+.loadLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.loadBar {
+  flex: none;
+  width: calc(var(--space-12) * 3 + var(--space-1));
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
+  overflow: hidden;
+}
+
+.loadFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-secondary);
+}
+
+.loadText,
+.loadFixed {
+  margin: 0;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.loadFixed {
+  margin-top: var(--space-2);
+}
+
+.weekViz {
+  flex: none;
+}
+
+.weekHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.weekBars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  height: 46px;
+}
+
+.weekCol {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.weekBar {
+  width: 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  transform-origin: bottom center;
+}
+
+/* 周条生长（一次性）：随摘要卡入场（data-reveal-state=in）从底部错峰长出，
+   行内 `--i` 为列序；延迟 = `--duration-slow` 的派生因子（i × 0.24 + 1.04）。 */
+[data-reveal-ready] .weekBar {
+  transform: scaleY(0);
+}
+
+[data-reveal-state='in'] .weekBar {
+  animation: bar-grow calc(var(--duration-slow) * 2.8) var(--ease-standard) both;
+  animation-delay: calc(var(--i, 0) * var(--duration-slow) * 0.24 + var(--duration-slow) * 1.04);
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* 「今天」只挂在列上（与日期文字同宿主）；用墨色+字重标记，不借强调色——
+   这一屏的蓝已经花在「现在」指示上，再竖一根蓝柱强调就被稀释成配色。 */
+.weekCol[data-today='true'] .weekBar {
+  background-color: var(--color-text-primary);
+  border-color: transparent;
+}
+
+.weekDay {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+}
+
+.weekCol[data-today='true'] .weekDay {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── 提示与恢复 ───────────────────────────────────────────────────────── */
 
 .neutralNotice {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-3) 0 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
 }
 
+/* 恢复卡：卡内子表面（浅底 + 描边），比卡面收一档圆角读作「卡内的块」。 */
 .recoveryCard {
   display: flex;
   flex-direction: column;
@@ -248,7 +881,7 @@
   margin-top: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background-color: var(--color-surface-soft);
 }
 
@@ -266,123 +899,23 @@
   line-height: var(--line-height-caption);
 }
 
-.fixedForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.formActions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-/* 表单不是 `.block`：自带上距，与上一区块的描边留出呼吸。 */
-.formSlot {
-  margin-top: var(--space-4);
-}
-
-/* ── 时间骨架（UI-011 §6.1）08–22 基线 + 每 4 小时短刻度 + 「现在」线 ──────
-   只留一条基线：四边硬边方框在满是圆角的界面里读起来像没做完的表单控件。
-   左右各内缩一档：首末刻度标签是 `translateX(-50%)` 居中的，贴边画会裁掉半边。 */
-.ruler {
-  position: relative;
-  height: 44px;
-  margin: var(--space-4) var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* 短刻度：从基线向上 4px。满高竖线会把一条基线又变回一张网格。 */
-.rulerLine {
-  position: absolute;
-  bottom: 0;
-  width: 1px;
-  height: 4px;
-  background-color: var(--color-border);
-}
-
-.rulerLabel {
-  position: absolute;
-  bottom: var(--space-2);
-  transform: translateX(-50%);
-  color: var(--color-text-placeholder);
-  font-size: var(--font-size-eyebrow);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* 「现在」指示线是这个区块里唯一一处强调色——同一语义只画一次（不加顶点圆）。 */
-.rulerNow {
-  position: absolute;
-  top: 0;
-  bottom: -3px;
-  width: 1.5px;
-  background-color: var(--color-accent);
-}
-
-.rulerNowTag {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  color: var(--color-accent);
-  font-size: var(--font-size-eyebrow);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* 建议项：把「常见固定事项」变成一次点击，空态因此有了出路。 */
-.suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-}
-
-/* 安静文本项：无描边药丸、无彩点，只留一层几乎看不见的浅底。
-   `overflow: hidden` 把眩光收在圆角内（行是方角，不需要裁剪）。 */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 var(--space-3);
-  border: 0;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface-soft);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-caption);
-  line-height: var(--line-height-caption);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
-}
-
-.chip:hover {
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent);
-}
-
 /* ── 悬停眩光（§6.1）：径向白光随指针位置浮现 ─────────────────────────────
-   只挂自带底色的元素（行的浅底 hover、chip 的浅底、primary 的近黑底）；
-   白底区块不挂——白色眩光在白底上等于看不见，挂了就是装饰。
-   `--gx/--gy` 由全局 `GlareField` 委托写入；行是方角，`inset: 0` 的
-   ::after 与行盒重合，无需 overflow 裁剪（chip 的裁剪在 `.chip` 里）。
-   时长 `calc(var(--duration-slow) * 3)` 令牌派生，只给 opacity 过渡。 */
+   只挂自带底色的元素（行的浅底 hover）；`--gx/--gy` 由全局 `GlareField`
+   委托写入。chip 已改为透明虚线边（无底色）——按同一纪律**撤下眩光**，
+   改用整枚点亮反馈。 */
 .blockRow[data-glare],
-.unscheduledRow[data-glare] {
+.todoRow[data-glare] {
   position: relative;
 }
 
 .blockRow[data-glare]::after,
-.unscheduledRow[data-glare]::after,
-.chip[data-glare]::after {
+.todoRow[data-glare]::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: 0;
+  border-radius: inherit;
   background: radial-gradient(
     var(--glare-size) circle at var(--gx, 50%) var(--gy, 50%),
     var(--color-surface),
@@ -392,100 +925,40 @@
 }
 
 .blockRow[data-glare]:hover::after,
-.unscheduledRow[data-glare]:hover::after,
-.chip[data-glare]:hover::after {
+.todoRow[data-glare]:hover::after {
   opacity: var(--glare-opacity);
 }
 
-/* ── 今日摘要的数字与本周迷你条 ────────────────────────────────────────────
-   figure-cap 用眉标字阶起意，figure 用 figure 档给量——小字起意、大字给量。 */
-.figureCap {
-  margin: var(--space-5) 0 0;
-  color: var(--color-text-placeholder);
-  font-size: var(--font-size-eyebrow);
-  line-height: 1.4;
-  letter-spacing: var(--font-letter-spacing-eyebrow);
-}
-
-.figure {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-figure);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-figure);
-  letter-spacing: var(--font-letter-spacing-figure);
-  font-variant-numeric: tabular-nums;
-}
-
-.summaryViz {
-  margin-top: var(--space-4);
-}
-
-.weekHead {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: var(--space-3);
-}
-
-.weekBars {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-  height: 44px;
-}
-
-.weekCol {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--space-2);
-  height: 100%;
-}
-
-.weekBar {
-  width: 100%;
-  max-width: 20px;
-  /* 预览稿为 3px 字面量；令牌纪律下换 `--radius-sm`（20px 宽条渲染为胶囊端帽，
-     与预览稿的差异已在 UI-011 交付说明中如实记录）。 */
-  border-radius: var(--radius-sm);
-  background-color: var(--color-border);
-}
-
-/* 「今天」只挂在列上（与日期文字同宿主）；用墨色+字重标记，不借强调色——
-   这一屏的蓝已经花在「现在」指示线上，再竖一根蓝柱强调就被稀释成配色。 */
-.weekCol[data-today='true'] .weekBar {
-  background-color: var(--color-text-primary);
-}
-
-.weekDay {
-  color: var(--color-text-placeholder);
-  font-size: var(--font-size-eyebrow);
-  line-height: 1.4;
-}
-
-.weekCol[data-today='true'] .weekDay {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-medium);
-}
-
 /* ── 手机档（§3.1 ≤767px）─────────────────────────────────────────────────
-   触屏没有 hover：按下态补回反馈；触控目标抬到 44px 下限；
-   区块出血收窄——页面内边距已是 16px，桌面那档会让悬停描边压在屏幕边缘上。 */
+   触屏没有 hover：行动作常驻（否则「完成/延后」没有可达入口）、按下态补反馈；
+   摘要的两栏（数字 + 周条）在窄屏改纵向堆叠。 */
 @media (max-width: 767px) {
-  .block {
-    margin-inline: calc(-1 * var(--space-2));
-    padding-inline: var(--space-2);
+  .blockActions {
+    opacity: 1;
+  }
+
+  /* 窄屏行会换行：时间列让出固定宽（自然宽即可），状态标签 + 行动作整行
+     右对齐落到第二行——否则「标签一列、按钮一列」会拆成两行碎块。 */
+  .blockTime {
+    flex-basis: auto;
+  }
+
+  .blockSide {
+    flex-basis: 100%;
+    justify-content: flex-end;
   }
 
   .blockRow:active,
-  .unscheduledRow:active {
+  .todoRow:active {
     background-color: var(--color-surface-soft);
   }
 
   .chip {
     min-height: var(--size-touch-min);
+  }
+
+  .summaryGrid {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

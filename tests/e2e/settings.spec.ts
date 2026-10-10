@@ -105,6 +105,33 @@ test.describe('设置页 · 分区与保存', () => {
   });
 });
 
+test.describe('设置页 · 外观', () => {
+  test('选择暗色/亮色立即落 data-theme（即时生效、无保存动作）', async ({ page }) => {
+    await installSettingsStub(page);
+    await openSettings(page);
+
+    const appearance = section(page, '外观');
+    // 首访 /settings 可能浮出新手导览层（AI-007）并拦截点击；`Esc` 等同「跳过引导」，
+    // 没有导览时是无副作用的空操作。
+    await page.keyboard.press('Escape');
+    await appearance.getByText('暗色', { exact: true }).click();
+
+    // 即时生效：属性落 `<html>` 单一节点（v0.29 UI-012 激活协议）。
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
+      .toBe('dark');
+
+    // 回切亮色同样即时生效。
+    await appearance.getByText('亮色', { exact: true }).click();
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
+      .toBe('light');
+
+    // 本区是即时偏好：不产生「未保存」脏标记。
+    await expect(page.getByText('未保存')).toHaveCount(0);
+  });
+});
+
 test.describe('设置页 · AI 与隐私', () => {
   test('未同意数据发送时 AI 开关保持关闭并给出说明', async ({ page }) => {
     await installSettingsStub(page);

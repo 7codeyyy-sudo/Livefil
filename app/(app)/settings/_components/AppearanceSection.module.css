@@ -1,8 +1,28 @@
 /**
- * 外观偏好的分区样式（UI-009）。
+ * 外观偏好的分区样式（UI-009 背景档位 + UI-012 主题）。
  *
  * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
  */
+
+/* 偏好组（v0.29）：主题与背景各成一组——组标题 + 选项列。
+   组内间距收紧一档（眉标贴着它标注的选项列），组与组之间由分区 body 的
+   16px 间距承担，层次靠间距与眉标建立，不加边框、不加底色。 */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 组标题：眉标字阶（11px/500/+0.04em），说明"下面这一列是什么"。 */
+.subhead {
+  margin: 0;
+  color: var(--color-text-placeholder);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
+}
 
 /* 单选框组：单列纵向排列。每一档是一张可整块点击的卡片——点标签文字与点圆钮
    等效，触控与键盘操作都更从容，不必去精确命中那颗小圆钮。 */

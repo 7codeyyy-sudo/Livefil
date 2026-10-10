@@ -1,0 +1,50 @@
+/* 为什么画布要往四边扩
+ *
+ * - **向上扩 190px**：光束要从**屏幕顶部**坠下（预览稿的观感），而不是从内容区
+ *   顶端才出现。产品里内容区顶端在「顶栏 54px + 页面顶部留白 80px + 页头」之后
+ *   （视口 y≈130 起），画布顶必须探到视口之上、且顶部渐隐（见下方 mask 8%）
+ *   在视口内结束，光才会在 y≈0 处就可见。190 是按「页头 + 落点卡」的高度实算的
+ *   下限（含余量），改页面顶部留白或页头结构时要重算。
+ * - **左右各扩 420px**：光沿卡片边缘扩散的范围约 420px，超出内容列宽。
+ *   画布若与内容列同宽，光就会在边界处被硬切出两条垂直亮边；扩宽后光在画布内
+ *   自然衰减到 0。画布本身超出视口的部分由 AppShell 的 `overflow-x: clip` 裁掉。
+ * - **向下**：CSS 兜底 `bottom: 0`（盖住舞台自身）；当「落点卡」在舞台之外的下方
+ *   （无当前行动时落到第一张卡——时间线）时，由 `LaserFlow.tsx` 在运行时把
+ *   `bottom` 改成负值、把画布补到该卡底边（顶锚不动，卡片几何不受影响）。
+ *
+ * 画布上下缘渐隐用 mask 而不是扩画布高度：mask 不动画布尺寸，零副作用——
+ * 光从上方「浮现」而不是被画布顶边切成一条硬线，底部同理柔和收尾。
+ * （mask 色只表达透明度，任何不透明色等价，用关键字写法避开颜色字面量扫描。） */
+
+.container {
+  position: absolute;
+  top: -190px;
+  bottom: 0;
+  left: -420px;
+  right: -420px;
+  pointer-events: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 8%,
+    black 90%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 90%, transparent 100%);
+}
+
+/* 手机档（§3.1 ≤767px）整体隐藏：窄屏上光晕无空间展开（画布左右各扩 420px
+   远超视口），且 WebGL 逐帧渲染对移动端不划算；JS 侧同步不初始化，省掉整块开销。 */
+@media (max-width: 767px) {
+  .container {
+    display: none;
+  }
+}

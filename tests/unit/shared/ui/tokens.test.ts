@@ -53,6 +53,57 @@ const EXPECTED_COLOR_TOKENS = {
   '--color-cat-violet': '#7a56c2',
   '--color-cat-teal': '#1f8a8f',
   '--color-cat-rose': '#c25670',
+
+  /* §2.4 v2 形态追加（5，v0.29 UI-012）：二级边界 / 卡片扫光 / 标题渐变收尾 /
+     窗格光两级。全部有本批真实消费者，两态齐备（暗色档见下方 EXPECTED_DARK_TOKENS）。 */
+  '--color-border-strong': '#d9d9d5',
+  '--color-beam': 'rgba(23, 105, 224, 0.5)',
+  '--color-title-fade': '#77777e',
+  '--color-dapple-a': 'rgba(93, 140, 255, 0.22)',
+  '--color-dapple-b': 'rgba(93, 140, 255, 0.08)',
+} as const;
+
+/**
+ * v0.29（UI-012）暗色档权威取值。
+ *
+ * 来源＝视觉方案 v2 预览稿暗色令牌逐条对应；预览稿未覆盖的三处（danger、
+ * 三枚状态边框、焦点环/遮罩）按同族推导，口径写在 tokens.css 暗色块注释里。
+ * 别名与材质两枚也在此表内——「暗色下翻转」的部分必须逐项锁死。
+ */
+const EXPECTED_DARK_TOKENS = {
+  '--color-bg-page': '#111214',
+  '--color-surface': '#1a1c20',
+  '--color-text-primary': '#e9ebee',
+  '--color-text-secondary': '#969da6',
+  '--color-text-placeholder': '#626a74',
+  '--color-border': '#2a2d33',
+  '--color-border-strong': '#383c44',
+  '--color-accent': '#5b93ff',
+  '--color-accent-soft': 'rgba(91, 147, 255, 0.13)',
+  '--color-on-accent': '#0a1222',
+  '--color-success': '#43b877',
+  '--color-warning': '#d9a04a',
+  '--color-danger': '#e0645c',
+  '--color-surface-soft': '#212429',
+  '--color-success-soft': 'rgba(67, 184, 119, 0.13)',
+  '--color-warning-soft': 'rgba(217, 160, 74, 0.13)',
+  '--color-danger-soft': 'rgba(224, 100, 92, 0.13)',
+  '--color-success-border': 'rgba(67, 184, 119, 0.24)',
+  '--color-warning-border': 'rgba(217, 160, 74, 0.24)',
+  '--color-danger-border': 'rgba(224, 100, 92, 0.24)',
+  '--color-focus-ring': 'rgba(91, 147, 255, 0.32)',
+  '--color-overlay': 'rgba(0, 0, 0, 0.55)',
+  '--color-beam': 'rgba(91, 147, 255, 0.7)',
+  '--color-title-fade': '#8b929b',
+  '--color-dapple-a': 'rgba(91, 147, 255, 0.18)',
+  '--color-dapple-b': 'rgba(91, 147, 255, 0.06)',
+  '--color-bg-figure': '#2e3238',
+  '--color-primary-surface': '#e9ebee',
+  '--color-primary-hover': '#ffffff',
+  '--color-on-primary': '#0a1222',
+  '--color-on-danger': '#0a1222',
+  '--noise-opacity': '0.05',
+  '--noise-blend': 'soft-light',
 } as const;
 
 /** §2.4「只允许这两处阴影」。 */
@@ -110,7 +161,8 @@ const EXPECTED_FONT_WEIGHTS = {
  */
 const EXPECTED_RADIUS_TOKENS = {
   '--radius-sm': '10px',
-  '--radius-md': '14px',
+  // v0.29（UI-012）：卡片与表面一档由 14px 升为 16px（v2 卡片体系定稿）。
+  '--radius-md': '16px',
   '--radius-lg': '20px',
   '--radius-pill': '999px',
 } as const;
@@ -189,10 +241,19 @@ function findTokenMismatches(
 }
 
 const tokensSource = readFileSync(TOKENS_FILE, 'utf8');
-const tokens = parseCustomProperties(tokensSource);
+
+/**
+ * 浅色档令牌一律取**首个 `:root` 块**的声明。
+ *
+ * 不能解析整份文件：v0.29（UI-012）起文件末尾的 `html[data-theme='dark']`
+ * 块会声明同名令牌，整文件解析时「后者覆盖前者」，浅色期望值会被暗色值顶掉——
+ * 那是解析口径的错误，不是设计漂移。暗色档单独解析（见下方主题用例）。
+ */
+const rootBlock = /^:root\s*\{([^}]*)\}/m.exec(tokensSource)?.[1] ?? tokensSource;
+const tokens = parseCustomProperties(rootBlock);
 
 describe('设计令牌 · 颜色', () => {
-  it('27 个颜色令牌全部存在且取值与规范语义一致', () => {
+  it('32 个颜色令牌全部存在且取值与规范语义一致', () => {
     const mismatches = findTokenMismatches(
       tokens,
       EXPECTED_COLOR_TOKENS,
@@ -200,10 +261,10 @@ describe('设计令牌 · 颜色', () => {
     );
 
     expect(mismatches).toEqual([]);
-    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(27);
+    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(32);
   });
 
-  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3 + 分类色 6」', () => {
+  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3 + 分类色 6 + v2 追加 5」', () => {
     const names = Object.keys(EXPECTED_COLOR_TOKENS);
     // 判据必须限定到三个状态色：基础语义色里本来就有 `--color-border`（分隔线），
     // 用 `endsWith('-border')` 会把它也算成状态边框，于是基础色少一个、边框多一个。
@@ -215,8 +276,21 @@ describe('设计令牌 · 颜色', () => {
     // 里排除出去，否则 base 会变成 15——而 base 的 9 是可枚举、可解释的，
     // 混入一族只为特定功能服务的颜色会让那个数字失去意义。
     const categorical = names.filter((name) => name.startsWith('--color-cat-'));
+    // v2 形态追加（v0.29，UI-012）：二级边界 / 扫光 / 标题渐变收尾 / 窗格光两级。
+    // 它们不属于上面任一语义组，单列一组，避免落进 base 把 9 撑大。
+    const v2Additions = [
+      '--color-border-strong',
+      '--color-beam',
+      '--color-title-fade',
+      '--color-dapple-a',
+      '--color-dapple-b',
+    ];
     const base = names.filter(
-      (name) => !borders.includes(name) && !derived.includes(name) && !categorical.includes(name),
+      (name) =>
+        !borders.includes(name) &&
+        !derived.includes(name) &&
+        !categorical.includes(name) &&
+        !v2Additions.includes(name),
     );
 
     // 计数写死在这里是有意的：§2.4 把令牌分组定为契约，
@@ -225,7 +299,8 @@ describe('设计令牌 · 颜色', () => {
     expect(derived).toHaveLength(9);
     expect(borders).toHaveLength(3);
     expect(categorical).toHaveLength(6);
-    expect(names).toHaveLength(27);
+    expect(v2Additions).toHaveLength(5);
+    expect(names).toHaveLength(32);
   });
 
   it('状态色柔和底按 8% alpha 推导，accent-soft 保留原型定值', () => {
@@ -350,9 +425,10 @@ describe('设计令牌 · 间距与圆角', () => {
     expect(findTokenMismatches(tokens, EXPECTED_RADIUS_TOKENS)).toEqual([]);
   });
 
-  it('内容最大宽度为 720px', () => {
-    // 规范 v0.27 起 720px（UI-011 单列阅读行宽，2026-10-09 用户授权同步）。
-    expect(tokens.get('--layout-max-width')).toBe('720px');
+  it('内容最大宽度为 900px', () => {
+    // v0.29（UI-012）由 720px 放宽为 900px（视觉方案 v2 仪表盘式页面，
+    // 推翻 v0.27 的「单列阅读行宽」口径，2026-10-10 用户采纳拍板）。
+    expect(tokens.get('--layout-max-width')).toBe('900px');
   });
 
   it('页面内边距随断点收敛：桌面 32px、平板 24px、手机 16px', () => {
@@ -369,16 +445,48 @@ describe('设计令牌 · 间距与圆角', () => {
 });
 
 describe('设计令牌 · 主题与纪律', () => {
-  it(':root 声明 color-scheme: light（第一阶段只实现浅色）', () => {
+  it(':root 声明 color-scheme: light（默认档仍是浅色）', () => {
     expect(tokensSource).toMatch(/:root\s*\{[^}]*color-scheme:\s*light/);
   });
 
-  it('深色只有占位块，且块内不含任何颜色变量', () => {
+  it('深色档已激活：颜色族 / 别名 / 材质两枚逐项与权威取值一致', () => {
     const darkBlock = /html\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(tokensSource)?.[1];
 
-    expect(darkBlock, "应保留 html[data-theme='dark'] 占位块供将来激活").toBeDefined();
-    // 值留空是刻意设计：填入猜测值会在将来被误认为已验收的设计。
-    expect(darkBlock).not.toMatch(/--color-/);
+    expect(darkBlock, '应保留 html[data-theme=dark] 块（v0.29 起为完整暗色档）').toBeDefined();
+
+    const darkTokens = parseCustomProperties(darkBlock ?? '');
+
+    const mismatches = findTokenMismatches(
+      darkTokens,
+      EXPECTED_DARK_TOKENS,
+      (a, b) => normalizeColor(a) === normalizeColor(b) || a === b,
+    );
+
+    expect(mismatches).toEqual([]);
+    expect(darkBlock).toMatch(/color-scheme:\s*dark/);
+  });
+
+  it('暗色两态齐备：颜色契约中除分类色外全部有暗色覆盖，分类色刻意不翻转', () => {
+    const darkBlock = /html\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(tokensSource)?.[1];
+    const darkTokens = parseCustomProperties(darkBlock ?? '');
+
+    const missing = Object.keys(EXPECTED_COLOR_TOKENS).filter(
+      (name) => !name.startsWith('--color-cat-') && !darkTokens.has(name),
+    );
+
+    expect(missing, '除分类色外，浅色契约里每一枚颜色都必须有暗色取值').toEqual([]);
+
+    for (const name of Object.keys(EXPECTED_COLOR_TOKENS)) {
+      if (name.startsWith('--color-cat-')) {
+        expect(darkTokens.has(name), `${name} 两态同值，不应在暗色块里翻转`).toBe(false);
+      }
+    }
+  });
+
+  it('v0.29 新增：材质两枚与层级一枚（噪声 / 纹理层）', () => {
+    expect(tokens.get('--noise-opacity')).toBe('0.028');
+    expect(tokens.get('--noise-blend')).toBe('multiply');
+    expect(tokens.get('--z-texture')).toBe('90');
   });
 
   it('不把断点做成 CSS 变量（变量无法用于 @media 条件）', () => {
