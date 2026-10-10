@@ -1,15 +1,17 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import Link from 'next/link';
 
 import {
   EditBlockModal,
   type EditableBlock as EditableBlockData,
 } from '../_components/EditBlockModal';
+import { PageHeading } from '../_components/PageHeading';
 
 import {
+  Badge,
   Button,
   Checkbox,
   ErrorState,
@@ -27,10 +29,14 @@ import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import styles from './TodayPanel.module.css';
 
 /**
- * 今日页（UI-007，《UI 页面规范》v0.20 §5，接口 §6 `GET /today`）。
+ * 今日页（UI-007；版式 v0.29（UI-012）视觉方案 v2 采纳，接口 §6 `GET /today`）。
  *
- * 版式自上而下：当前行动 → 时间线（块行内完成/延后）→ 固定事项（只读）→
- * 例程与习惯 → 未安排（过期仅文字标记）→ 负荷与恢复（中性文案、可关闭）。
+ * 版式自上而下（v0.29 重排）：页头（日期眉标 + 标题 + 「距离今天结束」逐位数字）
+ * → 激光舞台（当前行动 hero 卡，光束从页顶坠下击中卡顶边）→ 时间线卡（甘特时间尺 +
+ * 行状态）→ 固定事项卡（列表 + 建议 chips + 新增表单）→ 例程与习惯卡（条件）→
+ * 未安排卡 → 今日摘要卡（负荷数字 + 周条）。区块一律以「卡片」承载
+ * （白/深底 + 1px 描边 + 16px 圆角），滚进视口时逐张浮现一次。
+ *
  * 本地时区一次取数（timezone 参数），不前端多次拼请求。
  */
 
@@ -113,12 +119,12 @@ function minutesBetween(startsAtUtc: string, endsAtUtc: string): number {
   return Math.max(0, Math.round((Date.parse(endsAtUtc) - Date.parse(startsAtUtc)) / 60_000));
 }
 
-/* ── UI-011 丰富化（预览稿 §6.1 采纳项）────────────────────────────────── */
+/* ── v2 形态（UI-012）────────────────────────────────────────────────────── */
 
 /** 一天的分钟数。写成 `24 * 60`——直接写全天分钟数会撞验收扫描器的断点字面量。 */
 const MINUTES_PER_DAY = 24 * 60;
 
-/** 时间骨架：08–22 基线，4 小时一笔刻度（两小时一档时那排数字自己就是图表）。 */
+/** 时间尺：08–22 窗口，4 小时一笔刻度（甘特块条画在同一骨架上）。 */
 const RULER_START_HOUR = 8;
 const RULER_END_HOUR = 22;
 const RULER_TICK_HOURS = [8, 12, 16, 20] as const;
@@ -140,9 +146,9 @@ const WEEKDAY_LABELS = [
 const WEEKDAY_SHORT = ['日', '一', '二', '三', '四', '五', '六'] as const;
 
 /**
- * 空时间线的建议固定事项（预览稿 `.suggestions` 逐字）。
- * 做成**可点按钮**而不是死文案：预览稿注释明言「把常见固定事项变成一次点击」——
- * 点击给新增表单预填名称与开始时间（见 `FixedCommitmentForm` 的 `seed`）。
+ * 固定事项的建议 chips（预览稿逐字，v2 起常驻本卡）。
+ * 做成**可点按钮**而不是死文案：点击给新增表单预填名称与开始时间
+ * （见 `FixedCommitmentForm` 的 `seed`）。
  */
 const SUGGESTED_COMMITMENTS = [
   { title: '起床', startAt: '07:30' },
@@ -158,7 +164,7 @@ function weekdayIndexOf(date: string): number {
 }
 
 /**
- * 日期串 → 「M 月 D 日 · 星期W」（今日摘要的眉标语境）。
+ * 日期串 → 「M 月 D 日 · 星期W」（页头眉标的语境）。
  *
  * 取 `view.date`（服务端按用户时区定的「今天」）而不是前端 `new Date()`：
  * 后者在跨午夜/跨时区时可能与内容差一天。UTC 构造只为拿日历日的星期数——
@@ -167,6 +173,15 @@ function weekdayIndexOf(date: string): number {
 function dayEyebrow(date: string): string {
   const parts = date.split('-');
   return `${Number(parts[1])} 月 ${Number(parts[2])} 日 · ${WEEKDAY_LABELS[weekdayIndexOf(date)]}`;
+}
+
+/** 到期日文案：`M 月 D 日`；无到期日 → 「无期限」。 */
+function dueLabel(dueDate: string | null): string {
+  if (dueDate === null) {
+    return '无期限';
+  }
+  const parts = dueDate.split('-');
+  return `${Number(parts[1])} 月 ${Number(parts[2])} 日`;
 }
 
 /** 数字摘要的量词格式：`9 小时 28 分`（count-up 的逐帧输出也是这个形状）。 */
@@ -199,52 +214,248 @@ function dayMatches(iso: string, day: string): boolean {
   return `${String(local.getFullYear())}-${month}-${date}` === day;
 }
 
+/* ── 滚动浮现（UI-012 §6.1）──────────────────────────────────────────────
+ * SSR 安全的 layout effect：服务端退回 useEffect（布局副作用在服务端无意义），
+ * 客户端上两者时序差异只在「水合提交到首帧绘制之间」——那正是我们要的窗口。 */
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 /**
- * 时间骨架（UI-011 §6.1）：08–22 基线 + 每 4 小时一笔短刻度 + 「现在」指示线。
+ * 滚动浮现：卡片滚进视口才播一次性入场（零循环）。
  *
- * 成功态只在**客户端**渲染（取数 effect 之后才有数据），所以这里可以放心用
- * `new Date()` 而不产生水合不一致。`aria-hidden`：刻度是视觉辅助，
- * 读屏读标题与列表行即可。指示线是这个区块里唯一一处强调色。
+ * 布防在 layout effect 里完成——挂 `revealReady` 类 → 卡片进入隐藏初态 →
+ * IntersectionObserver 逐张加 `cardIn` 播上浮。选 layout effect 而不是
+ * 普通 effect 是为了**不闪**：普通 effect 在首帧绘制后才跑，卡片会先以
+ * 可见态闪现一帧再被藏起来。失败方向也是对的——JS 没跑 / 水合失败时
+ * `revealReady` 从未挂上，内容保持默认可见（宁可没动画，不可没内容）。
+ *
+ * 每次渲染重建观察器：卡片是条件渲染的（数据到达前后集合会变），
+ * 已入场的卡片带 `cardIn` 类、跳过重新观察。
  */
-function TimeRuler() {
+function useRevealCards(): RefObject<HTMLDivElement | null> {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useIsomorphicLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root === null) {
+      return;
+    }
+
+    // 布防标记走 data 属性而不是类名：CSS Modules 的类名在类型上是
+    // `string | undefined`（索引签名 + noUncheckedIndexedAccess），
+    // `classList.add` 不接受；data 属性同时把「这种状态是数据不是样式」写明白。
+    root.setAttribute('data-reveal-ready', 'true');
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.setAttribute('data-reveal-state', 'in');
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      // 下缘留 -6%：卡片"刚露头"不算进入视口，滚到面前才播，避免贴边闪动。
+      { rootMargin: '0px 0px -6% 0px', threshold: 0.05 },
+    );
+
+    for (const card of root.querySelectorAll('[data-reveal]')) {
+      if (card.getAttribute('data-reveal-state') !== 'in') {
+        observer.observe(card);
+      }
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  });
+
+  return rootRef;
+}
+
+/* ── 时间线（UI-012 甘特化）──────────────────────────────────────────────── */
+
+/** 尺上位置（0–100 的布局比例）：钟点 → 08–22 窗口，窗口外钳到端点。 */
+function rulerPosition(hour: number): number {
+  const clamped = Math.min(RULER_END_HOUR, Math.max(RULER_START_HOUR, hour));
+  return ((clamped - RULER_START_HOUR) / (RULER_END_HOUR - RULER_START_HOUR)) * 100;
+}
+
+/** 本地钟点（小时小数）——甘特块条的落点。 */
+function localHourOf(iso: string): number {
+  const date = new Date(iso);
+  return date.getHours() + date.getMinutes() / 60;
+}
+
+/**
+ * 甘特时间尺（UI-012 §6.1）：08–22 骨架 + 每 4 小时短刻度 + 时间块色条 +
+ * 「现在」竖线与胶囊。
+ *
+ * 色条三级：已完成（success-soft）/ 进行中（accent + 3px 柔光环）/ 计划
+ * （surface-soft + 描边）——同一根尺上把"今天的时间用了多少、用在哪"一次读完。
+ * 完全落在窗口外的块不画；跨窗口的钳到端点。`aria-hidden`：刻度与色条是
+ * 视觉辅助，读屏读标题与列表行即可。指示线与胶囊这个区块里唯一一处强调色。
+ */
+function TimelineRuler({ blocks }: { readonly blocks: readonly TodayBlock[] }) {
   const now = new Date();
   const nowHour = now.getHours() + now.getMinutes() / 60;
-  const at = (hour: number): number =>
-    ((hour - RULER_START_HOUR) / (RULER_END_HOUR - RULER_START_HOUR)) * 100;
-  const clamped = Math.min(RULER_END_HOUR, Math.max(RULER_START_HOUR, nowHour));
-  const left = (hour: number): { left: string } => ({ left: `${String(at(hour))}%` });
+  const nowPosition = rulerPosition(nowHour);
   const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // 胶囊靠近两端时贴边对齐（默认以位置点为中心会让它在 0%/100% 处溢出尺外）。
+  const pillEdge =
+    nowPosition < 8 ? styles.nowPillStart : nowPosition > 92 ? styles.nowPillEnd : undefined;
+
+  const left = (position: number): { readonly left: string } => ({
+    left: `${String(position)}%`,
+  });
 
   return (
     <div className={styles.ruler} aria-hidden="true">
       {RULER_TICK_HOURS.map((hour) => (
         <Fragment key={hour}>
-          <span className={styles.rulerLine} style={left(hour)} />
-          <span className={styles.rulerLabel} style={left(hour)}>
+          <span className={styles.rulerTick} style={left(rulerPosition(hour))} />
+          <span className={styles.rulerLabel} style={left(rulerPosition(hour))}>
             {String(hour).padStart(2, '0')}
           </span>
         </Fragment>
       ))}
-      <span className={styles.rulerNow} style={left(clamped)} />
-      <span className={styles.rulerNowTag} style={left(clamped)}>{`现在 ${hhmm}`}</span>
+      {blocks.map((block) => {
+        const start = localHourOf(block.startsAtUtc);
+        const end = localHourOf(block.endsAtUtc);
+        if (end <= RULER_START_HOUR || start >= RULER_END_HOUR) {
+          return null;
+        }
+        const barLeft = rulerPosition(start);
+        const barRight = rulerPosition(end);
+        const state =
+          block.status === 'completed'
+            ? styles.gbarDone
+            : nowHour >= start && nowHour < end
+              ? styles.gbarActive
+              : undefined;
+        return (
+          <span
+            key={block.id}
+            className={[styles.gbar, state].filter(Boolean).join(' ')}
+            style={{
+              left: `${String(barLeft)}%`,
+              // 最短 0.6%：极短块也要在尺上留下一个可读的刻度（否则整块消失）。
+              width: `${String(Math.max(barRight - barLeft, 0.6))}%`,
+            }}
+          />
+        );
+      })}
+      <span className={styles.rulerNow} style={left(nowPosition)} />
+      <span
+        className={[styles.nowPill, pillEdge].filter(Boolean).join(' ')}
+        style={left(nowPosition)}
+      >
+        {`现在 ${hhmm}`}
+      </span>
     </div>
   );
 }
 
+/* ── 数字（UI-012）───────────────────────────────────────────────────────── */
+
 /**
- * 数字摘要 count-up（UI-011 §6.1）：进组件即从 0 滚动一次到位，不循环。
+ * 逐位数字滚轮的一位（odometer）：每位一列 0–9 重复三圈，起点停「第三圈的
+ * 目标位」、终点停「第二圈的目标位」——视觉上是滚满一圈后归位，十位先停、
+ * 个位后停（延迟错峰）。
  *
- * 时长从 `--duration-base` 令牌读（×3 ≈ 600ms，工具页不该让数字滚两秒）；
- * reduce 模式下令牌归 0.01ms——首帧即终值，因此**不需要**写
- * prefers-reduced-motion 媒体查询（规范只允许令牌单点降级）。
- * 初值 `0 小时 0 分` 只存在一帧（该子树仅客户端渲染，无水合问题）。
+ * 延迟取 `--duration-slow` 的派生因子（因子在 JS 侧按位序算出，样式里仍然
+ * 只有令牌，零时长字面量）；时长与缓动在样式里（`--ease-standard`）。
  */
-function RemainFigure() {
+function OdometerDigit({ digit, index }: { readonly digit: number; readonly index: number }) {
+  const [rolled, setRolled] = useState(false);
+
+  useEffect(() => {
+    const handle = requestAnimationFrame(() => {
+      setRolled(true);
+    });
+    return () => {
+      cancelAnimationFrame(handle);
+    };
+  }, []);
+
+  const cells: number[] = [];
+  for (let round = 0; round < 3; round += 1) {
+    for (let value = 0; value <= 9; value += 1) {
+      cells.push(value);
+    }
+  }
+
+  return (
+    <span className={styles.odoCol}>
+      <span
+        className={styles.odoStrip}
+        style={{
+          transform: `translateY(-${String(rolled ? 10 + digit : 20 + digit)}em)`,
+          transitionDelay: `calc(var(--duration-slow) * ${String(index * 0.36 + 0.24)})`,
+        }}
+      >
+        {cells.map((value, cellIndex) => (
+          <span key={`${String(cellIndex)}-${String(value)}`}>{value}</span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * 页头数字（UI-012 §6.1）：距离今天结束的「N 小时 M 分」，逐位滚轮归位。
+ *
+ * 首帧渲染为纯文本「0 小时 0 分」（与服务端产出一致，避免水合不匹配），
+ * 挂载后换成滚轮并滚到真实值——滚轮本身就是入场动画（一次性，零循环）。
+ * 时钟只在客户端读取（同 `RemainFigure` 的既有口径）。
+ */
+function RemainOdometer() {
+  const [left, setLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    // 走一帧 rAF 再落值：既满足「不在 effect 体里同步 setState」（级联渲染警告），
+    // 也保证滚轮从 0 位起步——首帧先画"00"，下一帧才滚到真实值。
+    const handle = requestAnimationFrame(() => {
+      const now = new Date();
+      setLeft(MINUTES_PER_DAY - (now.getHours() * 60 + now.getMinutes()));
+    });
+    return () => {
+      cancelAnimationFrame(handle);
+    };
+  }, []);
+
+  if (left === null) {
+    return <p className={styles.headFigureValue}>{formatRemain(0)}</p>;
+  }
+
+  const digitsOf = (value: number, offset: number): ReactNode =>
+    String(value)
+      .padStart(2, '0')
+      .split('')
+      .map((digit, index) => (
+        <OdometerDigit key={`${String(index)}`} digit={Number(digit)} index={index + offset} />
+      ));
+
+  return (
+    <p className={styles.headFigureValue}>
+      <span className={styles.odo}>{digitsOf(Math.floor(left / 60), 0)}</span>
+      {' 小时 '}
+      <span className={styles.odo}>{digitsOf(left % 60, 2)}</span>
+      {' 分'}
+    </p>
+  );
+}
+
+/**
+ * 数字摘要 count-up（UI-011 §6.1，UI-012 改为「目标分钟数」入参）：进组件即从 0
+ * 滚到实值，一次到位、不循环；时钟只在客户端读（本卡只在成功态渲染）。
+ *
+ * 时长从令牌读（`--duration-base` × 3 ≈ 600ms），reduce 下归零即首帧终值。
+ */
+function CountUpMinutes({ minutes }: { readonly minutes: number }) {
   const [text, setText] = useState(() => formatRemain(0));
 
   useEffect(() => {
-    const now = new Date();
-    const remain = MINUTES_PER_DAY - (now.getHours() * 60 + now.getMinutes());
     const base =
       parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--duration-base')) ||
       200;
@@ -252,16 +463,18 @@ function RemainFigure() {
     const startedAt = performance.now();
     let frameHandle = requestAnimationFrame(function step(frameAt: number): void {
       const progress = Math.min(1, (frameAt - startedAt) / duration);
-      setText(formatRemain(Math.round(remain * (1 - Math.pow(1 - progress, 3)))));
+      setText(formatRemain(Math.round(minutes * (1 - Math.pow(1 - progress, 3)))));
       if (progress < 1) {
         frameHandle = requestAnimationFrame(step);
       }
     });
 
-    return () => cancelAnimationFrame(frameHandle);
-  }, []);
+    return () => {
+      cancelAnimationFrame(frameHandle);
+    };
+  }, [minutes]);
 
-  return <p className={styles.figure}>{text}</p>;
+  return <p className={styles.summaryFigure}>{text}</p>;
 }
 
 /** `GET /schedule-blocks` 周窗口里本页用到的字段（本周迷你条只需时段两头）。 */
@@ -277,6 +490,8 @@ interface CommitmentSeed {
 }
 
 export function TodayPanel() {
+  const revealRef = useRevealCards();
+  const heroRef = useRef<HTMLElement | null>(null);
   const today = useAsyncQuery({
     queryKey: ['today'],
     queryFn: (signal) =>
@@ -322,7 +537,7 @@ export function TodayPanel() {
    */
   const [expandedReminderKey, setExpandedReminderKey] = useState<string | null>(null);
   /**
-   * 空时间线的建议 chips → 新增固定事项表单的预填载荷（UI-011）。
+   * 建议 chips → 新增固定事项表单的预填载荷（UI-011；v2 起 chips 常驻固定事项卡）。
    * 每次点击写入新对象引用，表单在渲染期比对引用差异后展开并预填
    * （见 `FixedCommitmentForm`，不走 effect——lint 拦 setState-in-effect）。
    */
@@ -427,46 +642,15 @@ export function TodayPanel() {
     }
   };
 
-  if (today.state.status === 'loading') {
-    return (
-      <div className={styles.section} role="status" aria-busy="true">
-        <Skeleton />
-        <Skeleton width="80%" />
-        <Skeleton width="90%" />
-      </div>
-    );
-  }
-  if (today.state.status === 'error') {
-    return (
-      <div className={styles.section}>
-        <ErrorState
-          title="今日安排没能加载"
-          description="数据没能取回来。可以先重试。"
-          action={
-            <Button variant="primary" onClick={today.refetch}>
-              重试
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-
-  const view = today.state.data;
-  const unfinishedBlocks = view.blocks.filter((block) => block.status !== 'completed');
-  const hasFixedBlock = view.fixedCommitments.length > 0;
-  const hasRoutineBlock = view.routines.length > 0 || view.habits.length > 0;
-  const overdueCount = view.unscheduledTasks.filter((task) => task.overdue).length;
-
-  /*
-   * 区块错峰序（§6.1）：按**实际渲染顺序**递增，条件区块缺席时不占号
-   * （预览稿用 `nth-of-type`——产品里区块是条件渲染的，序号只能算出来）。
-   * 当前行动卡片与表单不是 `.block`，不占号。
+  const view = today.state.status === 'success' ? today.state.data : null;
+  /**
+   * 当前行动卡「还剩 N 分钟」的读数。与既有「现在」读数同一条口径：渲染期
+   * 取一次本地时间（`new Date()`，与时间尺/时间线同一 惯例），负值不显示。
    */
-  const fixedIndex = hasFixedBlock ? 1 : -1;
-  const routinesIndex = hasRoutineBlock ? (hasFixedBlock ? 2 : 1) : -1;
-  const unscheduledIndex = (hasFixedBlock ? 1 : 0) + (hasRoutineBlock ? 1 : 0) + 1;
-  const summaryIndex = unscheduledIndex + 1;
+  const currentRemainMinutes =
+    view?.currentAction == null
+      ? null
+      : Math.round((Date.parse(view.currentAction.endsAtUtc) - new Date().getTime()) / 60_000);
 
   /**
    * 本周迷你条（有量才画）：合计为 0、或取数未成功，整组不渲染——
@@ -486,7 +670,7 @@ export function TodayPanel() {
       const weekMax = Math.max(120, ...weekMinutes);
       const todayKey = localCalendarDay();
       weekViz = (
-        <div className={styles.summaryViz}>
+        <div className={styles.weekViz}>
           <div className={styles.weekHead}>
             <span className={styles.blockMeta}>本周已排（分钟）</span>
             <span className={styles.blockMeta}>{`合计 ${String(weekTotal)}`}</span>
@@ -497,6 +681,7 @@ export function TodayPanel() {
                 key={day}
                 className={styles.weekCol}
                 data-today={day === todayKey ? 'true' : undefined}
+                style={{ '--i': index } as CSSProperties}
               >
                 <span
                   className={styles.weekBar}
@@ -516,408 +701,558 @@ export function TodayPanel() {
   }
 
   return (
-    <div className={styles.blocks}>
-      {view.currentAction === null ? null : (
-        <section className={styles.currentAction} aria-label="当前行动">
-          <p className={styles.currentLabel}>当前行动</p>
-          <p className={styles.currentTitle}>{view.currentAction.title ?? '进行中'}</p>
-          <p className={styles.currentMeta}>
-            {clockOf(view.currentAction.startsAtUtc)} – {clockOf(view.currentAction.endsAtUtc)}
-          </p>
-        </section>
-      )}
-
-      <section
-        aria-label="时间线"
-        data-tour="today-timeline"
-        className={styles.block}
-        style={{ '--i': 0 } as CSSProperties}
-      >
-        {/* 眉标：给区块一个语境（当前时点与今天的关系），不是装饰。 */}
-        <p className={styles.eyebrow}>{`今天 · ${timelineStatusOf(view.blocks)}`}</p>
-        <div className={styles.blockHead}>
-          <h2 className={styles.heading}>时间线</h2>
-          <span className={styles.blockMeta}>{`${String(view.blocks.length)} 项`}</span>
+    <div className={styles.today} ref={revealRef}>
+      {/* ── 页头与激光舞台（UI-012）：舞台覆盖「页头 + 当前行动卡」——光束从
+          页面顶部坠下、穿过标题区落到卡片顶边（canvas 由 LaserFlow 组件渲染，
+          画布左右扩宽与裁切见该组件说明）。 ── */}
+      <div className={styles.laserStage}>
+        {view === null ? null : <p className={styles.eyebrow}>{dayEyebrow(view.date)}</p>}
+        <div className={styles.pageHead}>
+          <div className={styles.headTitle}>
+            <PageHeading>今日</PageHeading>
+          </div>
+          <div className={styles.headFigure}>
+            <RemainOdometer />
+            <span className={styles.headFigureCaption}>距离今天结束还有</span>
+          </div>
         </div>
-        {view.blocks.length === 0 ? (
-          <p className={styles.hint}>
-            今天还没有排时间块。 <Link href="/inbox">去收件箱</Link> 安排一个任务，或查看{' '}
-            <Link href="/week">本周视图</Link>。
-          </p>
-        ) : (
-          <ul className={styles.blockList}>
-            {view.blocks.map((block) => {
-              // 自由安排块没有 `taskId`（＝没有可挂规则的对象），§5 C 明文「固定事项与
-              // 时间块不产生提醒」，因此这类块不渲染提醒入口。
-              const taskId = block.taskId;
-              const rowKey = `task:${taskId ?? ''}`;
-              return (
-                <li
-                  key={block.id}
-                  className={styles.blockRow}
-                  data-glare
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (block.status === 'completed') return;
-                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-                      event.preventDefault();
-                      const delta = event.key === 'ArrowRight' ? 15 : -15;
-                      setShiftMinutes((prev) => ({
-                        ...prev,
-                        [block.id]: (prev[block.id] ?? 0) + delta,
-                      }));
-                    }
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      setEditingBlock({
-                        ...block,
-                        startsAtUtc: shiftPreviewIso(block, shiftMinutes[block.id] ?? 0),
-                      });
-                      setShiftMinutes((prev) => {
-                        const next = { ...prev };
-                        delete next[block.id];
-                        return next;
-                      });
-                    }
-                    if (event.key === 'Escape') {
-                      setShiftMinutes((prev) => {
-                        const next = { ...prev };
-                        delete next[block.id];
-                        return next;
-                      });
-                    }
-                  }}
-                  draggable={block.status !== 'completed'}
-                  onDragStart={() => {
-                    setDraggingId(block.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingId(null);
-                  }}
-                  onDragOver={(event) => {
-                    if (draggingId !== null && draggingId !== block.id) {
-                      event.preventDefault();
-                    }
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const dragged = view.blocks.find((b) => b.id === draggingId);
-                    setDraggingId(null);
-                    if (dragged === undefined || dragged.id === block.id) return;
-                    // 拖拽语义：被拖块的开始吸附到目标块结束（冲突由服务端 warning）。
-                    void moveBlockTo(dragged, new Date(block.endsAtUtc));
-                  }}
-                >
-                  <span className={styles.blockTime}>
-                    {clockOf(shiftPreviewIso(block, shiftMinutes[block.id] ?? 0))}–
-                    {clockOf(
-                      shiftPreviewIso(
-                        block,
-                        (shiftMinutes[block.id] ?? 0) +
-                          minutesBetween(block.startsAtUtc, block.endsAtUtc),
-                      ),
-                    )}
-                  </span>
-                  <span className={styles.blockTitle}>
-                    {block.title ?? '自由安排'}
-                    {(shiftMinutes[block.id] ?? 0) !== 0 ? (
-                      <span className={styles.hint}>
-                        {' '}
-                        （{shiftMinutes[block.id]! > 0 ? '+' : ''}
-                        {String(shiftMinutes[block.id])} 分钟，Enter 确认 / Esc 还原）
-                      </span>
-                    ) : null}
-                  </span>
-                  {block.status === 'completed' ? (
-                    <span className={styles.doneBadge}>已完成</span>
-                  ) : (
-                    <span className={styles.blockActions}>
-                      <Button
-                        variant="ghost"
-                        loading={pending.has(block.id)}
-                        onClick={() => {
-                          void mutateBlock(block, 'completed');
-                        }}
-                      >
-                        完成
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        loading={pending.has(block.id)}
-                        onClick={() => {
-                          void mutateBlock(block, 'deferred');
-                        }}
-                      >
-                        延后
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingBlock(block);
-                        }}
-                      >
-                        调整
-                      </Button>
-                    </span>
-                  )}
-                  {taskId === null || reminderGlobalEnabled === null ? null : (
-                    <ReminderRuleInlineArea
-                      label="为该任务添加提醒"
-                      controlsId={`reminder-task-${taskId}`}
-                      expanded={expandedReminderKey === rowKey}
-                      onToggleExpanded={() => {
-                        toggleReminderRow(rowKey);
-                      }}
-                      section={{
-                        state: reminders.stateFor('task', taskId),
-                        onRetry: reminders.retry,
-                        globalEnabled: reminderGlobalEnabled,
-                        permission: reminders.permission,
-                        onRequestPermission: reminders.requestPermission,
-                        onCreate: (draft) => reminders.createRule('task', taskId, draft),
-                        onToggle: reminders.toggleRule,
-                      }}
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {/* 时间骨架常驻（列表在上、骨架在下、建议在骨架下，与预览稿结构一致）。 */}
-        <TimeRuler />
-        {view.blocks.length !== 0 ? null : (
-          <div className={styles.suggestions}>
-            {SUGGESTED_COMMITMENTS.map((item) => (
-              <button
-                key={item.title}
-                type="button"
-                className={styles.chip}
-                data-glare
-                onClick={() => {
-                  setCommitmentSeed({ title: item.title, startAt: item.startAt });
-                }}
-              >
-                {`${item.title} ${item.startAt}`}
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
 
-      {hasFixedBlock ? (
-        <section
-          aria-label="固定事项"
-          className={styles.block}
-          style={{ '--i': fixedIndex } as CSSProperties}
-        >
-          <div className={styles.blockHead}>
-            <h2 className={styles.heading}>固定事项</h2>
-            <span className={styles.blockMeta}>{`${String(view.fixedCommitments.length)} 项`}</span>
-          </div>
-          <ul className={styles.fixedList}>
-            {view.fixedCommitments.map((item) => (
-              <li key={item.id} className={styles.fixedRow}>
-                <span>
-                  {item.startsAtUtc === null ? '' : `${clockOf(item.startsAtUtc)} `}
-                  {item.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {/* 表单不是 `.block`：自带 `--space-4` 上距，与区块描边留出呼吸。 */}
-      <div className={styles.formSlot}>
-        <FixedCommitmentForm onCreated={today.refetch} seed={commitmentSeed} />
+        {view?.currentAction == null ? null : (
+          <section
+            ref={heroRef}
+            className={`${styles.card} ${styles.hero}`}
+            data-reveal
+            aria-label="当前行动"
+            style={{ '--i': 0 } as CSSProperties}
+          >
+            <span className={styles.heroBar} aria-hidden="true" />
+            <span className={styles.nowTag}>进行中</span>
+            <p className={styles.actTitle}>{view.currentAction.title ?? '自由安排'}</p>
+            <p className={styles.actRange}>
+              {`${clockOf(view.currentAction.startsAtUtc)} – ${clockOf(view.currentAction.endsAtUtc)}`}
+              {currentRemainMinutes !== null && currentRemainMinutes > 0
+                ? ` · 还剩 ${String(currentRemainMinutes)} 分钟`
+                : ''}
+            </p>
+          </section>
+        )}
       </div>
 
-      {editingBlock === null ? null : (
-        <EditBlockModal
-          block={editingBlock}
-          onClose={() => {
-            setEditingBlock(null);
-          }}
-          onSaved={() => {
-            setEditingBlock(null);
-            today.refetch();
-          }}
-        />
-      )}
-
-      {hasRoutineBlock ? (
-        <section
-          aria-label="例程与习惯"
-          className={styles.block}
-          style={{ '--i': routinesIndex } as CSSProperties}
-        >
-          <div className={styles.blockHead}>
-            <h2 className={styles.heading}>例程与习惯</h2>
-            <span className={styles.blockMeta}>
-              {`${String(view.routines.length + view.habits.length)} 项`}
-            </span>
-          </div>
-          <ul className={styles.routineList}>
-            {view.routines.map((routine) => (
-              <Fragment key={routine.id}>
-                <li key={routine.id} className={styles.routineRow}>
-                  <span className={styles.routineName}>{routine.name}</span>
-                  {routine.scheduled ? null : (
-                    <Button
-                      variant="secondary"
-                      loading={pendingRoutine === routine.id}
-                      onClick={() => {
-                        void scheduleRoutine(routine.id);
-                      }}
-                    >
-                      安排到今天
-                    </Button>
-                  )}
-                  {reminderGlobalEnabled === null ? null : (
-                    <ReminderRuleInlineArea
-                      label="为例程添加提醒"
-                      controlsId={`reminder-routine-${routine.id}`}
-                      expanded={expandedReminderKey === `routine:${routine.id}`}
-                      onToggleExpanded={() => {
-                        toggleReminderRow(`routine:${routine.id}`);
-                      }}
-                      section={{
-                        state: reminders.stateFor('routine', routine.id),
-                        onRetry: reminders.retry,
-                        globalEnabled: reminderGlobalEnabled,
-                        permission: reminders.permission,
-                        onRequestPermission: reminders.requestPermission,
-                        onCreate: (draft) => reminders.createRule('routine', routine.id, draft),
-                        onToggle: reminders.toggleRule,
-                      }}
-                    />
-                  )}
-                </li>
-                {routine.steps.map((step) => {
-                  const stepBlock =
-                    step.blockId === null
-                      ? undefined
-                      : view.blocks.find((candidate) => candidate.id === step.blockId);
-                  return (
-                    <li key={step.id} className={styles.routineRow}>
-                      <Checkbox
-                        label={`完成例程步骤：${step.title}`}
-                        checked={stepBlock !== undefined && stepBlock.status === 'completed'}
-                        disabled={stepBlock === undefined}
-                        onChange={(next) => {
-                          if (next && stepBlock !== undefined) {
-                            void mutateBlock(stepBlock, 'completed');
-                          }
-                        }}
-                      />
-                      <span>
-                        {routine.name} · {step.title}
-                      </span>
-                      {stepBlock !== undefined && stepBlock.status === 'completed' ? (
-                        <span className={styles.doneBadge}>已完成</span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </Fragment>
-            ))}
-            {view.habits.map((habit) => (
-              <li key={habit.actionId} className={styles.routineRow}>
-                <Checkbox
-                  label={`完成习惯：${habit.title}`}
-                  checked={habit.doneToday}
-                  onChange={(next) => {
-                    if (next) {
-                      void toggleHabit(habit.actionId, true);
-                    }
-                  }}
-                />
-                <span>{habit.title}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {today.state.status === 'loading' ? (
+        <div className={styles.section} role="status" aria-busy="true">
+          <Skeleton />
+          <Skeleton width="80%" />
+          <Skeleton width="90%" />
+        </div>
       ) : null}
 
-      <section
-        aria-label="未安排"
-        data-tour="today-unscheduled"
-        className={styles.block}
-        style={{ '--i': unscheduledIndex } as CSSProperties}
-      >
-        <p className={styles.eyebrow}>从收件箱挑一件排进来</p>
-        <div className={styles.blockHead}>
-          <h2 className={styles.heading}>未安排</h2>
-          <span className={styles.blockMeta}>
-            {overdueCount > 0
-              ? `${String(overdueCount)} 过期`
-              : `${String(view.unscheduledTasks.length)} 项`}
-          </span>
+      {today.state.status === 'error' ? (
+        <div className={styles.section}>
+          <ErrorState
+            title="今日安排没能加载"
+            description="数据没能取回来。可以先重试。"
+            action={
+              <Button variant="primary" onClick={today.refetch}>
+                重试
+              </Button>
+            }
+          />
         </div>
-        {view.unscheduledTasks.length === 0 ? (
-          <p className={styles.hint}>没有待安排的任务。</p>
-        ) : (
-          <ul className={styles.unscheduledList}>
-            {view.unscheduledTasks.map((task) => (
-              <li key={task.id} className={styles.unscheduledRow} data-glare>
-                <span>{task.title}</span>
-                {task.overdue ? <span className={styles.overdueBadge}>过期</span> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      ) : null}
 
-      <section
-        aria-label="负荷与恢复"
-        className={styles.block}
-        style={{ '--i': summaryIndex } as CSSProperties}
-      >
-        <p className={styles.eyebrow}>{dayEyebrow(view.date)}</p>
-        <div className={styles.blockHead}>
-          <h2 className={styles.heading}>今日摘要</h2>
+      {view === null ? null : (
+        <div className={styles.cards}>
+          {(() => {
+            const unfinishedBlocks = view.blocks.filter((block) => block.status !== 'completed');
+            const hasRoutineBlock = view.routines.length > 0 || view.habits.length > 0;
+            const overdueCount = view.unscheduledTasks.filter((task) => task.overdue).length;
+            const nowHour = new Date().getHours() + new Date().getMinutes() / 60;
+            /*
+             * 卡片错峰序（§6.1）：按**实际渲染顺序**递增，条件卡片缺席时不占号
+             * （预览稿用 `nth-of-type`——产品里卡片是条件渲染的，序号只能算出来）。
+             * hero 在舞台内、固定事项卡始终在场。
+             */
+            const routinesIndex = hasRoutineBlock ? 3 : -1;
+            const unscheduledIndex = hasRoutineBlock ? 4 : 3;
+            const summaryIndex = unscheduledIndex + 1;
+            const loadPercent =
+              view.load.plannedMinutes > 0
+                ? Math.min(
+                    100,
+                    Math.round((view.load.completedMinutes / view.load.plannedMinutes) * 100),
+                  )
+                : 0;
+
+            return (
+              <>
+                {/* 时间线（甘特）*/}
+                <section
+                  aria-label="时间线"
+                  data-tour="today-timeline"
+                  data-reveal
+                  className={styles.card}
+                  style={{ '--i': 1 } as CSSProperties}
+                >
+                  <div className={styles.cardHead}>
+                    <h2 className={styles.heading}>时间线</h2>
+                    <span className={styles.blockMeta}>
+                      {`今天 · ${timelineStatusOf(view.blocks)} · ${String(view.blocks.length)} 项`}
+                    </span>
+                  </div>
+
+                  <TimelineRuler blocks={view.blocks} />
+
+                  {view.blocks.length === 0 ? (
+                    <div className={styles.empty}>
+                      <span className={styles.emptyArt} aria-hidden="true" />
+                      <div className={styles.emptyCopy}>
+                        <p className={styles.emptyTitle}>今天还没有排时间块。</p>
+                        <p className={styles.emptyDescription}>
+                          <Link href="/inbox">去收件箱</Link> 安排一个任务，或查看{' '}
+                          <Link href="/week">本周视图</Link>。
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <ul className={styles.blockList}>
+                      {view.blocks.map((block, rowIndex) => {
+                        // 自由安排块没有 `taskId`（＝没有可挂规则的对象），§5 C 明文「固定事项与
+                        // 时间块不产生提醒」，因此这类块不渲染提醒入口。
+                        const taskId = block.taskId;
+                        const rowKey = `task:${taskId ?? ''}`;
+                        const done = block.status === 'completed';
+                        const start = localHourOf(block.startsAtUtc);
+                        const end = localHourOf(block.endsAtUtc);
+                        const active = !done && nowHour >= start && nowHour < end;
+                        return (
+                          <li
+                            key={block.id}
+                            className={styles.blockRow}
+                            data-glare
+                            style={{ '--i': rowIndex } as CSSProperties}
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (block.status === 'completed') return;
+                              if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                                event.preventDefault();
+                                const delta = event.key === 'ArrowRight' ? 15 : -15;
+                                setShiftMinutes((prev) => ({
+                                  ...prev,
+                                  [block.id]: (prev[block.id] ?? 0) + delta,
+                                }));
+                              }
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                setEditingBlock({
+                                  ...block,
+                                  startsAtUtc: shiftPreviewIso(block, shiftMinutes[block.id] ?? 0),
+                                });
+                                setShiftMinutes((prev) => {
+                                  const next = { ...prev };
+                                  delete next[block.id];
+                                  return next;
+                                });
+                              }
+                              if (event.key === 'Escape') {
+                                setShiftMinutes((prev) => {
+                                  const next = { ...prev };
+                                  delete next[block.id];
+                                  return next;
+                                });
+                              }
+                            }}
+                            draggable={block.status !== 'completed'}
+                            onDragStart={() => {
+                              setDraggingId(block.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingId(null);
+                            }}
+                            onDragOver={(event) => {
+                              if (draggingId !== null && draggingId !== block.id) {
+                                event.preventDefault();
+                              }
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              const dragged = view.blocks.find((b) => b.id === draggingId);
+                              setDraggingId(null);
+                              if (dragged === undefined || dragged.id === block.id) return;
+                              // 拖拽语义：被拖块的开始吸附到目标块结束（冲突由服务端 warning）。
+                              void moveBlockTo(dragged, new Date(block.endsAtUtc));
+                            }}
+                          >
+                            <span className={styles.blockTime}>
+                              {clockOf(shiftPreviewIso(block, shiftMinutes[block.id] ?? 0))}–
+                              {clockOf(
+                                shiftPreviewIso(
+                                  block,
+                                  (shiftMinutes[block.id] ?? 0) +
+                                    minutesBetween(block.startsAtUtc, block.endsAtUtc),
+                                ),
+                              )}
+                            </span>
+                            <span
+                              className={[
+                                styles.rowDot,
+                                done ? styles.rowDotDone : active ? styles.rowDotActive : undefined,
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              aria-hidden="true"
+                            />
+                            <span className={styles.blockTitle}>
+                              {block.title ?? '自由安排'}
+                              {(shiftMinutes[block.id] ?? 0) !== 0 ? (
+                                <span className={styles.hint}>
+                                  {' '}
+                                  （{shiftMinutes[block.id]! > 0 ? '+' : ''}
+                                  {String(shiftMinutes[block.id])} 分钟，Enter 确认 / Esc 还原）
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className={styles.blockSide}>
+                              {done ? (
+                                <Badge variant="success">已完成</Badge>
+                              ) : active ? (
+                                <Badge variant="neutral">进行中</Badge>
+                              ) : null}
+                              {done ? null : (
+                                <span className={styles.blockActions}>
+                                  <Button
+                                    variant="ghost"
+                                    loading={pending.has(block.id)}
+                                    onClick={() => {
+                                      void mutateBlock(block, 'completed');
+                                    }}
+                                  >
+                                    完成
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    loading={pending.has(block.id)}
+                                    onClick={() => {
+                                      void mutateBlock(block, 'deferred');
+                                    }}
+                                  >
+                                    延后
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingBlock(block);
+                                    }}
+                                  >
+                                    调整
+                                  </Button>
+                                </span>
+                              )}
+                            </span>
+                            {taskId === null || reminderGlobalEnabled === null ? null : (
+                              <ReminderRuleInlineArea
+                                label="为该任务添加提醒"
+                                controlsId={`reminder-task-${taskId}`}
+                                expanded={expandedReminderKey === rowKey}
+                                onToggleExpanded={() => {
+                                  toggleReminderRow(rowKey);
+                                }}
+                                section={{
+                                  state: reminders.stateFor('task', taskId),
+                                  onRetry: reminders.retry,
+                                  globalEnabled: reminderGlobalEnabled,
+                                  permission: reminders.permission,
+                                  onRequestPermission: reminders.requestPermission,
+                                  onCreate: (draft) => reminders.createRule('task', taskId, draft),
+                                  onToggle: reminders.toggleRule,
+                                }}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+
+                {/* 固定事项（列表 + 建议 chips + 新增表单，始终在场）*/}
+                <section
+                  aria-label="固定事项"
+                  data-reveal
+                  className={styles.card}
+                  style={{ '--i': 2 } as CSSProperties}
+                >
+                  <div className={styles.cardHead}>
+                    <h2 className={styles.heading}>固定事项</h2>
+                    <span className={styles.blockMeta}>
+                      {`${String(view.fixedCommitments.length)} 项`}
+                    </span>
+                  </div>
+                  {view.fixedCommitments.length === 0 ? null : (
+                    <ul className={styles.fixedList}>
+                      {view.fixedCommitments.map((item) => (
+                        <li key={item.id} className={styles.fixedRow}>
+                          <span>
+                            {item.startsAtUtc === null ? '' : `${clockOf(item.startsAtUtc)} `}
+                            {item.title}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* 建议 chips：把「常见固定事项」变成一次点击——点击预填新增表单。 */}
+                  <div className={styles.suggestions}>
+                    {SUGGESTED_COMMITMENTS.map((item) => (
+                      <button
+                        key={item.title}
+                        type="button"
+                        className={styles.chip}
+                        onClick={() => {
+                          setCommitmentSeed({ title: item.title, startAt: item.startAt });
+                        }}
+                      >
+                        <span className={styles.chipPlus} aria-hidden="true">
+                          ＋
+                        </span>
+                        {item.title}
+                        <span className={styles.chipTime}>{item.startAt}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.fixedFormSlot}>
+                    <FixedCommitmentForm onCreated={today.refetch} seed={commitmentSeed} />
+                  </div>
+                </section>
+
+                {editingBlock === null ? null : (
+                  <EditBlockModal
+                    block={editingBlock}
+                    onClose={() => {
+                      setEditingBlock(null);
+                    }}
+                    onSaved={() => {
+                      setEditingBlock(null);
+                      today.refetch();
+                    }}
+                  />
+                )}
+
+                {hasRoutineBlock ? (
+                  <section
+                    aria-label="例程与习惯"
+                    data-reveal
+                    className={styles.card}
+                    style={{ '--i': routinesIndex } as CSSProperties}
+                  >
+                    <div className={styles.cardHead}>
+                      <h2 className={styles.heading}>例程与习惯</h2>
+                      <span className={styles.blockMeta}>
+                        {`${String(view.routines.length + view.habits.length)} 项`}
+                      </span>
+                    </div>
+                    <ul className={styles.routineList}>
+                      {view.routines.map((routine) => (
+                        <Fragment key={routine.id}>
+                          <li key={routine.id} className={styles.routineRow}>
+                            <span className={styles.routineName}>{routine.name}</span>
+                            {routine.scheduled ? null : (
+                              <Button
+                                variant="secondary"
+                                loading={pendingRoutine === routine.id}
+                                onClick={() => {
+                                  void scheduleRoutine(routine.id);
+                                }}
+                              >
+                                安排到今天
+                              </Button>
+                            )}
+                            {reminderGlobalEnabled === null ? null : (
+                              <ReminderRuleInlineArea
+                                label="为例程添加提醒"
+                                controlsId={`reminder-routine-${routine.id}`}
+                                expanded={expandedReminderKey === `routine:${routine.id}`}
+                                onToggleExpanded={() => {
+                                  toggleReminderRow(`routine:${routine.id}`);
+                                }}
+                                section={{
+                                  state: reminders.stateFor('routine', routine.id),
+                                  onRetry: reminders.retry,
+                                  globalEnabled: reminderGlobalEnabled,
+                                  permission: reminders.permission,
+                                  onRequestPermission: reminders.requestPermission,
+                                  onCreate: (draft) =>
+                                    reminders.createRule('routine', routine.id, draft),
+                                  onToggle: reminders.toggleRule,
+                                }}
+                              />
+                            )}
+                          </li>
+                          {routine.steps.map((step) => {
+                            const stepBlock =
+                              step.blockId === null
+                                ? undefined
+                                : view.blocks.find((candidate) => candidate.id === step.blockId);
+                            return (
+                              <li key={step.id} className={styles.routineRow}>
+                                <Checkbox
+                                  label={`完成例程步骤：${step.title}`}
+                                  checked={
+                                    stepBlock !== undefined && stepBlock.status === 'completed'
+                                  }
+                                  disabled={stepBlock === undefined}
+                                  onChange={(next) => {
+                                    if (next && stepBlock !== undefined) {
+                                      void mutateBlock(stepBlock, 'completed');
+                                    }
+                                  }}
+                                />
+                                <span>
+                                  {routine.name} · {step.title}
+                                </span>
+                                {stepBlock !== undefined && stepBlock.status === 'completed' ? (
+                                  <Badge variant="success">已完成</Badge>
+                                ) : null}
+                              </li>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                      {view.habits.map((habit) => (
+                        <li key={habit.actionId} className={styles.routineRow}>
+                          <Checkbox
+                            label={`完成习惯：${habit.title}`}
+                            checked={habit.doneToday}
+                            onChange={(next) => {
+                              if (next) {
+                                void toggleHabit(habit.actionId, true);
+                              }
+                            }}
+                          />
+                          <span>{habit.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                <section
+                  aria-label="未安排"
+                  data-tour="today-unscheduled"
+                  data-reveal
+                  className={styles.card}
+                  style={{ '--i': unscheduledIndex } as CSSProperties}
+                >
+                  <div className={styles.cardHead}>
+                    <h2 className={styles.heading}>未安排</h2>
+                    <span className={styles.blockMeta}>
+                      {`${String(view.unscheduledTasks.length)} 项`}
+                      {overdueCount > 0 ? (
+                        <>
+                          {' · '}
+                          <span
+                            className={styles.overdueCount}
+                          >{`${String(overdueCount)} 过期`}</span>
+                        </>
+                      ) : null}
+                    </span>
+                  </div>
+                  {view.unscheduledTasks.length === 0 ? (
+                    <p className={styles.hint}>没有待安排的任务。</p>
+                  ) : (
+                    <ul className={styles.todoList}>
+                      {view.unscheduledTasks.map((task) => (
+                        <li key={task.id} className={styles.todoRow} data-glare>
+                          <span className={styles.todoTitle}>{task.title}</span>
+                          <span
+                            className={[
+                              styles.todoDue,
+                              task.overdue ? styles.todoDueOver : undefined,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                          >
+                            {dueLabel(task.dueDate)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section
+                  aria-label="负荷与恢复"
+                  data-reveal
+                  className={styles.card}
+                  style={{ '--i': summaryIndex } as CSSProperties}
+                >
+                  <div className={styles.cardHead}>
+                    <h2 className={styles.heading}>今日摘要</h2>
+                  </div>
+                  <div className={styles.summaryGrid}>
+                    <div className={styles.summaryLeft}>
+                      <p className={styles.summaryCaption}>今日负荷</p>
+                      <CountUpMinutes minutes={view.load.plannedMinutes} />
+                      {view.load.plannedMinutes > 0 ? (
+                        <span className={styles.loadLine}>
+                          <span className={styles.loadBar}>
+                            <span
+                              className={styles.loadFill}
+                              style={{ width: `${String(loadPercent)}%` }}
+                            />
+                          </span>
+                          <span className={styles.loadText}>
+                            {`已完成 ${formatRemain(view.load.completedMinutes)} · 计划 ${formatRemain(view.load.plannedMinutes)}`}
+                          </span>
+                        </span>
+                      ) : null}
+                      <p className={styles.loadFixed}>
+                        {`其中固定占用 ${formatRemain(view.load.fixedMinutes)}`}
+                      </p>
+                    </div>
+                    {weekViz}
+                  </div>
+                  {view.load.overloaded ? (
+                    <p className={styles.neutralNotice}>
+                      今天排得偏满，量力而行，随时可以延后一些。
+                    </p>
+                  ) : null}
+                  {view.recovery.autoTriggered && !view.recovery.manual && !autoNoticeDismissed ? (
+                    <div className={styles.recoveryCard}>
+                      <p>最近两天完成得不多，要不要减轻一点？可以从最低版本开始。</p>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setAutoNoticeDismissed(true);
+                        }}
+                      >
+                        知道了
+                      </Button>
+                    </div>
+                  ) : null}
+                  {view.recovery.manual ? (
+                    <div className={styles.recoveryCard}>
+                      <p>恢复模式进行中，以下是今日建议：</p>
+                      <ul className={styles.suggestionList}>
+                        {view.recovery.suggestions.map((suggestion, index) => (
+                          <li key={`${suggestion.code}-${String(index)}`}>{suggestion.text}</li>
+                        ))}
+                        {view.recovery.suggestions.length === 0 ? (
+                          <li>今天没有需要调整的安排。</li>
+                        ) : null}
+                      </ul>
+                      <ExitRecoveryButton onDone={today.refetch} toast={toast} />
+                    </div>
+                  ) : null}
+                  {unfinishedBlocks.length === 0 && view.blocks.length > 0 ? (
+                    <p className={styles.neutralNotice}>今天的时间块都完成了，干得不错。</p>
+                  ) : null}
+                </section>
+              </>
+            );
+          })()}
         </div>
-        {/* 「还剩多少」升格成数字摘要：小字起意（figure-cap），大字给量（figure）。 */}
-        <p className={styles.figureCap}>距离今天结束还有</p>
-        <RemainFigure />
-        <p className={styles.loadLine}>
-          已排 {String(view.load.plannedMinutes)} 分钟 · 固定占用 {String(view.load.fixedMinutes)}{' '}
-          分钟 · 已完成 {String(view.load.completedMinutes)} 分钟
-        </p>
-        {/* 本周迷你条：与摘要文字相邻（预览稿 summary-text → summary-viz 同序）。 */}
-        {weekViz}
-        {view.load.overloaded ? (
-          <p className={styles.neutralNotice}>今天排得偏满，量力而行，随时可以延后一些。</p>
-        ) : null}
-        {view.recovery.autoTriggered && !view.recovery.manual && !autoNoticeDismissed ? (
-          <div className={styles.recoveryCard}>
-            <p>最近两天完成得不多，要不要减轻一点？可以从最低版本开始。</p>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setAutoNoticeDismissed(true);
-              }}
-            >
-              知道了
-            </Button>
-          </div>
-        ) : null}
-        {view.recovery.manual ? (
-          <div className={styles.recoveryCard}>
-            <p>恢复模式进行中，以下是今日建议：</p>
-            <ul className={styles.suggestionList}>
-              {view.recovery.suggestions.map((suggestion, index) => (
-                <li key={`${suggestion.code}-${String(index)}`}>{suggestion.text}</li>
-              ))}
-              {view.recovery.suggestions.length === 0 ? <li>今天没有需要调整的安排。</li> : null}
-            </ul>
-            <ExitRecoveryButton onDone={today.refetch} toast={toast} />
-          </div>
-        ) : null}
-        {unfinishedBlocks.length === 0 && view.blocks.length > 0 ? (
-          <p className={styles.neutralNotice}>今天的时间块都完成了，干得不错。</p>
-        ) : null}
-      </section>
+      )}
     </div>
   );
 }
@@ -961,7 +1296,7 @@ function ExitRecoveryButton({
  * 固定事项最小管理入口（审查整改 8）：本批无独立管理页，先落
  * 新增（单次形态）+ 今日列表；重复模板编辑随块编辑弹层后续批次。
  *
- * `seed`（UI-011）：空时间线的建议 chips 点一下即预填名称与开始时间并展开表单，
+ * `seed`（UI-011）：建议 chips 点一下即预填名称与开始时间并展开表单，
  * 「常见固定事项」从死文案变成一次点击。
  */
 function FixedCommitmentForm({
@@ -1057,45 +1392,48 @@ function FixedCommitmentForm({
           });
       }}
     >
-      <Input
-        label="固定事项名称"
-        placeholder="例如：门诊复诊"
-        value={title}
-        onChange={(event) => {
-          setTitle(event.target.value);
-        }}
-      />
-      <Input
-        label="开始时间"
-        type="time"
-        value={startAtLocal}
-        onChange={(event) => {
-          setStartAtLocal(event.target.value);
-        }}
-      />
-      <Input
-        label="时长（分钟）"
-        type="number"
-        min={1}
-        value={durationMinutes}
-        onChange={(event) => {
-          setDurationMinutes(event.target.value);
-        }}
-      />
-      <div className={styles.formActions}>
-        <Button
-          variant="ghost"
-          type="button"
-          onClick={() => {
-            setOpen(false);
+      <div className={styles.formGrid}>
+        <Input
+          label="固定事项名称"
+          placeholder="例如：门诊复诊"
+          value={title}
+          onChange={(event) => {
+            setTitle(event.target.value);
           }}
-        >
-          取消
-        </Button>
-        <Button type="submit" variant="primary" loading={saving}>
-          保存
-        </Button>
+        />
+        <Input
+          label="开始时间"
+          type="time"
+          value={startAtLocal}
+          onChange={(event) => {
+            setStartAtLocal(event.target.value);
+          }}
+        />
+        <Input
+          label="时长（分钟）"
+          type="number"
+          min={1}
+          value={durationMinutes}
+          onChange={(event) => {
+            setDurationMinutes(event.target.value);
+          }}
+        />
+        <div className={styles.formActions}>
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            取消
+          </Button>
+          <Button type="submit" variant="primary" loading={saving}>
+            保存
+          </Button>
+        </div>
       </div>
+      <p className={styles.formNote}>固定事项每天自动出现在时间线。</p>
     </form>
   );
 }
