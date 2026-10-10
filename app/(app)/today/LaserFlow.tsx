@@ -405,12 +405,22 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
       );
       // 画布向下补到「落点卡」底边（无当前行动时，落点卡在舞台之外的下方——
       // 时间线卡）：`bottom` 取负值把画布往下延伸。顶锚在舞台顶不动，因此
-      // 卡片几何（相对容器顶）不受影响；`bottomOffset` 与容器实高配合，
-      // 使这条计算在 ResizeObserver 后续回调里保持幂等（不会来回振荡）。
+      // 卡片几何（相对容器顶）不受影响。
+      //
+      // 舞台高度**直接量舞台盒**，不从容器实高减延伸量反推：容器实高由
+      // ResizeObserver 回填、相对 rAF 循环**滞后一帧**——写入延伸量后的下一帧
+      // 会拿着旧高度算出一个双倍延伸量（实测 246→492 来回跳），画布后备缓冲
+      // 因而被逐帧重建，肉眼就是持续闪烁（修复前实测）。用舞台盒几何量后，
+      // 该计算只依赖布局本身，幂等、零振荡。
       if (surface.real) {
-        const stageHeight = state.height - bottomOffset;
-        const desired = Math.max(0, Math.ceil(surface.bottom - stageHeight));
-        if (desired !== bottomOffset) {
+        const stage = container.parentElement;
+        const stageBottom =
+          stage === null
+            ? state.height
+            : stage.getBoundingClientRect().bottom - container.getBoundingClientRect().top;
+        const desired = Math.max(0, Math.round(surface.bottom - stageBottom));
+        // 2px 死区：<2px 的差不动笔——避免任何亚像素抖动再触发后备缓冲重建。
+        if (Math.abs(desired - bottomOffset) > 2) {
           bottomOffset = desired;
           container.style.bottom = desired === 0 ? '0px' : `-${String(desired)}px`;
         }
