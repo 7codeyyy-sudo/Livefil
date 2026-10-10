@@ -1,9 +1,12 @@
 ﻿/**
- * `POST /api/v1/auth/cloud/register`（AUTH-002，《接口文档》v0.8 #2）。
+ * `POST /api/v1/auth/cloud/register`（AUTH-002，《接口文档》v0.8 #2；
+ * **PD-029 拍板「1+2」勘误**：免邮箱验证 + 邀请码制注册）。
  *
- * 注册即登录：核码（原子）→ 建号（单事务播种）→ 新会话行 + `Set-Cookie`（201）。
- * 核码失败统一 400 文案（四态只进安全事件）；username 撞名 409 字段级——
- * 前提是请求已持有效邮箱验证码（枚举须先过控制邮箱门槛，RD-012 §9-B2）。
+ * 注册即登录：邀请码门 + IP 限流（双闸）→ 建号（单事务播种；email 选填、
+ * 不验证、`emailVerifiedAt` 恒 null）→ 新会话行 + `Set-Cookie`（201）。
+ * 邀请码失败统一 400 文案（无码/错码不分型，防枚举）；username 撞名 409
+ * 字段级——**枚举门槛自「有效邮箱验证码」降为「邀请码 + IP 限流」**
+ * （原前提随免验证消失，PD-029 第 5 项安全面披露）。
  */
 import { NextResponse } from 'next/server';
 
@@ -28,8 +31,9 @@ export const POST = createApiRouteHandler(
 
     const useCase = createRegisterUseCase();
     const result = await useCase.execute({
+      // PD-029 勘误：inviteCode 取代 email/code 两步——email 选填、不验证。
+      inviteCode: payload.inviteCode,
       email: payload.email,
-      code: payload.code,
       username: payload.username,
       displayName: payload.displayName,
       password: payload.password,

@@ -30,6 +30,7 @@ import {
   getSessionTokenService,
   getVerificationCodeCrypto,
 } from '../../composition-root.ts';
+import { serverEnv } from '@/shared/validation/env.server.ts';
 
 /** 发送验证码用例（#1）。 */
 export function createSendCodeUseCase(): SendVerificationCodeUseCase {
@@ -44,19 +45,19 @@ export function createSendCodeUseCase(): SendVerificationCodeUseCase {
   });
 }
 
-/** 注册用例（#2）。 */
+/** 注册用例（#2；PD-029 勘误：免邮箱验证 + 邀请码门——核码依赖已移除）。 */
 export function createRegisterUseCase(): RegisterUserUseCase {
   const repositories = getRepositories();
   return new RegisterUserUseCase({
     accounts: repositories.accounts,
-    codes: repositories.verificationCodes,
-    crypto: getVerificationCodeCrypto(),
     passwordHasher: getPasswordHasher(),
     sessions: repositories.sessions,
     signer: getSessionTokenService(),
     rateLimiter: getRateLimiter(),
     audit: getAuditLogger(),
     lifeAreaSeeds: getLifeAreaSeeds(),
+    // 邀请码白名单来自 env（已归一）——码门的判定输入只有这一个来源。
+    inviteCodes: serverEnv.inviteCodes,
   });
 }
 

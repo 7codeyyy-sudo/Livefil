@@ -232,8 +232,13 @@ function translateUniqueViolation(error: unknown): never {
 
 /** 行 → 认证面凭据（含 passwordHash——**只在服务端进程内存在**，AUTH-002）。 */
 function toCredentials(row: UserRow): AccountCredentials | null {
-  if (row.email === null) {
-    // 本地用户没有邮箱；登录标识路径不该走到这里（调用方按归一后的邮箱查云端账号）。
+  if (row.passwordHash === null) {
+    // 不是可认证账号：本地用户没有密码凭据（email 也是 null）。
+    //
+    // 判据从 `email === null` 改为 `passwordHash === null`（PD-029 第 1 项）：
+    // 免邮箱验证注册的 cloud 用户**可以没有邮箱**，但必有密码（0010 CHECK）。
+    // 原判据会把「无邮箱 cloud 用户」误当成本地用户挡在登录与改密之外——
+    // 有无可认证性只看 `password_hash`，邮箱不再是判据（登录标识二选一）。
     return null;
   }
   return {

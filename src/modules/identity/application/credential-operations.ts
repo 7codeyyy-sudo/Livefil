@@ -26,11 +26,19 @@ import type {
 import { CODE_TTL_MS } from '../domain/verification-code.ts';
 import type { PasswordHasher } from '../domain/password-hasher.ts';
 import type { SessionRepository } from '../domain/session.ts';
-import { CODE_INVALID_MESSAGE } from './register-user.ts';
 import { RATE_LIMITED_MESSAGE } from './send-verification-code.ts';
 
 /** 统一「当前密码不正确」文案（契约 v0.8 #6/#7/#8：401）。 */
 export const CURRENT_PASSWORD_MESSAGE = '当前密码不正确。';
+
+/**
+ * 统一核码失败文案（契约 v0.8；UI-010 C1 步 2 错误行同句）。
+ *
+ * 原定义在 `register-user.ts`（注册流是当初的主消费者）；PD-029 免邮箱验证
+ * 后注册不再核码，重置/改邮箱的核码是**唯一**抛出点——文案随消费者内聚到本
+ * 文件，单一来源不变（不区分过期/错误/不存在，防枚举）。
+ */
+export const CODE_INVALID_MESSAGE = '验证码不正确或已过期。';
 
 interface CredentialDeps {
   readonly accounts: AccountRepository;

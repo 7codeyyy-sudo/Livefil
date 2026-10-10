@@ -19,7 +19,7 @@ import type { LocalUserSeedArea, User } from './user.ts';
 export interface AccountCredentials {
   readonly userId: string;
   readonly mode: 'local' | 'cloud';
-  readonly email: string;
+  readonly email: string | null;
   readonly username: string | null;
   readonly displayName: string | null;
   /** scrypt 编码串；本地用户为 null。 */
@@ -27,15 +27,22 @@ export interface AccountCredentials {
   readonly emailVerifiedAt: Date | null;
 }
 
-/** 创建云端账号的输入（注册流，RD-012 §3 流 1）。 */
+/** 创建云端账号的输入（注册流，RD-012 §3 流 1；PD-029 第 1 项免邮箱验证）。 */
 export interface CreateCloudAccountInput {
-  /** 归一小写后的邮箱。 */
-  readonly email: string;
+  /**
+   * 归一小写后的邮箱；**可空**（PD-029：email 选填、不验证、不发信——
+   * 无邮箱用户靠 `username` + 密码登录）。
+   */
+  readonly email: string | null;
   /** 归一后的账号（唯一冲突由实现抛 409）。 */
   readonly username: string;
   readonly displayName: string | null;
   readonly passwordHash: string;
-  readonly emailVerifiedAt: Date;
+  /**
+   * 邮箱验证时刻；**可空且注册时恒为 null**（PD-029 免邮箱验证——没验证过
+   * 就不写时刻，诚实优于填 now 冒充）。改邮箱双验证通过时仍写入非空。
+   */
+  readonly emailVerifiedAt: Date | null;
 }
 
 export interface AccountRepository {
