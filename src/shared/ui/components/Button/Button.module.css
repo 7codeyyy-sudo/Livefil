@@ -46,7 +46,7 @@
 
 .primary {
   position: relative;
-  /* 溢出裁剪把光斑收在按钮圆角内，不流到页面上。 */
+  /* 溢出裁剪把光效收在按钮圆角内，不流到页面上。 */
   overflow: hidden;
   color: var(--color-on-primary);
   background-color: var(--color-primary-surface);
@@ -56,28 +56,37 @@
   background-color: var(--color-primary-hover);
 }
 
-/* 悬停眩光（UI-011 §6.1）：径向白光随指针位置浮现。
-   `--gx/--gy` 由全局 `GlareField` 委托写入（百分比），未悬停时落默认 50%。
-   `pointer-events: none` 必须有——否则 `::after` 会替按钮本体接住指针，
-   hover 一进一出地抖。光斑尺寸/不透明度走 `--glare-*` 令牌，
-   时长 `calc(var(--duration-slow) * 3)` 令牌派生；只给 opacity 过渡，
-   不抬升不缩放（四条红线之「不加阴影卡片」同源）。 */
+/* 光泽扫过（v0.29，UI-012 §6.2）：hover 时一道斜光从左掠到右即停（一次性）。
+   本批**替换**了此前的径向眩光（两者都占 `::after`，且预览稿定稿的就是这条）；
+   眩光按「仅挂自带底色」纪律收窄至行类元素（见 TodayPanel 的行）。斜光色取
+   `--color-on-primary`——它在两态下自动翻转（浅色白字/暗色深字），正好是预览稿
+   两态两色的等价表达，不新增颜色令牌；显现强度复用眩光令牌（同一语义：
+   hover 光效的显现上限）。位移用 `translateX + skewX`（几何写法，非设计取值）。 */
 .primary::after {
   content: '';
   position: absolute;
-  inset: 0;
+  top: -40%;
+  bottom: -40%;
+  left: 0;
+  width: 55%;
   pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(
-    var(--glare-size) circle at var(--gx, 50%) var(--gy, 50%),
-    var(--color-surface),
-    transparent
-  );
-  transition: opacity calc(var(--duration-slow) * 3) var(--ease-standard);
+  background: linear-gradient(100deg, transparent, var(--color-on-primary), transparent);
+  opacity: var(--glare-opacity);
+  transform: translateX(-190%) skewX(-16deg);
 }
 
 .primary:hover:not(:disabled)::after {
-  opacity: var(--glare-opacity);
+  animation: btn-shine calc(var(--duration-slow) * 3.2) var(--ease-standard);
+}
+
+@keyframes btn-shine {
+  from {
+    transform: translateX(-190%) skewX(-16deg);
+  }
+
+  to {
+    transform: translateX(330%) skewX(-16deg);
+  }
 }
 
 .secondary {
