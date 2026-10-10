@@ -1,8 +1,13 @@
 /**
- * 忘记密码 `/forgot-password`（AUTH-002，v0.26 UI-010 C3；RD-012 §3 流 6/§9-B8）。
+ * 忘记密码 `/forgot-password`（AUTH-002，v0.26 UI-010 C3；PD-029 第 3 项降级态）。
  *
- * 步 1 邮箱 →「发送验证码」；步 2 验证码 + 新密码 →「重设密码」；
+ * 全形态：步 1 邮箱 →「发送验证码」；步 2 验证码 + 新密码 →「重设密码」；
  * 完成态「密码已重设，请用新密码登录。」+ 主按钮「去登录」。
+ *
+ * 降级态（`emailEnabled=false`，无邮件通道）：**整页替换为「联系管理员重置」
+ * 说明**——自助重置需要发码（邮件载体），通道缺席时不提供收不到码的入口
+ * （不放假流程）；登录页的「忘记密码」入口仍可达本页（分发单第 4 行只授权
+ * 登录页「Tab 单密码」，忘记密码入口保留、由本页承接降级文案）。
  *
  * 防枚举统一响应（C3 冻结句）：「如果该邮箱已注册，验证码已发送。」——
  * 无论邮箱是否存在，步 1 一律显示此句（差异只在邮件侧，RD-012 §4.4）。
@@ -25,8 +30,18 @@ import styles from '../../auth.module.css';
 const UNIFORM_SENT = '如果该邮箱已注册，验证码已发送。';
 /** 429 统一文案（契约 §14.1 / C3 冻结句）。 */
 const RATE_LIMITED = '操作过于频繁，请稍后再试。';
+/** 降级态承接文案（PD-029 第 3 项；非冻结，列入文案对照表供 PM 注记）。 */
+const CONTACT_ADMIN = '当前部署未开通自助重置，请联系管理员重置密码。';
 
-export function ForgotPasswordPanel() {
+export function ForgotPasswordPanel({
+  emailEnabled,
+}: {
+  /**
+   * 邮件通道是否启用（PD-029 第 3 项单一分支点，服务端 page 传入）。
+   * 降级态：整页替换为「联系管理员重置」说明。
+   */
+  readonly emailEnabled: boolean;
+}) {
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -77,6 +92,32 @@ export function ForgotPasswordPanel() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // 降级态（PD-029 第 3 项）：整页替换为「联系管理员重置」——自助重置需要
+  // 邮件通道发码，通道缺席时不提供收不到码的入口（不放假流程）。上面的
+  // hooks 与函数照常定义（React hooks 规则），只是不渲染两步表单。
+  if (!emailEnabled) {
+    return (
+      <>
+        <h1 className={styles.title}>忘记密码</h1>
+        <p className={styles.subtitle} role="status">
+          {CONTACT_ADMIN}
+        </p>
+        <p className={styles.footer}>
+          想起密码了？
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              router.push('/login');
+            }}
+          >
+            返回登录
+          </Button>
+        </p>
+      </>
+    );
   }
 
   return (

@@ -31,9 +31,11 @@ export const POST = createApiRouteHandler(
 
     const useCase = createRegisterUseCase();
     const result = await useCase.execute({
-      // PD-029 勘误：inviteCode 取代 email/code 两步——email 选填、不验证。
+      // PD-029 勘误：inviteCode 取代「先持码再注册」的隐性门槛——email/code
+      // 双态（降级态忽略、全形态核码，用例层按 emailEnabled 判必填）。
       inviteCode: payload.inviteCode,
       email: payload.email,
+      code: payload.code,
       username: payload.username,
       displayName: payload.displayName,
       password: payload.password,

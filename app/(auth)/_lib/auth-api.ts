@@ -19,8 +19,10 @@ export function sendVerificationCode(input: {
 
 /** 注册（#2）：核码 + 建号，成功即带会话。 */
 export function register(input: {
-  readonly email: string;
-  readonly code: string;
+  readonly inviteCode: string;
+  /** 全形态必填核码；降级态选填、免验证（双态由服务端 emailEnabled 判）。 */
+  readonly email?: string | undefined;
+  readonly code?: string | undefined;
   readonly username: string;
   readonly displayName?: string | null | undefined;
   readonly password: string;

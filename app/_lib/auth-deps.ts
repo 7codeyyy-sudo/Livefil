@@ -45,11 +45,13 @@ export function createSendCodeUseCase(): SendVerificationCodeUseCase {
   });
 }
 
-/** 注册用例（#2；PD-029 勘误：免邮箱验证 + 邀请码门——核码依赖已移除）。 */
+/** 注册用例（#2；PD-029 勘误：邀请码门 + 邮箱验证双态——emailEnabled 驱动）。 */
 export function createRegisterUseCase(): RegisterUserUseCase {
   const repositories = getRepositories();
   return new RegisterUserUseCase({
     accounts: repositories.accounts,
+    codes: repositories.verificationCodes,
+    crypto: getVerificationCodeCrypto(),
     passwordHasher: getPasswordHasher(),
     sessions: repositories.sessions,
     signer: getSessionTokenService(),
@@ -58,6 +60,8 @@ export function createRegisterUseCase(): RegisterUserUseCase {
     lifeAreaSeeds: getLifeAreaSeeds(),
     // 邀请码白名单来自 env（已归一）——码门的判定输入只有这一个来源。
     inviteCodes: serverEnv.inviteCodes,
+    // 邮箱验证双态开关（单一分支点）：真＝全形态核码、假＝降级态免验证。
+    emailEnabled: serverEnv.emailEnabled,
   });
 }
 

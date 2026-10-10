@@ -90,10 +90,12 @@ export const sendCodeSchema = z
 
 /** 注册（#2）。三步页的步 3 一次提交（RD-012 §3 流 1：核码原子于提交）。 */
 /**
- * 注册（PD-029 拍板「1+2」第 1 项：免邮箱验证 + 邀请码制）。
+ * 注册（PD-029 拍板「1+2」：邀请码制 + 邮箱验证双态）。
  *
  * - `inviteCode` 邀请码必经（简版码门；缺失/空/错码由用例层统一文案防枚举）；
- * - `email` **选填**、不验证、不发信（原「邮箱→验证码」两步已砍）；
+ * - `email` / `code` **双态**：降级态（无邮件通道）选填、免核码；全形态必填、
+ *   真核码（原三步注册的验证能力随邮件通道回归，拍板 3）——必填性由用例层按
+ *   `emailEnabled` 判，schema 不知道部署形态；
  * - `username` 必填——无邮箱用户靠账号 + 密码登录。
  */
 export const registerSchema = z
@@ -105,8 +107,10 @@ export const registerSchema = z
     username: usernameField,
     displayName: z.string().max(80).nullable().optional(),
     password: passwordField,
-    // 选填：UI 空输入转 undefined；给了就按邮箱格式校验（不验证、不发信）。
+    // 邮箱（降级态选填、不验证；全形态必填）与验证码（全形态必填核码、降级态
+    // 忽略）——必填性由用例层按 `emailEnabled` 双态判（schema 不知道部署形态）。
     email: emailField.optional(),
+    code: codeField.optional(),
   })
   .strict();
 
