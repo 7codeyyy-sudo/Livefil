@@ -298,7 +298,7 @@ describe('设计令牌 · 字体', () => {
   it('字号落在《UI 页面规范》§2.2 给定的区间内', () => {
     // 规范给的是区间（如正文 14–16px），具体取值可自选，但**不得越界**。
     const ranges = {
-      '--font-size-page-title': [28, 32],
+      '--font-size-page-title': [40, 44], // 规范 v0.27 起 40–44px（UI-011，2026-10-09 用户授权同步）
       '--font-size-section-title': [18, 20],
       '--font-size-body': [14, 16],
       '--font-size-caption': [12, 13],
@@ -350,8 +350,9 @@ describe('设计令牌 · 间距与圆角', () => {
     expect(findTokenMismatches(tokens, EXPECTED_RADIUS_TOKENS)).toEqual([]);
   });
 
-  it('内容最大宽度为 1200px', () => {
-    expect(tokens.get('--layout-max-width')).toBe('1200px');
+  it('内容最大宽度为 720px', () => {
+    // 规范 v0.27 起 720px（UI-011 单列阅读行宽，2026-10-09 用户授权同步）。
+    expect(tokens.get('--layout-max-width')).toBe('720px');
   });
 
   it('页面内边距随断点收敛：桌面 32px、平板 24px、手机 16px', () => {
