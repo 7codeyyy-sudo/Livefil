@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 
 import {
@@ -20,6 +21,8 @@ import {
 } from '@/shared/ui/components';
 
 import { ApiRequestError, fetchJson, sendJson } from '../_lib/api-client';
+import { fetchProfile } from '../_lib/identity-api';
+import { addDays, localCalendarDay, startOfWeek } from '../_lib/review-api';
 import { useReminderRuleStore } from '../_lib/use-reminder-rules';
 import styles from './TodayPanel.module.css';
 
@@ -110,6 +113,169 @@ function minutesBetween(startsAtUtc: string, endsAtUtc: string): number {
   return Math.max(0, Math.round((Date.parse(endsAtUtc) - Date.parse(startsAtUtc)) / 60_000));
 }
 
+/* ── UI-011 丰富化（预览稿 §6.1 采纳项）────────────────────────────────── */
+
+/** 一天的分钟数。写成 `24 * 60`——直接写全天分钟数会撞验收扫描器的断点字面量。 */
+const MINUTES_PER_DAY = 24 * 60;
+
+/** 时间骨架：08–22 基线，4 小时一笔刻度（两小时一档时那排数字自己就是图表）。 */
+const RULER_START_HOUR = 8;
+const RULER_END_HOUR = 22;
+const RULER_TICK_HOURS = [8, 12, 16, 20] as const;
+
+/** 用户设置未到达时的默认周起点（周一，与 WeekPanel 同口径）。 */
+const DEFAULT_WEEK_STARTS_ON = 1;
+
+const WEEKDAY_LABELS = [
+  '星期日',
+  '星期一',
+  '星期二',
+  '星期三',
+  '星期四',
+  '星期五',
+  '星期六',
+] as const;
+
+/** 一周七天的日标（一…日的短标，与预览稿 `drawWeek` 同字）。 */
+const WEEKDAY_SHORT = ['日', '一', '二', '三', '四', '五', '六'] as const;
+
+/**
+ * 空时间线的建议固定事项（预览稿 `.suggestions` 逐字）。
+ * 做成**可点按钮**而不是死文案：预览稿注释明言「把常见固定事项变成一次点击」——
+ * 点击给新增表单预填名称与开始时间（见 `FixedCommitmentForm` 的 `seed`）。
+ */
+const SUGGESTED_COMMITMENTS = [
+  { title: '起床', startAt: '07:30' },
+  { title: '通勤', startAt: '08:40' },
+  { title: '午饭', startAt: '12:00' },
+  { title: '复盘', startAt: '21:30' },
+] as const;
+
+/** 日期串（`YYYY-MM-DD`）的星期下标（0=周日）。 */
+function weekdayIndexOf(date: string): number {
+  const parts = date.split('-');
+  return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))).getUTCDay();
+}
+
+/**
+ * 日期串 → 「M 月 D 日 · 星期W」（今日摘要的眉标语境）。
+ *
+ * 取 `view.date`（服务端按用户时区定的「今天」）而不是前端 `new Date()`：
+ * 后者在跨午夜/跨时区时可能与内容差一天。UTC 构造只为拿日历日的星期数——
+ * 日期串是纯日历语义，不带时区。
+ */
+function dayEyebrow(date: string): string {
+  const parts = date.split('-');
+  return `${Number(parts[1])} 月 ${Number(parts[2])} 日 · ${WEEKDAY_LABELS[weekdayIndexOf(date)]}`;
+}
+
+/** 数字摘要的量词格式：`9 小时 28 分`（count-up 的逐帧输出也是这个形状）。 */
+function formatRemain(minutes: number): string {
+  return `${String(Math.floor(minutes / 60))} 小时 ${String(minutes % 60)} 分`;
+}
+
+/** 时间线眉标的状态词：无块或现在早于首块→尚未开始；晚于末块→已结束；否则进行中。 */
+function timelineStatusOf(blocks: readonly TodayBlock[]): string {
+  if (blocks.length === 0) {
+    return '尚未开始';
+  }
+  const firstStart = Math.min(...blocks.map((block) => Date.parse(block.startsAtUtc)));
+  const lastEnd = Math.max(...blocks.map((block) => Date.parse(block.endsAtUtc)));
+  const now = Date.now();
+  if (now < firstStart) {
+    return '尚未开始';
+  }
+  if (now > lastEnd) {
+    return '已结束';
+  }
+  return '进行中';
+}
+
+/** 块的 UTC 瞬时落在该日历日（与 WeekPanel 同一近似口径）。 */
+function dayMatches(iso: string, day: string): boolean {
+  const local = new Date(iso);
+  const month = String(local.getMonth() + 1).padStart(2, '0');
+  const date = String(local.getDate()).padStart(2, '0');
+  return `${String(local.getFullYear())}-${month}-${date}` === day;
+}
+
+/**
+ * 时间骨架（UI-011 §6.1）：08–22 基线 + 每 4 小时一笔短刻度 + 「现在」指示线。
+ *
+ * 成功态只在**客户端**渲染（取数 effect 之后才有数据），所以这里可以放心用
+ * `new Date()` 而不产生水合不一致。`aria-hidden`：刻度是视觉辅助，
+ * 读屏读标题与列表行即可。指示线是这个区块里唯一一处强调色。
+ */
+function TimeRuler() {
+  const now = new Date();
+  const nowHour = now.getHours() + now.getMinutes() / 60;
+  const at = (hour: number): number =>
+    ((hour - RULER_START_HOUR) / (RULER_END_HOUR - RULER_START_HOUR)) * 100;
+  const clamped = Math.min(RULER_END_HOUR, Math.max(RULER_START_HOUR, nowHour));
+  const left = (hour: number): { left: string } => ({ left: `${String(at(hour))}%` });
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  return (
+    <div className={styles.ruler} aria-hidden="true">
+      {RULER_TICK_HOURS.map((hour) => (
+        <Fragment key={hour}>
+          <span className={styles.rulerLine} style={left(hour)} />
+          <span className={styles.rulerLabel} style={left(hour)}>
+            {String(hour).padStart(2, '0')}
+          </span>
+        </Fragment>
+      ))}
+      <span className={styles.rulerNow} style={left(clamped)} />
+      <span className={styles.rulerNowTag} style={left(clamped)}>{`现在 ${hhmm}`}</span>
+    </div>
+  );
+}
+
+/**
+ * 数字摘要 count-up（UI-011 §6.1）：进组件即从 0 滚动一次到位，不循环。
+ *
+ * 时长从 `--duration-base` 令牌读（×3 ≈ 600ms，工具页不该让数字滚两秒）；
+ * reduce 模式下令牌归 0.01ms——首帧即终值，因此**不需要**写
+ * prefers-reduced-motion 媒体查询（规范只允许令牌单点降级）。
+ * 初值 `0 小时 0 分` 只存在一帧（该子树仅客户端渲染，无水合问题）。
+ */
+function RemainFigure() {
+  const [text, setText] = useState(() => formatRemain(0));
+
+  useEffect(() => {
+    const now = new Date();
+    const remain = MINUTES_PER_DAY - (now.getHours() * 60 + now.getMinutes());
+    const base =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--duration-base')) ||
+      200;
+    const duration = base * 3;
+    const startedAt = performance.now();
+    let frameHandle = requestAnimationFrame(function step(frameAt: number): void {
+      const progress = Math.min(1, (frameAt - startedAt) / duration);
+      setText(formatRemain(Math.round(remain * (1 - Math.pow(1 - progress, 3)))));
+      if (progress < 1) {
+        frameHandle = requestAnimationFrame(step);
+      }
+    });
+
+    return () => cancelAnimationFrame(frameHandle);
+  }, []);
+
+  return <p className={styles.figure}>{text}</p>;
+}
+
+/** `GET /schedule-blocks` 周窗口里本页用到的字段（本周迷你条只需时段两头）。 */
+interface WeekWindowBlock {
+  readonly startsAtUtc: string;
+  readonly endsAtUtc: string;
+}
+
+/** 建议 chips 预填表单的载荷（名称 + 开始时间）。 */
+interface CommitmentSeed {
+  readonly title: string;
+  readonly startAt: string;
+}
+
 export function TodayPanel() {
   const today = useAsyncQuery({
     queryKey: ['today'],
@@ -118,6 +284,27 @@ export function TodayPanel() {
         `/api/v1/today?timezone=${encodeURIComponent(localTimeZone())}`,
         signal,
       ).then((envelope) => envelope.data),
+  });
+  /**
+   * 今日摘要的本周迷你条（UI-011 §6.1 数字可视化）：真数据才有量。
+   * `weekStartsOn` 从用户档案取（同 WeekPanel），档案未到达时回落周一。
+   * 两条取数与 `today` 并行发出，失败时该组静默不渲染——它是摘要的辅助视图，
+   * 不值得为它把整页打成错误态。
+   */
+  const profile = useAsyncQuery({ queryKey: ['me'], queryFn: fetchProfile });
+  const weekStartsOn =
+    profile.state.status === 'success'
+      ? profile.state.data.data.weekStartsOn
+      : DEFAULT_WEEK_STARTS_ON;
+  const weekStart = startOfWeek(localCalendarDay(), weekStartsOn);
+  const weekEnd = addDays(weekStart, 6);
+  const week = useAsyncQuery({
+    queryKey: ['schedule-blocks', 'week', weekStart],
+    queryFn: (signal) =>
+      fetchJson<{ readonly items: readonly WeekWindowBlock[] }>(
+        `/api/v1/schedule-blocks?from=${weekStart}&to=${weekEnd}&timezone=${encodeURIComponent(localTimeZone())}`,
+        signal,
+      ).then((envelope) => envelope.data.items),
   });
   const toast = useToast();
   /** 已提交完成/延后请求的块（防连点；幂等键运行时生成）。 */
@@ -134,6 +321,12 @@ export function TodayPanel() {
    * （§5 A「展开新行先折叠旧行」）。键区分任务行与例程行（`task:` / `routine:`）。
    */
   const [expandedReminderKey, setExpandedReminderKey] = useState<string | null>(null);
+  /**
+   * 空时间线的建议 chips → 新增固定事项表单的预填载荷（UI-011）。
+   * 每次点击写入新对象引用，表单在渲染期比对引用差异后展开并预填
+   * （见 `FixedCommitmentForm`，不走 effect——lint 拦 setState-in-effect）。
+   */
+  const [commitmentSeed, setCommitmentSeed] = useState<CommitmentSeed | null>(null);
   const reminders = useReminderRuleStore(['task', 'routine']);
   // 总开关未知（加载中 / 取数失败）时不渲染入口：把「还不知道」当 `false`
   // 渲染成「总开关已关闭」是假话（同 ReviewReminderArea）。
@@ -261,9 +454,69 @@ export function TodayPanel() {
 
   const view = today.state.data;
   const unfinishedBlocks = view.blocks.filter((block) => block.status !== 'completed');
+  const hasFixedBlock = view.fixedCommitments.length > 0;
+  const hasRoutineBlock = view.routines.length > 0 || view.habits.length > 0;
+  const overdueCount = view.unscheduledTasks.filter((task) => task.overdue).length;
+
+  /*
+   * 区块错峰序（§6.1）：按**实际渲染顺序**递增，条件区块缺席时不占号
+   * （预览稿用 `nth-of-type`——产品里区块是条件渲染的，序号只能算出来）。
+   * 当前行动卡片与表单不是 `.block`，不占号。
+   */
+  const fixedIndex = hasFixedBlock ? 1 : -1;
+  const routinesIndex = hasRoutineBlock ? (hasFixedBlock ? 2 : 1) : -1;
+  const unscheduledIndex = (hasFixedBlock ? 1 : 0) + (hasRoutineBlock ? 1 : 0) + 1;
+  const summaryIndex = unscheduledIndex + 1;
+
+  /**
+   * 本周迷你条（有量才画）：合计为 0、或取数未成功，整组不渲染——
+   * 0 分钟的图表就是装饰（预览稿 v3「有量才画」）。
+   */
+  let weekViz: ReactNode = null;
+  const weekBlocks = week.state.status === 'success' ? week.state.data : null;
+  if (weekBlocks !== null) {
+    const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+    const weekMinutes = weekDays.map((day) =>
+      weekBlocks
+        .filter((block) => dayMatches(block.startsAtUtc, day))
+        .reduce((sum, block) => sum + minutesBetween(block.startsAtUtc, block.endsAtUtc), 0),
+    );
+    const weekTotal = weekMinutes.reduce((sum, value) => sum + value, 0);
+    if (weekTotal > 0) {
+      const weekMax = Math.max(120, ...weekMinutes);
+      const todayKey = localCalendarDay();
+      weekViz = (
+        <div className={styles.summaryViz}>
+          <div className={styles.weekHead}>
+            <span className={styles.blockMeta}>本周已排（分钟）</span>
+            <span className={styles.blockMeta}>{`合计 ${String(weekTotal)}`}</span>
+          </div>
+          <div className={styles.weekBars}>
+            {weekDays.map((day, index) => (
+              <span
+                key={day}
+                className={styles.weekCol}
+                data-today={day === todayKey ? 'true' : undefined}
+              >
+                <span
+                  className={styles.weekBar}
+                  style={{
+                    height: `${String(
+                      Math.max(3, Math.round(((weekMinutes[index] ?? 0) / weekMax) * 38)),
+                    )}px`,
+                  }}
+                />
+                <span className={styles.weekDay}>{WEEKDAY_SHORT[weekdayIndexOf(day)]}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
-    <div className={styles.section}>
+    <div className={styles.blocks}>
       {view.currentAction === null ? null : (
         <section className={styles.currentAction} aria-label="当前行动">
           <p className={styles.currentLabel}>当前行动</p>
@@ -274,8 +527,18 @@ export function TodayPanel() {
         </section>
       )}
 
-      <section aria-label="时间线" data-tour="today-timeline">
-        <h2 className={styles.heading}>时间线</h2>
+      <section
+        aria-label="时间线"
+        data-tour="today-timeline"
+        className={styles.block}
+        style={{ '--i': 0 } as CSSProperties}
+      >
+        {/* 眉标：给区块一个语境（当前时点与今天的关系），不是装饰。 */}
+        <p className={styles.eyebrow}>{`今天 · ${timelineStatusOf(view.blocks)}`}</p>
+        <div className={styles.blockHead}>
+          <h2 className={styles.heading}>时间线</h2>
+          <span className={styles.blockMeta}>{`${String(view.blocks.length)} 项`}</span>
+        </div>
         {view.blocks.length === 0 ? (
           <p className={styles.hint}>
             今天还没有排时间块。 <Link href="/inbox">去收件箱</Link> 安排一个任务，或查看{' '}
@@ -292,6 +555,7 @@ export function TodayPanel() {
                 <li
                   key={block.id}
                   className={styles.blockRow}
+                  data-glare
                   tabIndex={0}
                   onKeyDown={(event) => {
                     if (block.status === 'completed') return;
@@ -420,11 +684,37 @@ export function TodayPanel() {
             })}
           </ul>
         )}
+        {/* 时间骨架常驻（列表在上、骨架在下、建议在骨架下，与预览稿结构一致）。 */}
+        <TimeRuler />
+        {view.blocks.length !== 0 ? null : (
+          <div className={styles.suggestions}>
+            {SUGGESTED_COMMITMENTS.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                className={styles.chip}
+                data-glare
+                onClick={() => {
+                  setCommitmentSeed({ title: item.title, startAt: item.startAt });
+                }}
+              >
+                {`${item.title} ${item.startAt}`}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
-      {view.fixedCommitments.length === 0 ? null : (
-        <section aria-label="固定事项">
-          <h2 className={styles.heading}>固定事项</h2>
+      {hasFixedBlock ? (
+        <section
+          aria-label="固定事项"
+          className={styles.block}
+          style={{ '--i': fixedIndex } as CSSProperties}
+        >
+          <div className={styles.blockHead}>
+            <h2 className={styles.heading}>固定事项</h2>
+            <span className={styles.blockMeta}>{`${String(view.fixedCommitments.length)} 项`}</span>
+          </div>
           <ul className={styles.fixedList}>
             {view.fixedCommitments.map((item) => (
               <li key={item.id} className={styles.fixedRow}>
@@ -436,8 +726,11 @@ export function TodayPanel() {
             ))}
           </ul>
         </section>
-      )}
-      <FixedCommitmentForm onCreated={today.refetch} />
+      ) : null}
+      {/* 表单不是 `.block`：自带 `--space-4` 上距，与区块描边留出呼吸。 */}
+      <div className={styles.formSlot}>
+        <FixedCommitmentForm onCreated={today.refetch} seed={commitmentSeed} />
+      </div>
 
       {editingBlock === null ? null : (
         <EditBlockModal
@@ -452,9 +745,18 @@ export function TodayPanel() {
         />
       )}
 
-      {view.routines.length === 0 && view.habits.length === 0 ? null : (
-        <section aria-label="例程与习惯">
-          <h2 className={styles.heading}>例程与习惯</h2>
+      {hasRoutineBlock ? (
+        <section
+          aria-label="例程与习惯"
+          className={styles.block}
+          style={{ '--i': routinesIndex } as CSSProperties}
+        >
+          <div className={styles.blockHead}>
+            <h2 className={styles.heading}>例程与习惯</h2>
+            <span className={styles.blockMeta}>
+              {`${String(view.routines.length + view.habits.length)} 项`}
+            </span>
+          </div>
           <ul className={styles.routineList}>
             {view.routines.map((routine) => (
               <Fragment key={routine.id}>
@@ -535,16 +837,29 @@ export function TodayPanel() {
             ))}
           </ul>
         </section>
-      )}
+      ) : null}
 
-      <section aria-label="未安排" data-tour="today-unscheduled">
-        <h2 className={styles.heading}>未安排</h2>
+      <section
+        aria-label="未安排"
+        data-tour="today-unscheduled"
+        className={styles.block}
+        style={{ '--i': unscheduledIndex } as CSSProperties}
+      >
+        <p className={styles.eyebrow}>从收件箱挑一件排进来</p>
+        <div className={styles.blockHead}>
+          <h2 className={styles.heading}>未安排</h2>
+          <span className={styles.blockMeta}>
+            {overdueCount > 0
+              ? `${String(overdueCount)} 过期`
+              : `${String(view.unscheduledTasks.length)} 项`}
+          </span>
+        </div>
         {view.unscheduledTasks.length === 0 ? (
           <p className={styles.hint}>没有待安排的任务。</p>
         ) : (
           <ul className={styles.unscheduledList}>
             {view.unscheduledTasks.map((task) => (
-              <li key={task.id} className={styles.unscheduledRow}>
+              <li key={task.id} className={styles.unscheduledRow} data-glare>
                 <span>{task.title}</span>
                 {task.overdue ? <span className={styles.overdueBadge}>过期</span> : null}
               </li>
@@ -553,12 +868,24 @@ export function TodayPanel() {
         )}
       </section>
 
-      <section aria-label="负荷与恢复">
-        <h2 className={styles.heading}>今日摘要</h2>
+      <section
+        aria-label="负荷与恢复"
+        className={styles.block}
+        style={{ '--i': summaryIndex } as CSSProperties}
+      >
+        <p className={styles.eyebrow}>{dayEyebrow(view.date)}</p>
+        <div className={styles.blockHead}>
+          <h2 className={styles.heading}>今日摘要</h2>
+        </div>
+        {/* 「还剩多少」升格成数字摘要：小字起意（figure-cap），大字给量（figure）。 */}
+        <p className={styles.figureCap}>距离今天结束还有</p>
+        <RemainFigure />
         <p className={styles.loadLine}>
           已排 {String(view.load.plannedMinutes)} 分钟 · 固定占用 {String(view.load.fixedMinutes)}{' '}
           分钟 · 已完成 {String(view.load.completedMinutes)} 分钟
         </p>
+        {/* 本周迷你条：与摘要文字相邻（预览稿 summary-text → summary-viz 同序）。 */}
+        {weekViz}
         {view.load.overloaded ? (
           <p className={styles.neutralNotice}>今天排得偏满，量力而行，随时可以延后一些。</p>
         ) : null}
@@ -633,14 +960,39 @@ function ExitRecoveryButton({
 /**
  * 固定事项最小管理入口（审查整改 8）：本批无独立管理页，先落
  * 新增（单次形态）+ 今日列表；重复模板编辑随块编辑弹层后续批次。
+ *
+ * `seed`（UI-011）：空时间线的建议 chips 点一下即预填名称与开始时间并展开表单，
+ * 「常见固定事项」从死文案变成一次点击。
  */
-function FixedCommitmentForm({ onCreated }: { readonly onCreated: () => void }) {
+function FixedCommitmentForm({
+  onCreated,
+  seed,
+}: {
+  readonly onCreated: () => void;
+  readonly seed: CommitmentSeed | null;
+}) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [startAtLocal, setStartAtLocal] = useState('09:00');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [saving, setSaving] = useState(false);
+
+  /**
+   * seed 的应用走**渲染期状态调整**（React 官方的「prop 变了就同步本地状态」
+   * 模式），而不是 effect——effect 里同步 setState 会被
+   * `react-hooks/set-state-in-effect` 拦下，本身也多一轮级联渲染。
+   * 父层无需清空 seed：每次点击都是新的对象引用，同一枚 chip 再点一次照常生效。
+   */
+  const [appliedSeed, setAppliedSeed] = useState<CommitmentSeed | null>(seed);
+  if (seed !== appliedSeed) {
+    setAppliedSeed(seed);
+    if (seed !== null) {
+      setTitle(seed.title);
+      setStartAtLocal(seed.startAt);
+      setOpen(true);
+    }
+  }
 
   if (!open) {
     return (

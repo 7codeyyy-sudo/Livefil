@@ -57,6 +57,10 @@ export function Button({
       disabled={disabled === true || loading}
       aria-busy={loading}
       data-loading={loading}
+      // 悬停眩光只挂 primary（自带近黑底色，光斑可见且不糊文字）——
+      // §6.1 口径「只挂自带底色元素，白底区块不挂」。坐标由全局委托
+      // `GlareField` 写入 `--gx/--gy`，组件自身不监听指针事件。
+      data-glare={variant === 'primary' || undefined}
     >
       {children}
     </button>
