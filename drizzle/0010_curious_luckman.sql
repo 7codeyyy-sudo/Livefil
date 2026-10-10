@@ -1,0 +1,2 @@
+ALTER TABLE "users" DROP CONSTRAINT "users_cloud_requires_credentials";--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_cloud_requires_credentials" CHECK (mode = 'local' OR password_hash IS NOT NULL);

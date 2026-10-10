@@ -71,6 +71,13 @@
       "when": 1791539739182,
       "tag": "0009_long_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791598123162,
+      "tag": "0010_curious_luckman",
+      "breakpoints": true
     }
   ]
 }

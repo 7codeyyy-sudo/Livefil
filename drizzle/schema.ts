@@ -134,16 +134,23 @@ export const users = pgTable(
       .on(table.mode)
       .where(sql`mode = 'local'`),
     /**
-     * 云端用户必须同时具备登录标识与凭据（AUTH-001，RD-012 §2.1）。
+     * 云端用户必须具备登录凭据（`password_hash`）；**邮箱不再是判据**
+     * （PD-029 拍板「1+2」第 1 项：免邮箱验证注册——email 选填、不验证）。
      *
-     * 存量行清一色 `mode='local'`，约束对它们零破坏；应用层注册流程单事务写入
-     * email + password_hash，永远满足本约束——它防的是「绕过应用直插半成品
-     * cloud 行」这类漂移，而不是正常路径。
+     * ## 放宽的历史（0008 禁改，0010 新迁移 DROP+ADD 同名约束）
+     *
+     * - 原（0008）：`mode='local' OR (email IS NOT NULL AND password_hash IS NOT NULL)`
+     *   —— 云端必须「邮箱 + 密码」双备（当时注册以邮箱为必填标识）。
+     * - 现（0010）：`mode='local' OR password_hash IS NOT NULL`
+     *   —— 登录凭据（密码）仍是 cloud 的硬要求；邮箱从判据中移除，
+     *   因为**登录标识改为账号或邮箱二选一**（`identifier` 含 `@` 走邮箱、
+     *   否则走 username），无邮箱用户靠 username + password 登录，语义自洽。
+     *
+     * 存量行清一色 `mode='local'`，约束放宽对它们零破坏（local 分支恒 true）；
+     * 它防的仍是「绕过应用直插半成品 cloud 行」——具体到新形态即
+     * 「无密码的 cloud 行」。
      */
-    check(
-      'users_cloud_requires_credentials',
-      sql`mode = 'local' OR (email IS NOT NULL AND password_hash IS NOT NULL)`,
-    ),
+    check('users_cloud_requires_credentials', sql`mode = 'local' OR password_hash IS NOT NULL`),
   ],
 );
 
