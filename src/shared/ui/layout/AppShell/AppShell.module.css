@@ -33,14 +33,13 @@
   /* 页面区容器：最大宽度受令牌约束、居中；窄于上限时全宽。
      内边距走 `--space-page-x`，它在令牌层已按 32/24/16 三档覆盖，
      页面因此不必各自写媒体查询。
-     顶部内边距此前是 0：顶栏（`.inner` 的 `min-height: 82px`）本身不带下
-     内边距，于是页标题紧贴顶栏下沿——这是"排版紧凑"最直观的一处。原型
-     `.page-root` 的 `padding: 26px 0 72px` 给顶部留了一档，这里取最近的
-     令牌 `--space-6`（24px）。**只补顶部**：左右由 `--space-page-x` 承担，
-     底部沿用 `--space-12`。 */
+     顶部内边距 v0.27（UI-011）由 `--space-6`（24px）升为
+     `calc(var(--space-12) + var(--space-8))`（80px）：页标题 44px 升格后
+     需要更大的顶部呼吸位（预览稿实测值），用既有令牌派生、不新造 space 令牌。
+     **只补顶部**：左右由 `--space-page-x` 承担，底部沿用 `--space-12`。 */
   width: min(var(--layout-max-width), 100%);
   margin-inline: auto;
-  padding: var(--space-6) var(--space-page-x) var(--space-12);
+  padding: calc(var(--space-12) + var(--space-8)) var(--space-page-x) var(--space-12);
   /* 撑满主内容列剩余高度：短页面下页面底色也能到底。 */
   flex: 1;
 }

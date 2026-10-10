@@ -43,7 +43,7 @@ test.describe('外壳 · 桌面（≥1024px）', () => {
     expect(fontSize).not.toBe('0px');
   });
 
-  test('宽视口下页面区封顶 1200px 并居中', async ({ page }) => {
+  test('宽视口下页面区封顶 720px 并居中', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/today');
 
@@ -53,7 +53,8 @@ test.describe('外壳 · 桌面（≥1024px）', () => {
     await expect(page.locator(PAGE)).toBeVisible();
 
     const box = await page.locator(PAGE).boundingBox();
-    expect(Math.round(box?.width ?? 0)).toBe(1200);
+    // 规范 v0.27 起 720px（UI-011 单列阅读行宽，2026-10-09 用户授权同步）。
+    expect(Math.round(box?.width ?? 0)).toBe(720);
 
     // 居中：左右留白相等（各自的取整误差不超过 1px）。
     const viewport = await layoutWidth(page);

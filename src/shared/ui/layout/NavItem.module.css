@@ -21,6 +21,8 @@
 .item {
   /* 块容器（见上方说明），不用 flex/grid。 */
   display: block;
+  /* 当前项指示条（UI-011，v0.27 §3.2）的定位上下文。 */
+  position: relative;
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
@@ -50,6 +52,22 @@
   color: var(--color-accent);
   background-color: var(--color-accent-soft);
   font-weight: var(--font-weight-medium);
+}
+
+/* 当前项指示条（UI-011，v0.27 §3.2）：左缘一枚 2px 竖条，颜色随当前项的
+   accent 配色（上一条规则同一状态、不构成第二套配色）。纯几何——2px 宽、
+   16px 高居中是绘图取值而非颜色/字号/时长量，端帽用丸形令牌贴合圆角语义。
+   位移由绝对定位承担，不挤动行内文字。 */
+.item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
 }
 
 /* 焦点必须清晰可见（SRS §6.9 / 规范 §7）。与 Button / Tabs 同款：

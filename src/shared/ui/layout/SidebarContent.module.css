@@ -34,17 +34,69 @@
   font-weight: var(--font-weight-medium);
 }
 
-.date {
-  /* 原型是 42px / 12px / 14px，归整到最近档位（40 / 12 / 12）。 */
+/* 日期升格卡（UI-011，v0.27 §3.2）。外边距沿用原 `.date` 一行日期的位置；
+   内部四件：日期（主墨色）、星期·第 N 周（眉标字阶）、当日进度细线、已过百分比。 */
+.dateCard {
   margin: var(--space-10) var(--space-3) var(--space-3);
-  color: var(--color-text-secondary);
+}
+
+.date {
+  margin: 0;
+  color: var(--color-text-primary);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
+}
+
+/* 眉标字阶的行高 1.4 是 §2.2 表内取值（非字号/时长量），令牌只覆盖字号与字距。 */
+.week {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
+}
+
+/* 进度细线：2px 高、全圆端帽——线是绘图几何，不是设计取值（预览稿同注）。
+   轨道用最浅的 surface-soft，填充用墨色：一天的流逝不是「当前页」状态，
+   不占用强调色（§2.1 强调色＝当前状态）。 */
+.dayTrack {
+  display: block;
+  height: 2px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
+}
+
+.dayFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-primary);
+}
+
+.dayNote {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
 }
 
 .list {
   display: grid;
   gap: var(--space-1);
+}
+
+/* 分组眉标（UI-011，v0.27 §3.2）：「一条长列表」变「两组」，
+   结构靠眉标与组间距建立——不加边框、不加底色。 */
+.groupLabel {
+  margin: var(--space-2) var(--space-3) var(--space-2);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-eyebrow);
+  line-height: 1.4;
+  letter-spacing: var(--font-letter-spacing-eyebrow);
 }
 
 /* 把设置项与账户区一起顶到侧栏底部（原型同为 `margin-top: auto`）。 */
@@ -100,14 +152,27 @@
      所以品牌链接仍有可访问名称、读屏仍能读出这些文字。 */
   .brandName,
   .date,
+  .week,
+  .dayNote,
   .profileText {
     font-size: 0;
   }
 
-  /* 日期已经看不见了，就不该再占着 40px 的顶部间距；
+  /* 日期卡整体让位：单栏里既放不下文字，也没有横向空间画进度线
+     （进度线是装饰，直接不渲染；文字保留在无障碍树里）。 */
+  .dayTrack {
+    display: none;
+  }
+
+  /* 日期卡与眉标都看不见了，就不该再占着顶部与行间的间距；
      保留一段令牌间距维持品牌与导航之间的呼吸。 */
-  .date {
+  .dateCard {
     margin: var(--space-6) 0 0;
+  }
+
+  .groupLabel {
+    margin: 0;
+    font-size: 0;
   }
 
   .profile {
