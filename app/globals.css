@@ -130,3 +130,52 @@ a {
 ::view-transition {
   pointer-events: none;
 }
+
+/**
+ * 主题切换：圆形扩散揭示（View Transitions API，UI-012）。
+ *
+ * 触发点在 `src/shared/ui/theme/theme-apply.ts`：切换时给根元素挂 `.theming`
+ * 并把扩散原点写进 `--tx / --ty`，然后在 `document.startViewTransition` 的
+ * 更新回调里落 `data-theme` 属性。这里负责视觉：
+ *
+ * - `.theming` 期间停掉**一切**普通 transition——快照必须是干脆的终态，
+ *   若新旧两帧都带着正在跑的过渡，扩散动画的起点与终点会各自"半途"，
+ *   观感是整页在十字淡入而不是一次干净的揭示（预览稿同款处理）；
+ * - 根快照对：旧帧不动、新帧从点击位置扩散到 150vmax（盖满任意视口）。
+ *   根对的默认动画置 none 是必要的：路由过渡由 `.page-fade` 类承担
+ *   （`app/(app)/template.tsx`），根快照不应再叠一层默认交叉淡入；
+ * - 层级用 `calc(var(--z-background) + …)` 从既有令牌派生（等价 1/2），
+ *   不写数字字面量——层级纪律照旧（数字只允许经 `--z-*` 或其派生表达）。
+ *
+ * 时长引 `--duration-slow` 派生：`prefers-reduced-motion` 在 tokens.css
+ * **单点**归零时，扩散瞬时完成即等效关闭，本文件不写减少动效媒体查询。
+ */
+html.theming,
+html.theming * {
+  transition: none !important;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: calc(var(--z-background) + 2);
+}
+
+::view-transition-new(root) {
+  z-index: calc(var(--z-background) + 3);
+  animation: circle-reveal calc(var(--duration-slow) * 2.2) var(--ease-standard) both;
+}
+
+@keyframes circle-reveal {
+  from {
+    clip-path: circle(0px at var(--tx, 50%) var(--ty, 40%));
+  }
+
+  to {
+    clip-path: circle(150vmax at var(--tx, 50%) var(--ty, 40%));
+  }
+}

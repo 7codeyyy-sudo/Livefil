@@ -73,10 +73,11 @@ test('派生令牌与阴影令牌同样生效', async ({ page }) => {
     normalizeColor('#eaf1ff'),
   );
   expect(await readToken(page, '--shadow-raised')).not.toBe('');
-  expect(await readToken(page, '--radius-md')).toBe('14px');
+  // v0.29（UI-012）：卡片与表面一档由 14px 升为 16px。
+  expect(await readToken(page, '--radius-md')).toBe('16px');
 });
 
-test('第一阶段是浅色：color-scheme 为 light', async ({ page }) => {
+test('默认档是浅色：color-scheme 为 light', async ({ page }) => {
   await page.goto('/');
 
   const colorScheme = await page.evaluate(
@@ -86,15 +87,34 @@ test('第一阶段是浅色：color-scheme 为 light', async ({ page }) => {
   expect(colorScheme).toBe('light');
 });
 
-test('深色未激活：html 上没有 data-theme 属性', async ({ page }) => {
+test('默认档：无本地偏好时不落 data-theme（系统深色也不翻转）', async ({ page }) => {
   await page.goto('/');
 
-  // 深色只预留不实现。若这里读到值，说明有人绕过开关把未验收的深色交付了。
+  // 主题只由显式开关驱动，不跟随系统偏好：没有本地偏好时属性必须缺席，
+  // 系统深色用户看到的是已验收的浅色。
   const themeAttribute = await page.evaluate(() =>
     document.documentElement.getAttribute('data-theme'),
   );
 
   expect(themeAttribute).toBeNull();
+});
+
+test('选择暗色后：引导脚本首帧落 data-theme，颜色令牌整体翻转', async ({ page }) => {
+  // 防闪引导脚本在首帧前读 localStorage 落属性；这里直接注入偏好，
+  // 断言的是「引导脚本 + 暗色令牌」整条链路（点击切换由设置页用例覆盖）。
+  await page.addInitScript(() => {
+    window.localStorage.setItem('livefil.theme.v1', 'dark');
+  });
+  await page.goto('/');
+
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe(
+    'dark',
+  );
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe(
+    'dark',
+  );
+  expect(normalizeColor(await readToken(page, '--color-bg-page'))).toBe(normalizeColor('#111214'));
+  expect(normalizeColor(await readToken(page, '--color-accent'))).toBe(normalizeColor('#5b93ff'));
 });
 
 test('页面内边距随视口收敛（断点覆盖真实生效）', async ({ page }) => {

@@ -15,9 +15,11 @@
  * ## 三条纪律（由 UI-001 验收脚本断言，请勿绕开）
  *
  * 1. 除本文件外，全仓不得出现 hex / rgb / hsl 字面量（**含内联 style**）。
- * 2. **深色只预留、不激活**：仓库内任何代码都不得设置 `data-theme` 属性，
- *    也不得使用 `@media (prefers-color-scheme: dark)` —— 第一阶段系统深色用户
- *    必须看到已验收的浅色，而不是绕过开关悄悄交付的未验收样式。
+ * 2. **深色已激活（v0.29）且受控**：主题只由设置页「外观」分区的显式开关
+ *    驱动——`data-theme` 只允许挂在 `<html>` 单一节点，设置点收敛为两处
+ *    白名单（根布局的防闪引导脚本、`src/shared/ui/theme/` 的应用函数）；
+ *    **不使用** `@media (prefers-color-scheme: dark)`——系统深色用户默认
+ *    仍看到已验收的浅色，只有自己打开开关才翻转。
  * 3. **断点不做成变量**：CSS 变量无法用于 `@media` 条件，各组件的媒体查询直接
  *    写《UI 页面规范》§3.1 的像素值（这不算「第二份取值」）。只有 JS 真需要
  *    读取断点时，才新增一份 TS 常量镜像。
@@ -96,6 +98,22 @@
    */
   --color-bg-figure: #dedbd4; /* 背景几何线框与节点 */
 
+  /* ── 颜色 · v2 形态追加（5）——§2.1 / §2.4，v0.29（UI-012）随首个消费者 ──
+   * 五枚一次到位、全部有本批真实消费者，不预造：
+   * - `--color-border-strong`：卡片 hover 描边、时间尺刻度与基线、行状态点——
+   *   比 `--color-border` 深一档的「第二层边界」；
+   * - `--color-beam`：卡片 hover 边框光扫的扫光色（强调色半透明推导，
+   *   对应预览稿 `--beam-color`）；
+   * - `--color-title-fade`：页标题渐变的收尾色（渐变起点取
+   *   `--color-text-primary`，不为同值再开一枚）；
+   * - `--color-dapple-a/b`：窗格光（环境光）的光斑深/浅两级。
+   * 五枚两态齐备（暗色档见文件末尾）。 */
+  --color-border-strong: #d9d9d5;
+  --color-beam: rgba(23, 105, 224, 0.5);
+  --color-title-fade: #77777e;
+  --color-dapple-a: rgba(93, 140, 255, 0.22);
+  --color-dapple-b: rgba(93, 140, 255, 0.08);
+
   /* ── 阴影（2）——§2.4「只允许这两处阴影」────────────────────────────── */
   --shadow-overlay: 0 16px 44px rgba(29, 29, 31, 0.1);
   --shadow-raised: 0 1px 4px rgba(29, 29, 31, 0.06);
@@ -173,8 +191,12 @@
   --space-page-x: 32px;
 
   /* ── 布局 ——§2.3 ───────────────────────────────────────────────────── */
-  /* v0.27（UI-011）由 1200px 收窄为 720px：预览稿单列居中的阅读行宽。 */
-  --layout-max-width: 720px;
+  /* v0.29（UI-012）由 720px 放宽为 900px：视觉方案 v2 是**仪表盘式页面**
+     （甘特时间线、表单网格、周条），数据密集卡片在 720 里偏挤、两侧又空荡；
+     900 让卡片内部从 656 舒展到 836，1440 视口两侧仍留约 138px 有意留白。
+     v0.27「单列阅读行宽」口径由本版推翻（依据：最终决策者 2026-10-10
+     对 v2 预览稿的采纳拍板）。 */
+  --layout-max-width: 900px;
 
   /* ── 圆角 ——§2.3 / §2.4 ──────────────────────────────────────────────
    * 前三个是**几何圆角档位**（矩形表面的曲率选择）；
@@ -185,7 +207,11 @@
    * 但 999px 对任意高度都是全圆端帽，不会在将来出现更高的丸形元素时露馅。
    */
   --radius-sm: 10px;
-  --radius-md: 14px;
+  /* v0.29（UI-012）由 14px 升为 16px：v2 把「卡片」立为唯一结构语言
+     （白/深底 + 1px 描边 + 16px 圆角 + 悬停描边加深），卡片与表面一档
+     回到原型 `.surface` 的 16px；既有 md 消费者（Toast/EmptyState 等
+     表面类）随档位同步，不新增第四档几何圆角。 */
+  --radius-md: 16px;
   --radius-lg: 20px;
   --radius-pill: 999px;
 
@@ -229,6 +255,13 @@
   --glare-size: 300px;
   --glare-opacity: 0.3;
 
+  /* ── 材质（噪声）——§2.4，v0.29（UI-012）随「噪声纹理」落代码 ──────────
+   * 全站铺一层**静态**极淡颗粒（零循环）：它表达「材质」而不是「颜色」，
+   * 因此不并入 `--color-*` 族。亮色以 `multiply` 压暗、暗色以 `soft-light`
+   * 提亮，不透明度分档（暗色底上颗粒要更亮一点才读得出来）。 */
+  --noise-opacity: 0.028;
+  --noise-blend: multiply;
+
   /* ── 控件尺寸 ——§2.3 ──────────────────────────────────────────────────
    * `--size-touch-min` 是**语义保证值**，不是某个组件的高度：它在移动端
    * 覆盖 `--size-control-sm`（见下方媒体查询），组件样式自身不写媒体查询。
@@ -256,6 +289,9 @@
    * 全局提示盖住（`--z-toast` 300）——引导期间 Toast 仍要能冒出来。
    */
   --z-background: -1;
+  /* v0.29（UI-012）：材质层（噪声）——浮在一切内容之上（卡片也要吃到颗粒），
+     又必须低于遮罩：浮层面板保持干净表面，不被颗粒弄脏。 */
+  --z-texture: 90;
   --z-scrim: 100;
   --z-overlay: 200;
   --z-guide: 250;
@@ -299,18 +335,66 @@
 }
 
 /**
- * 深色主题 —— 占位，第一阶段不激活。
+ * 深色主题 —— v0.29（UI-012）激活。唯一形态准据＝视觉方案 v2 预览稿的暗色档。
  *
- * 这里**刻意不声明任何颜色变量**：深色设计稿尚未验收，填入任何猜测值都会在
- * 将来被误认为已确认的设计。保留本块是为了给深色一个明确的落点，并让
- * 「深色确实被预留了」这件事可被检查。
- *
- * 激活时必须同时满足：
- * 1. 只在 `<html>` 单一节点挂 `data-theme`，与选择器体系保持一致
- *    （主题属性挂在别处是主题不同步类问题的标准来源）；
+ * 激活沿用了本块预留时写下的三条协议：
+ * 1. 主题属性只挂在 `<html>` 单一节点，与选择器体系保持一致；
  * 2. 只替换变量值，引用方零改动；
- * 3. 同步解除验收脚本对「`data-theme` 设置点」与「`prefers-color-scheme`」的禁止断言。
+ * 3. 「不激活」相关断言同步处理——`data-theme` 禁令改判为**受控设置点
+ *    白名单**（根布局引导脚本 + `src/shared/ui/theme/` 应用函数）；
+ *    `prefers-color-scheme` 禁令**保留**：本主题是用户显式开关驱动的，
+ *    不跟随系统偏好（见文件头第 2 条纪律）。
+ *
+ * 取值来源：预览稿暗色令牌逐条对应；预览稿未覆盖的三处按同族推导并已记录
+ * （danger 一族、三枚状态边框的 24% alpha 规则、焦点环与遮罩）。
+ * 分类色 `--color-cat-*` 两态同值：小面积识别色，暂不翻转。
  */
 html[data-theme='dark'] {
   color-scheme: dark;
+
+  /* 基础语义色（9） */
+  --color-bg-page: #111214;
+  --color-surface: #1a1c20;
+  --color-text-primary: #e9ebee;
+  --color-text-secondary: #969da6;
+  --color-border: #2a2d33;
+  --color-accent: #5b93ff;
+  --color-success: #43b877;
+  --color-warning: #d9a04a;
+  /* 预览稿无 danger，按 success/warning 的提亮口径同族推导。 */
+  --color-danger: #e0645c;
+
+  /* 派生与辅助（9）+ 状态色边框（3，24% alpha 规则同浅色） */
+  --color-surface-soft: #212429;
+  --color-text-placeholder: #626a74;
+  --color-on-accent: #0a1222;
+  --color-accent-soft: rgba(91, 147, 255, 0.13);
+  --color-focus-ring: rgba(91, 147, 255, 0.32);
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --color-success-soft: rgba(67, 184, 119, 0.13);
+  --color-warning-soft: rgba(217, 160, 74, 0.13);
+  --color-danger-soft: rgba(224, 100, 92, 0.13);
+  --color-success-border: rgba(67, 184, 119, 0.24);
+  --color-warning-border: rgba(217, 160, 74, 0.24);
+  --color-danger-border: rgba(224, 100, 92, 0.24);
+
+  /* v2 形态追加（5）——对应浅色档同族，暗底上整体提亮 */
+  --color-border-strong: #383c44;
+  --color-beam: rgba(91, 147, 255, 0.7);
+  --color-title-fade: #8b929b;
+  --color-dapple-a: rgba(91, 147, 255, 0.18);
+  --color-dapple-b: rgba(91, 147, 255, 0.06);
+
+  /* 组件别名：主按钮在暗色下整体翻转（亮底 + 深字，等于浅色的镜像） */
+  --color-primary-surface: #e9ebee;
+  --color-primary-hover: #ffffff;
+  --color-on-primary: #0a1222;
+  --color-on-danger: #0a1222;
+
+  /* 背景几何：暗底上取「比底色亮一档」的冷灰（浅色是同族深一档，方向相反） */
+  --color-bg-figure: #2e3238;
+
+  /* 材质：暗色下颗粒以 soft-light 提亮，幅度上调 */
+  --noise-opacity: 0.05;
+  --noise-blend: soft-light;
 }
