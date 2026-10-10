@@ -10,6 +10,8 @@ import {
 } from '../_components/EditBlockModal';
 import { PageHeading } from '../_components/PageHeading';
 
+import { LaserFlow } from './LaserFlow';
+
 import {
   Badge,
   Button,
@@ -706,6 +708,9 @@ export function TodayPanel() {
           页面顶部坠下、穿过标题区落到卡片顶边（canvas 由 LaserFlow 组件渲染，
           画布左右扩宽与裁切见该组件说明）。 ── */}
       <div className={styles.laserStage}>
+        {/* 光效先于内容入场（DOM 序在前后文之上，卡片自身带定位层叠在上）；
+            只在成功态挂载——骨架期没有「落点卡片」，没必要起 WebGL。 */}
+        {today.state.status === 'success' ? <LaserFlow surfaceRef={heroRef} /> : null}
         {view === null ? null : <p className={styles.eyebrow}>{dayEyebrow(view.date)}</p>}
         <div className={styles.pageHead}>
           <div className={styles.headTitle}>

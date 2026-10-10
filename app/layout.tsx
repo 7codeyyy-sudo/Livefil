@@ -43,7 +43,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html lang="zh-CN">
+    // `suppressHydrationWarning` 是为防闪引导脚本准备的：主题属性在首帧前由
+    // 内联脚本写入 `<html>`，服务端产物里没有这个属性——React 水合时会把
+    // 「DOM 与 SSR 不一致」记成一条水合告警。这里**只该压掉这一条**：
+    // 属性本来就由脚本管理、React 不拥有它（与 React 官方对「脚本写入
+    // html/body 属性」的推荐做法一致）。
+    <html lang="zh-CN" suppressHydrationWarning>
       <body>
         {/* 防闪引导脚本：必须是 body 的**第一个**节点——此后所有内容都在
             它之后解析，第一帧绘制时主题属性已经落定（见上方说明）。 */}
