@@ -242,6 +242,12 @@ function useRevealCards(): RefObject<HTMLDivElement | null> {
       return;
     }
 
+    // 环境没有 IntersectionObserver（jsdom、极旧浏览器）：**不布防、不隐藏**——
+    // 失败方向保持「没有动画但有内容」，与 JS 未跑的口径一致（本模块的整体设计）。
+    if (typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
     // 布防标记走 data 属性而不是类名：CSS Modules 的类名在类型上是
     // `string | undefined`（索引签名 + noUncheckedIndexedAccess），
     // `classList.add` 不接受；data 属性同时把「这种状态是数据不是样式」写明白。

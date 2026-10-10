@@ -111,6 +111,9 @@ test.describe('设置页 · 外观', () => {
     await openSettings(page);
 
     const appearance = section(page, '外观');
+    // 首访 /settings 可能浮出新手导览层（AI-007）并拦截点击；`Esc` 等同「跳过引导」，
+    // 没有导览时是无副作用的空操作。
+    await page.keyboard.press('Escape');
     await appearance.getByText('暗色', { exact: true }).click();
 
     // 即时生效：属性落 `<html>` 单一节点（v0.29 UI-012 激活协议）。

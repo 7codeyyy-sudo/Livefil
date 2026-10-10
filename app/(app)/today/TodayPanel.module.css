@@ -95,8 +95,8 @@
 }
 
 /* 滚轮条：三圈 0–9 竖排；位移由组件内联（起点第三圈、终点第二圈），
-   到位即停（一次性）。时长 `calc(var(--duration-slow) * 3.8)`（950ms）取自
-   预览稿实测；缓动统一走 `--ease-standard`（缓动只允许引用 §2.4 动效令牌）。 */
+   到位即停（一次性）。时长 `calc(var(--duration-slow) * 3.8)` 取自
+   预览稿实测值；缓动统一走 `--ease-standard`（缓动只允许引用 §2.4 动效令牌）。 */
 .odoStrip {
   display: block;
   line-height: 1;
@@ -190,7 +190,7 @@
    初始态由 JS 布防属性 `data-reveal-ready`（挂在页面根）控制——JS 未跑时
    属性不存在、内容默认可见，不锁内容；卡片进入视口后 JS 写
    `data-reveal-state="in"` 播一次性上浮（fill: both 保证动画后停在终态）。
-   `--i` 为卡片序号（组件内联），延迟从令牌派生（slow × 0.3 ≈ 75ms/张）。
+   `--i` 为卡片序号（组件内联），延迟从令牌派生（约 `--duration-slow` 的三成）。
    状态走 data 属性而不是类名：这种「JS 注入的状态」是数据，不是样式变体。 */
 [data-reveal-ready] .card {
   opacity: 0;
@@ -816,7 +816,7 @@
 }
 
 /* 周条生长（一次性）：随摘要卡入场（data-reveal-state=in）从底部错峰长出，
-   行内 `--i` 为列序；延迟 = i × 60ms + 260ms（令牌派生因子）。 */
+   行内 `--i` 为列序；延迟 = `--duration-slow` 的派生因子（i × 0.24 + 1.04）。 */
 [data-reveal-ready] .weekBar {
   transform: scaleY(0);
 }

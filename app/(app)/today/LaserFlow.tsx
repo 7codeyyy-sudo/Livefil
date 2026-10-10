@@ -228,6 +228,12 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
       return; // 无 WebGL2：静默跳过，页面其余部分不受影响。
     }
 
+    // 环境缺少观察器（jsdom 等）：同样静默跳过——需求是「更好的光效」，
+    // 不是「没有它就崩」。与无 WebGL2 同一条渐进增强口径。
+    if (typeof ResizeObserver === 'undefined' || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
     const program = linkLaserProgram(gl, LASER_VERTEX_SOURCE, LASER_FRAGMENT_SOURCE);
     if (program === null) {
       return;

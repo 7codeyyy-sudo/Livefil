@@ -21,8 +21,8 @@
   background-clip: text;
   color: transparent;
   /* 对焦入场（v0.29，UI-012「渐变 + 对焦」的对焦半）：从模糊到清晰一次性揭示，
-     零循环。时长 `calc(var(--duration-slow) * 3)`（750ms）、延迟
-     `calc(var(--duration-slow) * 0.6)`（150ms）全部由令牌派生；
+     零循环。时长 `calc(var(--duration-slow) * 3)`、延迟
+     `calc(var(--duration-slow) * 0.6)` 全部由令牌派生；
      reduced-motion 不在此写媒体查询：tokens.css 在 reduce 下把 duration 归零，
      动画瞬时完成即等效关闭（规范只允许令牌单点降级）。 */
   animation: title-focus calc(var(--duration-slow) * 3) var(--ease-standard)
