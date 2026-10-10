@@ -466,10 +466,14 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     emailFrom: parsed.EMAIL_FROM,
     // 单一分支点（PD-029 第 3 项）：只看 EMAIL_API_URL 是否配置。
     emailEnabled: parsed.EMAIL_API_URL !== undefined,
-    // 归一在解析层做一次（比对时对输入同样归一）：trim + 小写 + 滤空。
-    inviteCodes: (parsed.INVITE_CODES ?? '')
-      .split(',')
-      .map((code) => code.trim().toLowerCase())
-      .filter((code) => code.length > 0),
+    // 归一在解析层做一次（比对时对输入同样归一）：trim + 小写 + 滤空 + 去重。
+    inviteCodes: [
+      ...new Set(
+        (parsed.INVITE_CODES ?? '')
+          .split(',')
+          .map((code) => code.trim().toLowerCase())
+          .filter((code) => code.length > 0),
+      ),
+    ],
   });
 }
