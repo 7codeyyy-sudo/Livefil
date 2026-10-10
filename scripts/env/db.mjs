@@ -15,7 +15,7 @@
  *   node scripts/env/db.mjs migrate    # 应用迁移（需 DATABASE_URL）
  *   node scripts/env/db.mjs test       # 跑真机数据库测试（需 TEST_DATABASE_URL）
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -106,6 +106,18 @@ switch (command) {
     if (!existsSync(DRIZZLE_KIT_CLI)) {
       console.error(`[db] 未找到 drizzle-kit：${formatPath(DRIZZLE_KIT_CLI)}\n     请先安装依赖。`);
       process.exit(1);
+    }
+    // 迁移前备份钩子（OPS-001 第 3 项，对齐 DB-001 迁移纪律）：**同步**跑完备份
+    // 再迁移（异步 run 会让两者并行，失去「迁移前」的意义）；备份失败 ⇒ 阻塞迁移。
+    const backupScript = path.join(PROJECT_ROOT, 'scripts', 'backup', 'backup.mjs');
+    const backup = spawnSync(process.execPath, [backupScript, '--reason=pre-migrate'], {
+      cwd: PROJECT_ROOT,
+      env: childEnv(),
+      stdio: 'inherit',
+    });
+    if (backup.status !== 0) {
+      console.error('[db] 迁移前备份失败——已阻塞迁移（OPS-001 纪律：无备份不迁移）。');
+      process.exit(backup.status ?? 1);
     }
     run(process.execPath, [DRIZZLE_KIT_CLI, 'migrate', ...extraArgs], childEnv(), 'drizzle-kit');
     break;

@@ -30,6 +30,7 @@ import {
   getSessionTokenService,
   getVerificationCodeCrypto,
 } from '../../composition-root.ts';
+import { serverEnv } from '@/shared/validation/env.server.ts';
 
 /** 发送验证码用例（#1）。 */
 export function createSendCodeUseCase(): SendVerificationCodeUseCase {
@@ -44,7 +45,7 @@ export function createSendCodeUseCase(): SendVerificationCodeUseCase {
   });
 }
 
-/** 注册用例（#2）。 */
+/** 注册用例（#2；PD-029 勘误：邀请码门 + 邮箱验证双态——emailEnabled 驱动）。 */
 export function createRegisterUseCase(): RegisterUserUseCase {
   const repositories = getRepositories();
   return new RegisterUserUseCase({
@@ -57,6 +58,10 @@ export function createRegisterUseCase(): RegisterUserUseCase {
     rateLimiter: getRateLimiter(),
     audit: getAuditLogger(),
     lifeAreaSeeds: getLifeAreaSeeds(),
+    // 邀请码白名单来自 env（已归一）——码门的判定输入只有这一个来源。
+    inviteCodes: serverEnv.inviteCodes,
+    // 邮箱验证双态开关（单一分支点）：真＝全形态核码、假＝降级态免验证。
+    emailEnabled: serverEnv.emailEnabled,
   });
 }
 

@@ -18,6 +18,13 @@
  * ## 自动聚焦（B5）
  *
  * ≥768px 聚焦标识输入框；窄屏不聚焦——自动唤起键盘会遮挡半个表单。
+ *
+ * ## 降级态（PD-029 第 3 项）
+ *
+ * `emailEnabled=false`（无邮件通道）：隐藏验证码 Tab、强制单密码通道——
+ * 验证码需要邮件载体，UI 不提供收不到码的入口（不放假按钮）。忘记密码入口
+ * **保留**（分发单第 4 行只授权「Tab 单密码」）：降级态忘记密码页自身显示
+ * 「联系管理员重置」文案承接。冻结文案零改动（结构增减随 PM 注记对照表）。
  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -43,7 +50,17 @@ function safeNext(next: string | null): string {
   return '/';
 }
 
-export function LoginPanel({ next }: { readonly next: string | null }) {
+export function LoginPanel({
+  next,
+  emailEnabled,
+}: {
+  readonly next: string | null;
+  /**
+   * 邮件通道是否启用（PD-029 第 3 项单一分支点，服务端 page 传入）。
+   * 降级态（false）：隐藏验证码 Tab（单密码通道）——验证码需要邮件载体。
+   */
+  readonly emailEnabled: boolean;
+}) {
   const router = useRouter();
   const identifierRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +72,9 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(next !== null ? '请先登录后继续。' : null);
+
+  // 降级态强制密码通道（Tab 未渲染，state 不该停在 code 上）。
+  const activeTab: Tab = emailEnabled ? tab : 'password';
 
   // B5：宽屏聚焦标识框；窄屏不聚焦（自动弹键盘会遮挡表单）。
   useEffect(() => {
@@ -97,10 +117,10 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
     if (identifier.trim() === '' || submitting) {
       return;
     }
-    if (tab === 'password' && password === '') {
+    if (activeTab === 'password' && password === '') {
       return;
     }
-    if (tab === 'code' && code === '') {
+    if (activeTab === 'code' && code === '') {
       return;
     }
     setSubmitting(true);
@@ -108,7 +128,7 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
     setNotice(null);
     try {
       await login(
-        tab === 'password'
+        activeTab === 'password'
           ? { identifier: identifier.trim(), password }
           : { identifier: identifier.trim(), code },
       );
@@ -137,31 +157,34 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
         </p>
       ) : null}
 
-      {/* 双 Tab＝分段先例（C2：/review 同款 aria-pressed Button，不新造 Tab 组件）。 */}
-      <div className={styles.segments} role="group" aria-label="登录方式">
-        <Button
-          type="button"
-          variant={tab === 'password' ? 'primary' : 'secondary'}
-          aria-pressed={tab === 'password'}
-          onClick={() => {
-            setTab('password');
-            setError(null);
-          }}
-        >
-          密码
-        </Button>
-        <Button
-          type="button"
-          variant={tab === 'code' ? 'primary' : 'secondary'}
-          aria-pressed={tab === 'code'}
-          onClick={() => {
-            setTab('code');
-            setError(null);
-          }}
-        >
-          验证码
-        </Button>
-      </div>
+      {/* 双 Tab＝分段先例（C2：/review 同款 aria-pressed Button，不新造 Tab 组件）。
+          降级态（PD-029 第 3 项）不渲染 Tab 区——验证码需要邮件载体，单密码通道。 */}
+      {emailEnabled ? (
+        <div className={styles.segments} role="group" aria-label="登录方式">
+          <Button
+            type="button"
+            variant={tab === 'password' ? 'primary' : 'secondary'}
+            aria-pressed={tab === 'password'}
+            onClick={() => {
+              setTab('password');
+              setError(null);
+            }}
+          >
+            密码
+          </Button>
+          <Button
+            type="button"
+            variant={tab === 'code' ? 'primary' : 'secondary'}
+            aria-pressed={tab === 'code'}
+            onClick={() => {
+              setTab('code');
+              setError(null);
+            }}
+          >
+            验证码
+          </Button>
+        </div>
+      ) : null}
 
       <form
         className={styles.form}
@@ -178,7 +201,7 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
           onChange={(event) => setIdentifier(event.target.value)}
         />
 
-        {tab === 'password' ? (
+        {activeTab === 'password' ? (
           <Input
             label="密码"
             type="password"
@@ -202,7 +225,7 @@ export function LoginPanel({ next }: { readonly next: string | null }) {
         </Button>
 
         <div className={styles.secondaryRow}>
-          {tab === 'password' ? (
+          {activeTab === 'password' ? (
             <Button
               type="button"
               variant="ghost"

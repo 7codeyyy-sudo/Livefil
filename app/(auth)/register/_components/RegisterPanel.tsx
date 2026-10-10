@@ -1,26 +1,27 @@
 'use client';
 
 /**
- * 注册面板（AUTH-002，v0.26 UI-010 C1；RD-012 §9-B1/B2/B7）。
+ * 注册面板（PD-029 双态：邀请码制 + 邮箱验证随邮件通道；v0.26 UI-010 C1 承接）。
  *
- * ## 三步与核码的分工（RD-012 §3 流 1）
+ * ## 双态形态（PD-029 第 1/3 项，读 `emailEnabled` 切换）
  *
- * 步 2 的「验证」只做**前端格式校验**（6 位数字）——真正的核码在步 3
- * 与建号**单事务原子完成**（服务端 `核码 → 唯一 → 建号`）。把核码拆到步 2
- * 单独请求会引入「先验后建」的竞态窗口，且多一次往返。
- * 因此步 2 冻结错误行的出现位置＝步 3 提交失败时（服务端统一文案，
- * 与 C1 冻结句逐字同源）。
+ * - **降级态（无邮件通道）**：邀请码 + 账号 + 名字 + 密码（单表单，分发单
+ *   第 4 行四项）——免邮箱验证，靠**邀请码门 + IP 限流**双闸防滥用（第 5 项）。
+ * - **全形态（配好 `EMAIL_API_URL`）**：邀请码 + 原三步邮箱验证（邀请码在
+ *   步 1 与邮箱同收——入场券语义，也与降级态「邀请码在最前」对齐）。步 3
+ *   服务端**真核码**（拍板 3「三步注册回归」的验证能力，不是假流程）。
  *
  * ## 密码规则 helper（B1 定稿）
  *
  * 8–64 字符、至少含字母与数字、不得与邮箱/账号相同——**满足项转 success 色**；
- * 服务端 Zod 为唯一权威，前端只是实时回显（R6：登录失败行不暗示数据变更，
- * 本页同族纪律：校验失败只述字段问题）。
+ * 服务端 Zod 为唯一权威，前端只是实时回显。降级态无邮箱，「不与邮箱或账号
+ * 相同」自然退化为只比账号（没有邮箱可比）。
  *
- * ## 撞名边界（B2）
+ * ## 文案纪律
  *
- * username 撞名 409 只在**已持有效邮箱验证码**的步 3 提交后暴露——
- * 枚举 username 必须先过控制邮箱门槛 + 注册 IP 限流。
+ * 冻结文案（C1 页题/页底、步内标签）零改动；**新增文案**（邀请码字段、
+ * 降级态无步骤 caption）逐条列入 RD-016 文案对照表供 PM 注记。邀请码失败
+ * 直接回显服务端统一文案「邀请码不正确。」（无码/错码同一句，防枚举）。
  */
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,7 +37,7 @@ type Step = 1 | 2 | 3;
 /** 429 统一文案（契约 §14.1 / C1 冻结句）。 */
 const RATE_LIMITED = '操作过于频繁，请稍后再试。';
 
-/** B1 密码规则（与服务端 Zod 同源的三条）。 */
+/** B1 密码规则（与服务端 Zod 同源的四条）。 */
 function usePasswordRules(password: string, email: string, username: string) {
   return useMemo(
     () => [
@@ -52,10 +53,19 @@ function usePasswordRules(password: string, email: string, username: string) {
   );
 }
 
-export function RegisterPanel() {
+export function RegisterPanel({
+  emailEnabled,
+}: {
+  /**
+   * 邮件通道是否启用（PD-029 第 3 项单一分支点，服务端 page 传入）。
+   * 降级态＝四项单表单；全形态＝邀请码 + 三步邮箱验证。
+   */
+  readonly emailEnabled: boolean;
+}) {
   const router = useRouter();
 
   const [step, setStep] = useState<Step>(1);
+  const [inviteCode, setInviteCode] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [username, setUsername] = useState('');
@@ -72,13 +82,38 @@ export function RegisterPanel() {
       if (err.status === 429) {
         return RATE_LIMITED;
       }
-      // 服务端统一文案直接回显：核码失败「验证码不正确或已过期。」、
-      // 撞名「该账号名已被使用。」（409 字段级，B2 边界内的可达提示）。
+      // 服务端统一文案直接回显：邀请码失败「邀请码不正确。」（无码/错码同句）、
+      // 撞名「该账号名已被使用。」（409 字段级）、全形态缺邮箱字段等 400。
       return err.message;
     }
     return '网络异常，请稍后再试。';
   }
 
+  /** 降级态提交：邀请码 + 账号 + 名字 + 密码（免邮箱验证）。 */
+  async function submitDegrade(): Promise<void> {
+    if (inviteCode.trim() === '' || username.trim() === '' || password === '' || submitting) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await register({
+        inviteCode: inviteCode.trim(),
+        username: username.trim(),
+        displayName: displayName.trim() === '' ? null : displayName.trim(),
+        password,
+      });
+      // 注册即登录（服务端已 Set-Cookie）：直接进应用。
+      router.replace('/');
+      router.refresh();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /** 全形态步 1：发注册验证码。 */
   async function sendCode(): Promise<boolean> {
     if (email.trim() === '' || submitting) {
       return false;
@@ -97,8 +132,8 @@ export function RegisterPanel() {
     }
   }
 
-  /** 步 3 提交：核码 + 建号单事务在服务端完成。 */
-  async function submit(): Promise<void> {
+  /** 全形态步 3 提交：邀请码 + 邮箱 + 验证码 + 账号 + 名字 + 密码（服务端核码）。 */
+  async function submitFull(): Promise<void> {
     if (submitting) {
       return;
     }
@@ -106,6 +141,7 @@ export function RegisterPanel() {
     setError(null);
     try {
       await register({
+        inviteCode: inviteCode.trim(),
         email: email.trim(),
         code,
         username: username.trim(),
@@ -122,6 +158,77 @@ export function RegisterPanel() {
     }
   }
 
+  /* ---------------- 降级态：四项单表单 ---------------- */
+  if (!emailEnabled) {
+    return (
+      <>
+        <h1 className={styles.title}>创建账号</h1>
+        {error !== null ? (
+          <p className={styles.alert} role="alert">
+            {error}
+          </p>
+        ) : null}
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitDegrade();
+          }}
+        >
+          <Input
+            label="邀请码"
+            value={inviteCode}
+            autoComplete="off"
+            onChange={(event) => setInviteCode(event.target.value)}
+          />
+          <Input
+            label="账号"
+            value={username}
+            autoComplete="username"
+            onChange={(event) => setUsername(event.target.value)}
+          />
+          <Input
+            label="名字（可留空）"
+            value={displayName}
+            autoComplete="nickname"
+            onChange={(event) => setDisplayName(event.target.value)}
+          />
+          <Input
+            label="密码"
+            type="password"
+            value={password}
+            autoComplete="new-password"
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <ul className={styles.rules}>
+            {rules.map((rule) => (
+              <li key={rule.label} className={rule.met ? styles.ruleMet : undefined}>
+                {`${rule.met ? '✓ ' : '· '}${rule.label}`}
+              </li>
+            ))}
+          </ul>
+          <Button type="submit" variant="primary" loading={submitting}>
+            创建账号
+          </Button>
+        </form>
+
+        <p className={styles.footer}>
+          已有账号？
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              router.push('/login');
+            }}
+          >
+            登录
+          </Button>
+        </p>
+      </>
+    );
+  }
+
+  /* ---------------- 全形态：邀请码 + 三步邮箱验证 ---------------- */
   return (
     <>
       <h1 className={styles.title}>创建账号</h1>
@@ -146,6 +253,12 @@ export function RegisterPanel() {
           }}
         >
           <Input
+            label="邀请码"
+            value={inviteCode}
+            autoComplete="off"
+            onChange={(event) => setInviteCode(event.target.value)}
+          />
+          <Input
             label="邮箱"
             type="email"
             value={email}
@@ -163,7 +276,7 @@ export function RegisterPanel() {
           className={styles.form}
           onSubmit={(event) => {
             event.preventDefault();
-            // 步 2 只做前端格式校验（核码在步 3 原子完成，流 1 步 2 说明）。
+            // 步 2 只做前端格式校验（核码在步 3 与建号单事务完成，C1 流 1 说明）。
             if (/^\d{6}$/.test(code)) {
               setError(null);
               setStep(3);
@@ -212,7 +325,7 @@ export function RegisterPanel() {
           className={styles.form}
           onSubmit={(event) => {
             event.preventDefault();
-            void submit();
+            void submitFull();
           }}
         >
           <Input

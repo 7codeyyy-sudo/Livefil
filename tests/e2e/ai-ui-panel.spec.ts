@@ -1,11 +1,13 @@
 /**
  * Phase 9 · AI 智能向导与建议——UI 与客户端纪律补证
- * （QA-20260929-004 点 10–15 + 护栏 2 / 护栏 7 / 护栏 3-UI 半边 / 护栏 8）。
+ * （QA-20260929-005 点 10–15 + 护栏 2 / 护栏 7 / 护栏 3-UI 半边 / 护栏 8）。
  *
  * 覆盖：
  * - 点 14：AI 关闭态（`ai_enabled=false`）四入口在四页均不渲染；`GET /me` 失败
  *   （开关未知，`useAiEnabled()` 返 `null`）同样不渲染；且关闭不使页面变空白。
- * - 点 10：A 引导四步——可推进（逐级）、可跳过、可重开、可关闭。
+ * - 点 10：A 引导四步——v0.25 全屏导览层（`[data-variant="guide-tour"]`），
+ *           可推进（逐级「我知道了」）、可跳过（「跳过引导」一次性终止）、
+ *           Esc 等效、无「×」按钮、帮助抽屉「重新查看新手引导」唤回当前页导览。
  * - 点 15：三句空结果冻结文案逐字（C1 / C2 / D）。
  * - 点 11：B 上下文帮助入口在四个 AI 页均可及，且不随 AI 开关隐藏。
  * - 点 12：C 组确认界面三形态齐备（拆分 Drawer / 排程建议区 / 记账解析区）。
@@ -15,23 +17,17 @@
  * - 护栏 3（UI 半边）：C1 清空标题即禁用「确认创建」并就地提示「请填写任务标题」。
  * - 护栏 8：C2 逐条接受（Toast 带「撤销」）/ 撤销（发 DELETE）/ 拒绝不落库。
  *
- * ## 为什么自带一个 spec 内桩而不是复用 `support/api-stub.ts`
+ * ## 导览抑制策略（v0.25）
  *
- * 本批要驱动的是**可变的 AI 域状态**：四类草稿的三种结局（ok / 空结果 / provider
- * 故障）、引导四步的四根判定旗标（目标行动、时间块、执行记录、当日复盘）、以及
- * 「写没写库」的副作用（`POST` / `DELETE /schedule-blocks` 的记账）。`support/`
- * 下的桩只造空结果，无法表达这些；因此在本文件内部实现，不改 `support/`，以免与
- * 其它用例共享的桩契约被本批牵动（范式与 `notifications-ui-panel.spec.ts` 同源）。
+ * 导览判据为客户端 `localStorage`，键与值为实现披露项：
+ * - 键：`livefil.guide-tour.v1`
+ * - 值（六页全看过）：`{"seen":{"today":true,"inbox":true,"goals":true,"expenses":true,"review":true,"settings":true},"skipped":false}`
+ * - 值（全局跳过）：`{"seen":{},"skipped":true}`
  *
- * ## 判据（产品真身）
- *
- * - 开关唯一判定源：`app/(app)/_lib/use-ai-enabled.ts`（`GET /me` 的 `aiEnabled`）
- * - 四入口：`InboxPanel`（C1）/ `WeekPanel`（C2）/ `ExpenseFormDrawer` +`ExpenseAiParseArea`（C3）
- *   / `WeeklyReviewSection` + `WeeklyAiSummarySection`（D）
- * - 同意层：`app/(app)/_lib/ai-consent.ts`（sessionStorage `livefil.ai-consent.v1`）
- * - 引导：`guide-steps.ts` + `GuideBarContainer` + `GuideProvider` + `GuideBar`
- * - 帮助：`HelpDrawerContainer` + `help-content.ts` + `HelpDrawer`
- * - 冻结文案：各组件内命名常量，本文件逐字复制（不使用转述）。
+ * 写法与既有 `grantConsent()`（同类 session 预置）同源：在 `page.goto` **之前**
+ * 用 `page.addInitScript` 写入。凡不需验证导览本身的用例（点 11–15、护栏、
+ * 点 14），统一预置「六页已看过」以隔离导览层；仅在「点 10」重写后的导览
+ * 专用用例里保留真实首启流程。
  */
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
@@ -143,7 +139,7 @@ const AMOUNT_NOT_RECOGNIZED = '未识别出金额，请手动填写。';
 const AI_UNAVAILABLE_TEXT = 'AI 暂不可用，已为你保留手动流程。';
 
 /** 引导四步卡文与主操作（逐字取自 `guide-steps.ts`）。 */
-const GUIDE_STEPS_TEXT: readonly {
+const _GUIDE_STEPS_TEXT: readonly {
   readonly card: string;
   readonly action: string;
   readonly href: string;
@@ -566,17 +562,49 @@ async function installAiWizardStub(page: Page): Promise<StubState> {
 }
 
 /**
- * 预置「本会话已同意」——写 sessionStorage（`ai-consent.ts` 的存储键）。
+ * 预置导览抑制：在 `page.goto` 之前写入 `localStorage`，让导览层不自动开启。
  *
- * 点 12/13/15 与护栏 3/7/8 都只需验证 AI 交互本身，用它在 `page.goto` 前跳过
- * 一次性同意弹层；护栏 2 刻意**不**调用它，走完整同意流程。
+ * 键：`livefil.guide-tour.v1`
+ * 值：`{"seen":{"today":true,"inbox":true,"goals":true,"expenses":true,"review":true,"settings":true},"skipped":false}`
  */
-async function grantConsent(page: Page): Promise<void> {
+async function inhibitTour(page: Page): Promise<void> {
   await page.addInitScript(() => {
     try {
-      window.sessionStorage.setItem('livefil.ai-consent.v1', '1');
+      window.localStorage.setItem(
+        'livefil.guide-tour.v1',
+        JSON.stringify({
+          seen: {
+            today: true,
+            inbox: true,
+            goals: true,
+            expenses: true,
+            review: true,
+            settings: true,
+          },
+          skipped: false,
+        }),
+      );
     } catch {
-      // 隐私模式存不下：本用例只关心跳过弹层，存不下会如实让断言失败。
+      // 隐私模式存不下：用例会如实看到导览层，断言会失败。
+    }
+  });
+}
+
+/**
+ * 预置「全局跳过」：在 `page.goto` 之前写入 `localStorage`，让导览层标记为已跳过。
+ */
+async function skipTour(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem(
+        'livefil.guide-tour.v1',
+        JSON.stringify({
+          seen: {},
+          skipped: true,
+        }),
+      );
+    } catch {
+      // 隐私模式存不下：用例会如实看到导览层，断言会失败。
     }
   });
 }
@@ -585,7 +613,7 @@ async function grantConsent(page: Page): Promise<void> {
 // 定位与动作 helper
 // ---------------------------------------------------------------------------
 
-function guideBar(page: Page) {
+function _guideBar(page: Page) {
   return page.locator('section[data-variant="guide-bar"]');
 }
 
@@ -620,6 +648,7 @@ async function gotoWeeklyReview(page: Page): Promise<void> {
 
 /** 逐一走四页，断言该页的 AI 入口一个都不渲染。 */
 async function expectNoAiEntries(page: Page): Promise<void> {
+  await inhibitTour(page);
   await page.goto('/inbox');
   await expect(page.getByRole('button', { name: '拆分任务', exact: true })).toHaveCount(0);
 
@@ -675,101 +704,110 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
     });
   });
 
-  // -------------------------------------------------------------------------
-  // 点 10：A 引导四步
-  // -------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 点 10：A 引导四步（v0.25 全屏导览层）
+  // ---------------------------------------------------------------------------
 
-  test.describe('点 10：A 引导四步', () => {
-    test('四步可逐级推进，走完后引导条自动隐藏', async ({ page }) => {
-      const stub = await installAiWizardStub(page);
+  /** 导览层根 locator（v0.25：`[data-variant="guide-tour"]`） */
+  function tourLayer(page: Page) {
+    return page.locator('[data-variant="guide-tour"]');
+  }
+
+  /** 导览层内的对话框（`role="dialog" aria-modal="true"`） */
+  function tourDialog(page: Page) {
+    return tourLayer(page).getByRole('dialog', { name: '新手引导' });
+  }
+
+  test.describe('点 10：A 引导四步（v0.25 全屏导览层）', () => {
+    test('四步可逐级推进，走完后导览层自动隐藏', async ({ page }) => {
+      const _stub = await installAiWizardStub(page);
+      await skipTour(page); // 预置全局跳过，然后逐个页面验证导览
+
+      // /today 有 3 步
       await page.goto('/today');
-
-      await expect(guideBar(page)).toBeVisible();
-      await expect(guideBar(page).getByText('第 1 / 4 步', { exact: true })).toBeVisible();
+      await expect(tourLayer(page)).toBeVisible();
+      await expect(tourDialog(page).getByText('第 1 / 3 步', { exact: true })).toBeVisible();
       await expect(
-        guideBar(page).getByText(GUIDE_STEPS_TEXT[0]?.card ?? '', { exact: true }),
+        tourDialog(page).getByText('写下你要做的第一件事', { exact: true }),
       ).toBeVisible();
       await expect(
-        guideBar(page).getByRole('link', { name: '去创建', exact: true }),
-      ).toHaveAttribute('href', '/goals');
-
-      stub.guide.goalHasAction = true;
-      await page.reload();
-      await expect(guideBar(page).getByText('第 2 / 4 步', { exact: true })).toBeVisible();
-      await expect(
-        guideBar(page).getByText(GUIDE_STEPS_TEXT[1]?.card ?? '', { exact: true }),
+        tourDialog(page).getByRole('button', { name: '我知道了', exact: true }),
       ).toBeVisible();
-      await expect(
-        guideBar(page).getByRole('link', { name: '去安排', exact: true }),
-      ).toHaveAttribute('href', '/week');
 
-      stub.guide.hasBlock = true;
-      await page.reload();
-      await expect(guideBar(page).getByText('第 3 / 4 步', { exact: true })).toBeVisible();
-      await expect(
-        guideBar(page).getByText(GUIDE_STEPS_TEXT[2]?.card ?? '', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        guideBar(page).getByRole('link', { name: '去完成', exact: true }),
-      ).toHaveAttribute('href', '/today');
+      // 点击"我知道了"推进到下一步
+      await tourDialog(page).getByRole('button', { name: '我知道了', exact: true }).click();
+      await expect(tourDialog(page).getByText('第 2 / 3 步', { exact: true })).toBeVisible();
+      await expect(tourDialog(page).getByText('把第一步放进时间线', { exact: true })).toBeVisible();
 
-      stub.guide.hasExecutionLog = true;
-      await page.reload();
-      await expect(guideBar(page).getByText('第 4 / 4 步', { exact: true })).toBeVisible();
-      await expect(
-        guideBar(page).getByText(GUIDE_STEPS_TEXT[3]?.card ?? '', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        guideBar(page).getByRole('link', { name: '去复盘', exact: true }),
-      ).toHaveAttribute('href', '/review');
+      // 再推进
+      await tourDialog(page).getByRole('button', { name: '我知道了', exact: true }).click();
+      await expect(tourDialog(page).getByText('第 3 / 3 步', { exact: true })).toBeVisible();
+      await expect(tourDialog(page).getByText('完成一件，记录一次', { exact: true })).toBeVisible();
 
-      stub.guide.hasDailyReview = true;
-      await page.reload();
-      await expect(guideBar(page)).toHaveCount(0);
+      // 最后一步推进后导览层隐藏
+      await tourDialog(page).getByRole('button', { name: '我知道了', exact: true }).click();
+      await expect(tourLayer(page)).toHaveCount(0);
     });
 
-    test('可跳过：隐藏后刷新仍隐藏，进度保留在第 1 步', async ({ page }) => {
+    test('可跳过：点击「跳过引导」一次性终止整个导览', async ({ page }) => {
       await installAiWizardStub(page);
+
       await page.goto('/today');
-      await expect(guideBar(page)).toBeVisible();
+      await expect(tourLayer(page)).toBeVisible();
 
-      await guideBar(page).getByRole('button', { name: '跳过', exact: true }).click();
-      await expect(guideBar(page)).toHaveCount(0);
+      // 点击"跳过引导"
+      await tourDialog(page).getByRole('button', { name: '跳过引导', exact: true }).click();
+      await expect(tourLayer(page)).toHaveCount(0);
 
+      // 刷新后仍跳过（全局标记）
       await page.reload();
-      await expect(guideBar(page)).toHaveCount(0);
-
-      await openHelpDrawer(page);
-      await expect(helpDrawer(page).locator('section[aria-label="新手引导"]')).toContainText(
-        '第 1 / 4 步',
-      );
+      await expect(tourLayer(page)).toHaveCount(0);
     });
 
-    test('可关闭（×）：隐藏后刷新仍隐藏', async ({ page }) => {
+    test('Esc 等效于关闭导览', async ({ page }) => {
       await installAiWizardStub(page);
+
       await page.goto('/today');
-      await expect(guideBar(page)).toBeVisible();
+      await expect(tourLayer(page)).toBeVisible();
 
-      await guideBar(page).getByRole('button', { name: '关闭新手引导', exact: true }).click();
-      await expect(guideBar(page)).toHaveCount(0);
-
-      await page.reload();
-      await expect(guideBar(page)).toHaveCount(0);
+      // 按 Esc 关闭
+      await page.keyboard.press('Escape');
+      await expect(tourLayer(page)).toHaveCount(0);
     });
 
-    test('可重开：帮助抽屉「重新查看新手引导」唤回引导条', async ({ page }) => {
+    test('无「×」关闭按钮（v0.25 移除）', async ({ page }) => {
       await installAiWizardStub(page);
+
       await page.goto('/today');
-      await expect(guideBar(page)).toBeVisible();
+      await expect(tourLayer(page)).toBeVisible();
 
-      await guideBar(page).getByRole('button', { name: '关闭新手引导', exact: true }).click();
-      await expect(guideBar(page)).toHaveCount(0);
+      // 新形态不设"×"按钮
+      const closeButton = tourDialog(page).getByRole('button', {
+        name: '关闭新手引导',
+        exact: true,
+      });
+      await expect(closeButton).toHaveCount(0);
+    });
 
-      await openHelpDrawer(page);
-      await helpDrawer(page).getByRole('button', { name: '重新查看新手引导', exact: true }).click();
-      await expect(helpDrawer(page)).toHaveCount(0);
-      await expect(guideBar(page)).toBeVisible();
-      await expect(guideBar(page).getByText('第 1 / 4 步', { exact: true })).toBeVisible();
+    test('可重开：帮助抽屉「重新查看新手引导」唤回当前页导览', async ({ page }) => {
+      await installAiWizardStub(page);
+      await skipTour(page); // 先跳过
+
+      await page.goto('/today');
+      await expect(tourLayer(page)).toHaveCount(0);
+
+      // 打开帮助抽屉
+      await page.getByRole('button', { name: '帮助与引导', exact: true }).click();
+      const drawer = page.getByRole('dialog', { name: '帮助与引导' });
+      await expect(drawer).toBeVisible();
+
+      // 点击"重新查看新手引导"
+      await drawer.getByRole('button', { name: '重新查看新手引导', exact: true }).click();
+      await expect(drawer).toHaveCount(0);
+
+      // 导览层重新出现（当前页的导览）
+      await expect(tourLayer(page)).toBeVisible();
+      await expect(tourDialog(page).getByText('第 1 / 3 步', { exact: true })).toBeVisible();
     });
   });
 
@@ -780,7 +818,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
   test.describe('点 15：空结果冻结文案逐字', () => {
     test('C1 拆分任务：空结果句 + 重新生成，且不出「AI 暂不可用」', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.breakdownOutcome = 'empty';
 
       await page.goto('/inbox');
@@ -796,7 +834,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('C2 排程建议：空结果句 + 重新生成 / 手动安排', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.scheduleOutcome = 'empty';
 
       await page.goto('/week');
@@ -812,7 +850,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('D 周摘要：空结果句 + 重新生成', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.reviewOutcome = 'empty';
 
       await gotoWeeklyReview(page);
@@ -872,7 +910,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
   test.describe('点 12：C 组确认界面三形态', () => {
     test('拆分 Drawer / 排程建议区 / 记账解析区三形态齐备', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
 
       // C1：草稿面板（Drawer），确认前零写入。
       await page.goto('/inbox');
@@ -919,7 +957,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
   test.describe('点 13：D 周摘要固定文案与分层呈现', () => {
     test('固定空态句 + 数据范围选择态（4 项、默认前两项）', async ({ page }) => {
       await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       await gotoWeeklyReview(page);
 
       const section = page.locator('section[aria-label="AI 摘要"]');
@@ -938,7 +976,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('实时请求：骨架 → 就绪（Badge、正文、禁区行）', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.aiDelayMs = 800;
       await gotoWeeklyReview(page);
 
@@ -954,7 +992,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('降级：provider 故障落「AI 暂不可用」错误行', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.reviewOutcome = 'error';
       await gotoWeeklyReview(page);
 
@@ -1015,7 +1053,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('护栏 7：C3 未识别金额冻结句 + 不提供可点的「确认记账」', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
       stub.expenseOutcome = 'unrecognized';
 
       await page.goto('/expenses');
@@ -1032,7 +1070,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('护栏 3（UI 半边）：C1 清空标题即禁用确认并就地提示', async ({ page }) => {
       await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
 
       await page.goto('/inbox');
       await page.getByLabel('快速添加任务').fill('整理书桌');
@@ -1052,7 +1090,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('护栏 8：C2 接受后 Toast 带「撤销」，撤销发出 DELETE', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
 
       await page.goto('/week');
       await page.getByRole('checkbox', { name: '选择任务：任务甲' }).check();
@@ -1080,7 +1118,7 @@ test.describe('Phase 9 · AI 向导与建议（QA-004 点 10–15 + 护栏）', 
 
     test('护栏 8：C2 拒绝不落库（不产生任何写请求）', async ({ page }) => {
       const stub = await installAiWizardStub(page);
-      await grantConsent(page);
+      await inhibitTour(page);
 
       await page.goto('/week');
       await page.getByRole('checkbox', { name: '选择任务：任务甲' }).check();

@@ -7,7 +7,9 @@
  *   跨字段，由用例层在读到上下文后判定。
  * - **账号规则**：3–20 字符、字符集 `[a-z0-9_一-龥]`（写入前 trim + ASCII 小写归一），
  *   不含 `@` ——这是登录标识「含 @ 走邮箱、否则走 username」单一判定的前提。
- * - 统一文案防枚举：核码失败一律同一条消息，不区分过期/错误/不存在（修正条 L108）。
+ * - 统一文案防枚举：核码失败一律同一条消息，不区分过期/错误/不存在（修正条 L108）；
+ *   **邀请码门同理**（PD-029 第 2 项：无码/错码统一文案）。
+ * - **注册免邮箱验证**（PD-029 第 1 项）：`email` 选填、不验证；原核码字段移除。
  */
 import { z } from 'zod';
 
@@ -87,13 +89,28 @@ export const sendCodeSchema = z
   }));
 
 /** 注册（#2）。三步页的步 3 一次提交（RD-012 §3 流 1：核码原子于提交）。 */
+/**
+ * 注册（PD-029 拍板「1+2」：邀请码制 + 邮箱验证双态）。
+ *
+ * - `inviteCode` 邀请码必经（简版码门；缺失/空/错码由用例层统一文案防枚举）；
+ * - `email` / `code` **双态**：降级态（无邮件通道）选填、免核码；全形态必填、
+ *   真核码（原三步注册的验证能力随邮件通道回归，拍板 3）——必填性由用例层按
+ *   `emailEnabled` 判，schema 不知道部署形态；
+ * - `username` 必填——无邮箱用户靠账号 + 密码登录。
+ */
 export const registerSchema = z
   .object({
-    email: emailField,
-    code: codeField,
+    // 只校验「给了就必须是字符串」：缺失（optional 放行）与空串、错码一律由
+    // 用例层的邀请码门判（统一文案防枚举——schema 不抢先用另一种文案泄露
+    // 「没提供」与「提供但不对」的差别）。
+    inviteCode: z.string().optional(),
     username: usernameField,
     displayName: z.string().max(80).nullable().optional(),
     password: passwordField,
+    // 邮箱（降级态选填、不验证；全形态必填）与验证码（全形态必填核码、降级态
+    // 忽略）——必填性由用例层按 `emailEnabled` 双态判（schema 不知道部署形态）。
+    email: emailField.optional(),
+    code: codeField.optional(),
   })
   .strict();
 

@@ -201,6 +201,19 @@ const serverEnvSchema = z
     EMAIL_API_KEY: notEmptyString('EMAIL_API_KEY').optional(),
     EMAIL_FROM: notEmptyString('EMAIL_FROM').optional(),
     /**
+     * 邀请码白名单（PD-029 拍板「1+2」第 2 项：邀请码制注册，决策清单 L113
+     * 邀请制建议回归）。
+     *
+     * 逗号分隔的随机码（部署侧生成，**建议 8 位以上随机**——熵要求入安全矩阵，
+     * spike §6.2 丙案项转正）。**未配置 ＝ 空集合 ＝ 所有邀请码拒绝**：邀请码制
+     * 注册的自然结果，生产必须配码才能注册（对齐 OPS-007 5–20 人控量）。作废／
+     * 轮换＝改配置重启（内测量级可接受）；`invitations` 全版表结构候补不进本批。
+     *
+     * 解析只做 trim + 小写归一 + 滤空（比对时对输入同样归一，大小写不敏感）；
+     * 不强校验每个码的长度——长度是部署侧的熵建议，误拒合法短码比放过更糟。
+     */
+    INVITE_CODES: z.string().optional(),
+    /**
      * 同步拉取的安全滞后窗口（毫秒，SYNC-001）。
      *
      * 与其余变量同样「提供即校验、不提供不报错」：缺省时用
@@ -300,22 +313,48 @@ const serverEnvSchema = z
       message: 'EMAIL_API_URL / EMAIL_API_KEY / EMAIL_FROM: 当 EMAIL_PROVIDER=http 时必须同时配置',
     },
   )
-  // 生产红线（AUTH-002，RD-012 §8.3）：认证部署的生产环境禁用 mock 邮件通道。
+  // 反向绑定（PD-029 第 3 项，与上一条构成双向）：配置了邮件三件任一 ⇒ 必须
+  // `EMAIL_PROVIDER=http`。
   //
-  // mock 不真正发信——生产 cloud 配 mock 的表现是「验证码永远收不到」且**无启动报错**，
-  // 属于最难排查的「配置与行为不一致」（同 composition-root 拒绝非 mock AI 的理由）。
+  // 双向绑定的目的：让 `EMAIL_PROVIDER=http ⟺ 三件套齐 ⟺ EMAIL_API_URL 已配置`
+  // 在**通过校验的前提下**成立——于是降级态判据 `EMAIL_API_URL !== undefined`
+  // （单一分支点）不会与「实际走哪个发信分支」脱节。半配置（配了 URL 却留
+  // provider 缺省 mock）在启动期就被拒绝，而不是运行期表现为「UI 显示可发信、
+  // 实际静默不发」的配置与行为不一致。
+  .refine(
+    (value) =>
+      (value.EMAIL_API_URL === undefined &&
+        value.EMAIL_API_KEY === undefined &&
+        value.EMAIL_FROM === undefined) ||
+      value.EMAIL_PROVIDER === 'http',
+    {
+      message:
+        'EMAIL_API_URL / EMAIL_API_KEY / EMAIL_FROM: 配置任一之前必须设置 EMAIL_PROVIDER=http（半配置会导致配置与行为不一致）',
+    },
+  )
+  // 生产红线（AUTH-002，RD-012 §8.3；PD-029 第 3 项调整为**显式判定**）：
+  // 认证部署的生产环境禁用**显式** mock 邮件通道。
+  //
+  // PD-029 拍板「1+2」第 3 项把「无邮件配置」确立为**合法降级态**（登录先行、
+  // 域名待商榷、Resend 未到位）——降级态下 `EMAIL_PROVIDER` 缺省为 mock 但
+  // `EMAIL_API_URL` 未配置，**本就不发信也不提供发信入口**（配置与行为一致），
+  // 因此判据从 `?? 'mock'`（缺省也拒）收窄为**显式 `=== 'mock'`**：
+  // 只有「生产 + 认证部署 + 明确要求走 mock 发信」这一真正的配置漂移才在启动
+  // 拒绝。降级态与全形态的分界由单一分支点 `EMAIL_API_URL` 承担（见
+  // {@link ServerEnv.emailEnabled}）。
+  //
   // dev/test 下 cloud+mock 合法（集成测试注入 fake 端口取码），只有
-  // 「生产 + 认证部署 + mock」三者同时成立才在启动时拒绝。
+  // 「生产 + 认证部署 + 显式 mock」三者同时成立才在启动时拒绝。
   .refine(
     (value) =>
       !(
         (value.APP_MODE ?? 'local') === 'cloud' &&
         value.NODE_ENV === 'production' &&
-        (value.EMAIL_PROVIDER ?? 'mock') === 'mock'
+        value.EMAIL_PROVIDER === 'mock'
       ),
     {
       message:
-        'EMAIL_PROVIDER: 生产环境的认证部署（APP_MODE=cloud）必须使用 http 邮件通道，不得为 mock',
+        'EMAIL_PROVIDER: 生产环境的认证部署（APP_MODE=cloud）不得显式设为 mock（降级态请不配置邮件项，全形态请设为 http 并配齐三件套）',
     },
   );
 
@@ -351,6 +390,20 @@ export interface ServerEnv {
   readonly emailApiUrl: string | undefined;
   readonly emailApiKey: string | undefined;
   readonly emailFrom: string | undefined;
+  /**
+   * 邮件通道是否启用（PD-029 第 3 项的**单一分支点**）。
+   *
+   * `EMAIL_API_URL` 已配置即 true（全形态：三步注册／验证码登录 Tab／自助重置
+   * 自动回归）；未配置即 false（降级态：注册免验证、验证码 Tab 隐藏、忘记密码
+   * →「联系管理员重置」）。反向绑定 refine 保证此值与「实际发信分支」一致
+   * （配了 URL 必为 http 通道），前端与用例只读这一个布尔，不散落硬编码判断。
+   */
+  readonly emailEnabled: boolean;
+  /**
+   * 邀请码白名单（PD-029 第 2 项）：trim + 小写归一后的非空集合。
+   * 未配置 ＝ 空集合 ＝ 所有邀请码拒绝。
+   */
+  readonly inviteCodes: readonly string[];
 }
 
 /** 环境变量校验失败。`issues` 每项形如「变量名: 原因」，不含变量取值。 */
@@ -411,5 +464,16 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     emailApiUrl: parsed.EMAIL_API_URL,
     emailApiKey: parsed.EMAIL_API_KEY,
     emailFrom: parsed.EMAIL_FROM,
+    // 单一分支点（PD-029 第 3 项）：只看 EMAIL_API_URL 是否配置。
+    emailEnabled: parsed.EMAIL_API_URL !== undefined,
+    // 归一在解析层做一次（比对时对输入同样归一）：trim + 小写 + 滤空 + 去重。
+    inviteCodes: [
+      ...new Set(
+        (parsed.INVITE_CODES ?? '')
+          .split(',')
+          .map((code) => code.trim().toLowerCase())
+          .filter((code) => code.length > 0),
+      ),
+    ],
   });
 }

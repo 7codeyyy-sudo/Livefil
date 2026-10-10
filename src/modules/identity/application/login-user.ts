@@ -139,6 +139,18 @@ export class LoginUserUseCase {
     } else if (input.code !== undefined) {
       // 验证码通道：核码失败同样映射为统一 401（而不是 400）——
       // 登录面的失败语义只有一条（契约 v0.8 #3），四态差异进安全事件。
+      //
+      // 无邮箱用户没有验证码通道（PD-029 免邮箱验证注册可无邮箱，收不到信）：
+      // 归一到与「密码错」同一条 401，不泄露「该账号无邮箱」这一事实。
+      // 既有有邮箱 cloud 用户不进此分支，行为零变。
+      if (account.email === null) {
+        this.#audit.record({
+          type: 'AUTH_LOGIN_FAILED',
+          outcome: 'failed',
+          anonymousUserId: toAnonymousUserId(account.userId),
+        });
+        throw new AuthenticationError(LOGIN_FAILED_MESSAGE);
+      }
       const codeHash = this.#crypto.hash({
         email: account.email,
         purpose: 'login',

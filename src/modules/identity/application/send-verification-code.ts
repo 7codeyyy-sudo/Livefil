@@ -146,8 +146,9 @@ export class SendVerificationCodeUseCase {
   async #resolveEmail(input: SendVerificationCodeInput): Promise<string> {
     if (input.purpose === 'login' && !input.identifier.includes('@')) {
       const account = await this.#accounts.findByUsername(input.identifier);
-      // 查无该账号：返回恒不发码的占位（API 仍恒 200，不泄露账号是否存在）。
-      return account === null ? '' : account.email;
+      // 查无该账号、或该账号无邮箱（PD-029 免验证注册可无邮箱）：都返回恒不发码
+      // 的占位（API 仍恒 200，不泄露账号是否存在、也不泄露它有没有邮箱）。
+      return account === null || account.email === null ? '' : account.email;
     }
     return input.identifier;
   }
