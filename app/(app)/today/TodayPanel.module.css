@@ -20,10 +20,20 @@
   flex-direction: column;
 }
 
+/* 卡片栈（v0.29 §2.3）：卡片之间 16px（`--space-4`，预览稿 14px 的归整值）。
+   注意与 `.laserStage` 的关系：舞台自带同值下距，所以「落点卡（hero/时间线）→
+   本栈第一张卡」与栈内卡距一致；栈内不再给单卡补 margin。 */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 /* ── 页头与激光舞台 ───────────────────────────────────────────────────── */
 
-/* 激光舞台：覆盖「页头 + 当前行动卡」的定位上下文。canvas 由 LaserFlow 组件
-   填入（向上溢出到顶栏区、左右各扩 420px）；裁切在 AppShell 层做（见其说明）。 */
+/* 激光舞台：覆盖「页头 + 落点卡（hero 或时间线卡）」的定位上下文。canvas 由
+   LaserFlow 填入（向上溢出到屏幕顶、左右各扩 420px、必要时向下补到落点卡底边）；
+   裁切在 AppShell 层做（见其说明）。 */
 .laserStage {
   position: relative;
   margin-bottom: var(--space-4);

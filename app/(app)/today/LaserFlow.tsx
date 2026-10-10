@@ -344,6 +344,8 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
     let raf = 0;
     let last = 0;
     let visible = true;
+    /** 画布向下的延伸量（px，0 = 只用 CSS 兜底 `bottom: 0`）。见 render() 注释。 */
+    let bottomOffset = 0;
 
     /** 量卡片相对容器的位置（每帧读一次：卡片随数据/换行移动时不用手工失效）。 */
     const measure = (
@@ -389,8 +391,40 @@ export function LaserFlow({ surfaceRef }: LaserFlowProps) {
 
     const render = (): void => {
       const { width, height } = state;
-      const scale = Math.max(0.2, Math.min(width / 585, height / 507));
       let surface = measure(width, height);
+      /*
+       * 尺寸基准锚在「落点卡」上而不是画布上：预览稿里卡片 820px 宽对应约 1014
+       * 设计单位（由 507 高的参考盒反推）。这样画布为了「光束从屏幕顶落下」而
+       * 变高、或数据让卡片高度变化时，光束与光晕的**像素尺寸保持预览稿比例**；
+       * 旧口径 `min(宽比, 高比)` 会随画布变高把整个光晕一起放大。
+       * 理论兜底（无落点卡）时退回旧口径。
+       */
+      const scale = Math.max(
+        0.2,
+        surface.real ? (surface.right - surface.left) / 1014 : Math.min(width / 585, height / 507),
+      );
+      // 画布向下补到「落点卡」底边（无当前行动时，落点卡在舞台之外的下方——
+      // 时间线卡）：`bottom` 取负值把画布往下延伸。顶锚在舞台顶不动，因此
+      // 卡片几何（相对容器顶）不受影响。
+      //
+      // 舞台高度**直接量舞台盒**，不从容器实高减延伸量反推：容器实高由
+      // ResizeObserver 回填、相对 rAF 循环**滞后一帧**——写入延伸量后的下一帧
+      // 会拿着旧高度算出一个双倍延伸量（实测 246→492 来回跳），画布后备缓冲
+      // 因而被逐帧重建，肉眼就是持续闪烁（修复前实测）。用舞台盒几何量后，
+      // 该计算只依赖布局本身，幂等、零振荡。
+      if (surface.real) {
+        const stage = container.parentElement;
+        const stageBottom =
+          stage === null
+            ? state.height
+            : stage.getBoundingClientRect().bottom - container.getBoundingClientRect().top;
+        const desired = Math.max(0, Math.round(surface.bottom - stageBottom));
+        // 2px 死区：<2px 的差不动笔——避免任何亚像素抖动再触发后备缓冲重建。
+        if (Math.abs(desired - bottomOffset) > 2) {
+          bottomOffset = desired;
+          container.style.bottom = desired === 0 ? '0px' : `-${String(desired)}px`;
+        }
+      }
       let beamX = settings.beamPosition * width;
       if (surface.real) {
         const margin = surface.radius + 6;
