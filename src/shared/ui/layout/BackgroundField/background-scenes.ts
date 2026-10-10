@@ -38,6 +38,10 @@ export type Ripple = {
   r: number;
   x: number;
   y: number;
+  /** 回收半径（生成时按落点算好，见 `rippleReach`）：`r` 超过它就整道回收。 */
+  reach: number;
+  /** 波前是否已触到几何（首次由 `ripplePoints` 置位）。时停据此延后到波抵达时。 */
+  landed: boolean;
 };
 
 /** 四维剪切事件：落点 + 年龄（帧），寿命到点自行消失。 */
@@ -394,13 +398,26 @@ export const HOPF_VIEW: ViewConfig = { cx: 500, cy: 620, lift: 0, radius: 300, g
 export const hopfDepthRatio = ratioOf(measureDepth(HOPF_LINES[0] ?? [], 40, 6));
 
 /* ══ 点击涟漪（ripple）═══════════════════════════════════════════════════
-   从落点发出一个半径匀速外扩的环形波前，扫过约 1.3s 后消失。波前经过哪个顶点，
+   从落点发出一个半径匀速外扩的环形波前，扫过几何之后消失。波前经过哪个顶点，
    哪个顶点就被沿「远离落点」的方向推一下（高斯波包，推完自己归位）。波可以**多道
-   同时存在**：点一下发一道，前一道还没走完就能再发一道，互不重置——这是波的叠加。 */
-const RIPPLE_MAX = 1250; /* 够扫到最远的角 */
-const RIPPLE_SPEED = 16; /* 每帧外扩 16 单位 → 约 1.3s 走完 */
+   同时存在**：点一下发一道，前一道还没走完就能再发一道，互不重置——这是波的叠加。
+
+   波**不被截断**：回收半径不是写死的常数，而是「波心 → 1000×1000 画布最远角」再加一个
+   波尾。写死半径的毛病在它与落点无关——点得离几何远（如点在左侧空白，波心换算到
+   viewBox 外，到几何可达 1250~1700 单位）时，波会在扫到几何之前就被删掉，远处点击读到
+   的就是「等一下才抖、抖一下立刻没了」。几何经 `fitAll` 后恒在画布内，所以按画布量距
+   一定扫得到整个几何。 */
+const RIPPLE_SPEED = 16; /* 每帧外扩 16 单位 */
 const RIPPLE_BAND = 80; /* 波包宽度：宽了像整体鼓一下，窄了像闪烁 */
+const RIPPLE_TAIL = 2.5; /* 波尾宽度（单位：个波包）；波包在此处已衰减到可忽略 */
 const RIPPLE_PUSH = 16; /* 峰值位移（viewBox 单位） */
+
+/** 一道波的回收半径：波心到画布最远角的距离 + 一个波尾。生成时按落点算好随波携带。 */
+export function rippleReach(x: number, y: number): number {
+  const dx = Math.max(x, 1000 - x);
+  const dy = Math.max(y, 1000 - y);
+  return Math.hypot(dx, dy) + RIPPLE_TAIL * RIPPLE_BAND;
+}
 
 /** 每道波前各自匀速外扩，走满就各自消失（不是周期性重复——它必须有尽头）。 */
 export function advanceRipples(ripples: Ripple[]): void {
@@ -408,13 +425,13 @@ export function advanceRipples(ripples: Ripple[]): void {
   // 倒着遍历才好 splice：正着删会跳掉下一个。
   for (let i = ripples.length - 1; i >= 0; i -= 1) {
     const ripple = ripples[i];
-    if (ripple !== undefined && ripple.r > RIPPLE_MAX) ripples.splice(i, 1);
+    if (ripple !== undefined && ripple.r > ripple.reach) ripples.splice(i, 1);
   }
 }
 
 /* 把投影好的一批点过一遍**所有活跃波前**：就地改 x / y，并回一份每点的强度 0..1。
    两道波前同时罩住一个点时，位移与强度都累加，最后强度夹到 1。 */
-export function ripplePoints(points: ProjectedPoint[], ripples: readonly Ripple[]): number[] {
+export function ripplePoints(points: ProjectedPoint[], ripples: Ripple[]): number[] {
   if (ripples.length === 0) return points.map(() => 0);
   return points.map((point) => {
     let boost = 0;
@@ -423,7 +440,10 @@ export function ripplePoints(points: ProjectedPoint[], ripples: readonly Ripple[
       const dy = point.y - ripple.y;
       const d = Math.hypot(dx, dy) || 1e-6;
       const u = (d - ripple.r) / RIPPLE_BAND;
-      if (u < -2.5 || u > 2.5) continue;
+      if (u < -RIPPLE_TAIL || u > RIPPLE_TAIL) continue;
+      /* u ≤ 0 = 波前**已触到**这个点（再往后走就是推得最狠的峰）。任意一点首次触到
+         就置 `landed`，供「时停」等波真的打到几何时才触发。 */
+      if (u <= 0) ripple.landed = true;
       const packet = Math.exp(-u * u); /* 高斯波包：波前两侧对称衰减 */
       const ux = dx / d;
       const uy = dy / d;

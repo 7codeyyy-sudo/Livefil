@@ -26,6 +26,7 @@ import {
   lift,
   projectPoints,
   ripplePoints,
+  rippleReach,
   SHEAR_LIFE,
   shearField,
   STOP_HOLD,
@@ -513,6 +514,10 @@ export function BackgroundField({ choice }: BackgroundFieldProps) {
     stateRef.current = state;
     state.reveal = 0;
 
+    /* 已经触发过时停的波（每道波只停一次）。用 WeakSet 而不是给 Ripple 加一个 UI
+       字段：`landed` 是几何量（波有没有触到），「触发过没有」才是这里的账。 */
+    const stopped = new WeakSet<Ripple>();
+
     const canHover = window.matchMedia(HOVER_QUERY).matches;
     const reduceMotion = window.matchMedia(REDUCED_MOTION_QUERY).matches;
     if (reduceMotion) state.reveal = 1;
@@ -551,6 +556,18 @@ export function BackgroundField({ choice }: BackgroundFieldProps) {
       state.reveal += (1 - state.reveal) * 0.12;
 
       draw(state.spin, pointerX, pointerY);
+
+      /* 时停**不跟点击同帧触发**，而是等波前真的触到几何（`landed`）再急停。否则
+         点得远时物体会先孤立地「卡一下」，等一两秒波到了才开始抖——两件事被时间
+         拆开，读起来像卡顿而不是一次冲击。每道波只触发一次，所以连点仍各停各的。 */
+      for (const ripple of state.ripples) {
+        if (ripple.landed && !stopped.has(ripple)) {
+          stopped.add(ripple);
+          state.freeze = 1;
+          state.stopHold = STOP_HOLD;
+        }
+      }
+
       // 淡入做在 SVG 这一层（一次 style 写入），比逐个元素乘系数干净得多。
       svg.style.opacity = state.reveal.toFixed(3);
     }
@@ -601,13 +618,12 @@ export function BackgroundField({ choice }: BackgroundFieldProps) {
 
     /* 一次「点」同时触发三件事：涟漪（可连点、多道叠加）、时停（自转急停后缓回）、
        四维剪切（两趟投影的保体积线性变换）。三者互不重叠：涟漪是空间上的径向波、
-       时停是时间轴、剪切是四维里的线性变换。 */
+       时停是时间轴、剪切是四维里的线性变换。**时停不在这里立刻执行**——它挂在涟漪
+       上，等波前触到几何时才起步（见 `drawFrame`），免得远处一点先孤立地卡一下。 */
     function onPointerUp(event: PointerEvent): void {
       if (event.button === 0 && state.pressed && !state.moved) {
         const [bx, by] = toSceneUnits(state.downX, state.downY);
-        state.ripples.push({ r: 0, x: bx, y: by });
-        state.freeze = 1;
-        state.stopHold = STOP_HOLD;
+        state.ripples.push({ r: 0, x: bx, y: by, reach: rippleReach(bx, by), landed: false });
         state.shears.push({ x: bx, y: by, age: 0, life: SHEAR_LIFE });
       }
       state.pressed = false;
@@ -617,6 +633,18 @@ export function BackgroundField({ choice }: BackgroundFieldProps) {
     function endPress(): void {
       state.pressed = false;
       state.moved = false;
+    }
+
+    /* 背景参与（UI-011 §6.1）：滚动时几何缓移，让装饰层与内容读起来在同一空间。
+       减少动态效果时装饰层完全不动——滚动照常，只是背景不参与（预览稿 §五 同口径）。 */
+    function onScroll(): void {
+      const offset = Math.min(48, window.scrollY * 0.08);
+      svg.style.transform = `translateY(${offset.toFixed(1)}px)`;
+    }
+    const parallaxOn = !reduceMotion;
+    if (parallaxOn) {
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
     }
 
     if (!document.hidden) start();
@@ -629,6 +657,7 @@ export function BackgroundField({ choice }: BackgroundFieldProps) {
 
     return () => {
       stop();
+      if (parallaxOn) window.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
