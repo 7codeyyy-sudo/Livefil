@@ -1,0 +1,439 @@
+/* 登录页 hero 面样式（v0.30）。
+ *
+ * 视觉准据＝需求方已验收的预览稿（`temp/login-preview.html`，v12 定稿）：左列
+ * 巨字（眉标 / 主标题 / 副题）+ 玻璃表单面板，背景是 `LoginBackdrop` 的星夜。
+ * 与 `auth.module.css` 的分工：那个模块是**注册 / 忘记密码**两页共用的窄栏零装饰
+ * 形态，本模块只负责登录页这一面；两处都用到的 400px 是 C0 的同一枚布局量
+ * （auth 窄栏宽度），不是第二份取值。
+ *
+ * 纪律：颜色 / 时长 / 层级 / 字号 / 圆角只引用令牌；**几何量就地书写并注明来源**
+ * （与 §3.4 背景层同例）——预览稿实测值里有几个不在 4px 网格上（14 / 6 / 22 / 36），
+ * 把它们升格成全站档位比就地注明更贵，且会把「一页的排版尺寸」混进间距契约。
+ *
+ * 预览稿的 `--text-3` 在本项目归 `--color-text-secondary`：占位色
+ * `--color-text-placeholder` 是**输入占位专用**令牌，不得挪作标签与眉标
+ * （与「空日文案不借用占位色」同一条纪律）；色相族同为中性灰，只差一档深浅。
+ */
+
+/* ── 左列：巨字标题 ────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  /* 14px：预览稿实测——眉标 ↔ 主标题 ↔ 副题的紧凑行距。 */
+  gap: 14px;
+  /* 9vh / 8vw：标题块的落点（预览稿定稿）。左列是登录页的构图主体，
+     用视口单位而不是页边距令牌——它随视口成比例，不随内容列宽走。 */
+  padding: 9vh 8vw 0;
+}
+
+.eyebrow {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-hero-eyebrow);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-letter-spacing-hero-eyebrow);
+  text-transform: uppercase;
+}
+
+.hero {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-hero);
+  /* 中文大字不吃负字距（tokens.css 同注记）。 */
+  letter-spacing: var(--font-letter-spacing-hero);
+}
+
+.sub {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-hero-sub);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-hero-sub);
+  letter-spacing: var(--font-letter-spacing-hero);
+}
+
+/* ── 玻璃表单面板 ──────────────────────────────────────────────────────── */
+
+.panel {
+  position: relative;
+  /* 400px＝C0 唯一新布局量（auth 窄栏宽度），这里再受视口约束：
+     两侧至少各留 8vw，所以窄视口下自然收窄而不是贴边。 */
+  width: min(400px, calc(100% - 16vw));
+  margin: var(--space-8) 0 0 8vw;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) var(--space-6) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  /* 半透明玻璃：星夜与星点透过面板——这是本页「安静的空间感」的一半。
+     亮色态底更实（74%）：白底上再透会发灰发糊；暗色态 55%，星点要能看见。 */
+  background: color-mix(in srgb, var(--color-surface) 74%, transparent);
+}
+
+html[data-theme='dark'] .panel {
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
+
+/* 面板顶缘的一线微光（星光映边）。 */
+.panel::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-text-primary) 30%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* 面板下的冷光晕（大气反照）：只在桌面档出现（手机档见文件末尾）。 */
+.panel::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -18px;
+  height: 24px;
+  background: radial-gradient(
+    58% 100% at 50% 0%,
+    color-mix(in srgb, var(--color-accent) 16%, transparent),
+    transparent 72%
+  );
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+/* ── 登录方式切换（密码 / 验证码）────────────────────────────────────────
+   预览稿是静态稿、没有这一件；落地按交接文档 §2.4 补做：13px 文本式两个选项、
+   当前项强调色 + 底部 1px 强调线（与下划线输入同语言），**不做胶囊/灰底分段**
+   ——那会破坏整块面板的克制。`aria-pressed` 沿用 /review 分段先例（C2 口径）。 */
+.modes {
+  display: flex;
+  gap: var(--space-6);
+  margin: 0 0 var(--space-4);
+}
+
+.mode {
+  appearance: none;
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.mode:hover {
+  color: var(--color-text-primary);
+}
+
+/* 当前项：强调色 + 强调线。写在 hover 之后——同特异性下由顺序决定胜负，
+   当前项悬停时不应退回普通文字色。 */
+.mode[aria-pressed='true'] {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.mode:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 状态行（失败行 / 限流行 / 发码提示）──────────────────────────────────
+   冻结文案逐句保留，只换呈现：一行 caption，不套盒子——面板自身已是一块玻璃，
+   再叠盒子会碎成三层。错误行的语义载体仍是文本 + `role="alert"`（§2.1：
+   颜色不是唯一载体）。 */
+.status {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.alert {
+  margin: 0 0 var(--space-4);
+  color: var(--color-danger);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* ── 字段（标签在上、输入只有下边框）────────────────────────────────────── */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  /* 14px：预览稿实测——两组字段的呼吸。 */
+  gap: 14px;
+  margin: var(--space-1) 0 var(--space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  /* 6px：预览稿实测——标签 ↔ 输入的黏合距（比 8px 更紧，标签才像字段的一部分）。 */
+  gap: 6px;
+}
+
+.label {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.input {
+  width: 100%;
+  /* 36px：预览稿实测——下划线字段比外壳控件（40px）矮一档。
+     字号取 `--font-size-body`（16px）：预览稿写 15px，属同一字阶档内的 1px 收敛，
+     不为一页单开一枚字号令牌。 */
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+/* 焦点：下边框转强调色 + 底部柔光（预览稿观感），这就是本页的**焦点可见**载体
+   （§7：对比色从 `--color-border` 跳到 `--color-accent`，两态都读得出来）。
+   刻意**不叠 outline 环**：下划线语言里环会把字段读成一个盒子，而本页宽屏首帧
+   就自动聚焦标识框（B5），环会出现在用户看到的第一帧上（预览稿同款无环；
+   `:focus-visible` 对「程序化聚焦」同样命中，做不到「只键盘才显示」）。 */
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+  box-shadow: 0 6px 14px -10px var(--color-focus-ring);
+}
+
+/* ── 主按钮（通栏）────────────────────────────────────────────────────── */
+
+.submit {
+  position: relative;
+  overflow: hidden; /* 光泽扫过收在圆角内 */
+  width: 100%;
+  /* 44px＝触控下限令牌：桌面正好是预览稿高度，移动端不再变高。 */
+  min-height: var(--size-touch-min);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-primary-surface);
+  color: var(--color-on-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.submit:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* 提交中：文字不变、只降不透明度并换光标（§1.1 禁循环动效，不转圈）。 */
+.submit[data-loading='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.submit:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 一道斜光掠过即停（与主页 primary 同式：一次性 sheen，不是循环眩光）。 */
+.submit::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  left: 0;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, var(--color-on-primary), transparent);
+  opacity: var(--glare-opacity);
+  transform: translateX(-190%) skewX(-16deg);
+}
+
+.submit:hover:not(:disabled)::after {
+  animation: submit-sheen calc(var(--duration-slow) * 3.2) var(--ease-standard);
+}
+
+@keyframes submit-sheen {
+  from {
+    transform: translateX(-190%) skewX(-16deg);
+  }
+
+  to {
+    transform: translateX(330%) skewX(-16deg);
+  }
+}
+
+/* ── 链接行（忘记密码 / 发送验证码 · 注册）───────────────────────────────── */
+
+.links {
+  display: flex;
+  gap: 14px; /* 14px：预览稿实测——· 分隔的间隔。 */
+  align-items: baseline;
+  justify-content: center;
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+/* 锚点与按钮同款外观：行内文本式，`·` 由 JSX 里的分隔符承担。 */
+.links a,
+.link {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.links a:hover,
+.link:hover {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.links a:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.link:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* ── 入场：逐行浮现（一次性，只播一次）────────────────────────────────────
+   时长与延迟全部从令牌派生：一次浮现 ≈ `--duration-slow` 的 2.4 倍，四行延迟按
+   `--duration-base` 的 0.25 / 0.6 / 0.95 / 1.3 倍错峰（预览稿五行节奏收敛为四行，
+   比例不变）。`prefers-reduced-motion` 由 tokens.css 单点归零，本文件不写媒体
+   查询（§2.4）。 */
+.eyebrow,
+.hero,
+.sub,
+.panel {
+  animation: rise calc(var(--duration-slow) * 2.4) var(--ease-standard) both;
+}
+
+.eyebrow {
+  animation-delay: calc(var(--duration-base) * 0.25);
+}
+
+.hero {
+  animation-delay: calc(var(--duration-base) * 0.6);
+}
+
+.sub {
+  animation-delay: calc(var(--duration-base) * 0.95);
+}
+
+.panel {
+  animation-delay: calc(var(--duration-base) * 1.3);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── 响应式 ─────────────────────────────────────────────────────────────
+   字号三档（56/34/30、18/15/14）由 tokens.css 的媒体查询承担（单点，见
+   `--font-size-hero` 注记）；这里只调几何量。 */
+
+/* 手机档（§3.1 ≤767px）：面板满宽堆叠、地平线在面板下方。 */
+@media (max-width: 767px) {
+  .head {
+    gap: 10px; /* 10px：预览稿实测（手机档行距再收一档）。 */
+    padding: 6vh 22px 0; /* 22px：手机档左右留白（预览稿实测）。 */
+  }
+
+  .panel {
+    width: auto;
+    margin: 22px 22px 0;
+    padding: var(--space-5) var(--space-5) var(--space-4);
+  }
+
+  .fields {
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-4);
+  }
+
+  /* 手机档拿掉面板下的光晕：省一层合成，小屏上也读不出这层冷光。 */
+  .panel::after {
+    display: none;
+  }
+}
+
+/* 矮屏档（横屏手机等）：压缩纵向占用，面板收窄到 320px 上限。 */
+@media (max-height: 520px) {
+  .head {
+    gap: 6px; /* 6px：预览稿实测。 */
+    padding: 5vh 5vw 0;
+  }
+
+  .panel {
+    width: min(320px, calc(100vw - 10vw));
+    margin: 14px 0 0 5vw;
+    padding: 14px 18px 12px;
+  }
+
+  .fields {
+    gap: 10px;
+    margin: 10px 0 12px;
+  }
+
+  .links {
+    margin-top: 10px;
+  }
+}
