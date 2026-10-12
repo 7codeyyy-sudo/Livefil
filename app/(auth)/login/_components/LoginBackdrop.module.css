@@ -1,0 +1,30 @@
+/* 登录页背景层样式（v0.30 登录页 hero 面）。
+ *
+ * 画布走负层级（`--z-background`）：它要落在页面底色之上、一切内容之下——与
+ * §3.4 装饰性背景是同一条口径（负值是唯一能稳定做到这件事的表达）。
+ * 画布自身 `pointer-events: none`：星夜是纯装饰，不参与任何交互。
+ *
+ * 噪声层与 (app) 外壳的 `AmbientField` 是**同一枚** SVG 数据 URI（全站「材质」的
+ * 同一个来源）：`(auth)` 组不挂应用外壳（C0 口径），这里为登录页单列一份。
+ * 改动其中一处时两处同步——它是静态材质的常数字符串，为它建共享抽象不划算。
+ */
+
+.canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-background);
+  pointer-events: none;
+}
+
+.noise {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-texture);
+  pointer-events: none;
+  opacity: var(--noise-opacity);
+  mix-blend-mode: var(--noise-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
