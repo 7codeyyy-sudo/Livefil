@@ -38,6 +38,13 @@ const INVALID_LOG_LEVEL = 'verbose';
  * Phase 2 起这一点变得必须：本地会话签名器要求 `AUTH_SECRET`（§8.3 装配期失败），
  * 缺它 `next start` 直接起不来——而这正是本脚本要断言「合法环境下服务可启动」的场景。
  *
+ * ## 为什么 APP_MODE 也必须钉住（页面门禁落地后）
+ *
+ * `.env.local` 的 `APP_MODE=cloud` 会让页面登录门禁（proxy.ts）生效：未登录请求
+ * `/` 会被 307 到 `/login`，本脚本「首页返回 200 并渲染出产品名」的断言就从
+ * 「服务可启动」漂移成「必须先登录」。启动验收测的是环境合法性，不是登录流，
+ * 所以这里显式钉 `local`（进程环境变量优先级高于 `.env.local`，钉住即生效）。
+ *
  * ## 为什么 AUTH_SECRET 用运行时随机值而不是字面量
  *
  * 仓库是 Public，连「测试专用密钥」这类字面量都不该落盘；随机生成同时让本机与 CI
@@ -47,6 +54,7 @@ const INVALID_LOG_LEVEL = 'verbose';
 const LEGAL_ENV = {
   LOG_LEVEL: 'info',
   AUTH_SECRET: randomBytes(32).toString('hex'),
+  APP_MODE: 'local',
 };
 
 /** 单次外部命令的最长等待时间，避免脚本在异常时无限挂起。 */

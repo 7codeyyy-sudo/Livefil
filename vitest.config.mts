@@ -42,6 +42,10 @@ const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const ALIAS = Object.freeze({
   '@': path.join(PROJECT_ROOT, 'src'),
   app: path.join(PROJECT_ROOT, 'app'),
+  // `server-only` 在 vitest 里钉到空桩：测试环境不带 `react-server` 导出条件，
+  // 否则被测模块只要 import 链碰到 env.server / composition-root 就在加载期炸掉。
+  // 理由与边界见 tests/setup/server-only-stub.ts。
+  'server-only': path.join(PROJECT_ROOT, 'tests', 'setup', 'server-only-stub.ts'),
 } as const);
 
 export default defineConfig({
