@@ -114,6 +114,15 @@
   --color-dapple-a: rgba(93, 140, 255, 0.22);
   --color-dapple-b: rgba(93, 140, 255, 0.08);
 
+  /* ── 颜色 · 登录取景（1）——§2.1，v0.30（登录页 hero 面）──────────────
+   * `--color-dawn-warm`：登录页星夜背景的「日出暖光」——星球弧顶的暖色带、
+   * 大气近地平线的暖晕与亮核提亮都取它（着色器由它派生暖区，页面本身不再
+   * 出现第二个暖色）。色族取自 `--color-cat-amber` / `--color-warning` 的
+   * 琥珀一脉，但**不复用**那两枚：它们分别是分类与状态语义，挪作背景光会让
+   * 「属于哪一类 / 是否警告」被装饰污染（与 `--color-on-danger` 不复用
+   * `--color-on-accent` 是同一条理由）。两态齐备（暗色档见文件末尾）。 */
+  --color-dawn-warm: #cf8f3e;
+
   /* ── 阴影（2）——§2.4「只允许这两处阴影」────────────────────────────── */
   --shadow-overlay: 0 16px 44px rgba(29, 29, 31, 0.1);
   --shadow-raised: 0 1px 4px rgba(29, 29, 31, 0.06);
@@ -171,6 +180,24 @@
   --font-letter-spacing-section-title: -0.01em;
   --font-letter-spacing-figure: -0.03em;
   --font-letter-spacing-eyebrow: 0.04em; /* 规范 §2.2 第六级（v0.27） */
+
+  /* ── 登录页 hero 字阶（v0.30）——§2.2 ────────────────────────────────
+   * 登录页是**单页品牌面**：左列一枚巨字标题 + 一句副题。它与工作台各页的
+   * 字阶分离——页标题 44px 是 900px 内容栏里的层级，不是 hero 的（hero 在
+   * 视口左列，量级本就不同），因此单开一族而不是把页标题再抬一档。
+   * 三档尺寸随视口收敛（覆盖写在文件末尾的媒体查询里，与 `--space-page-x`
+   * 同例——组件样式不重复写媒体查询）：桌面 56/18 → 手机（≤767px）34/15 →
+   * 矮屏（≤520px 高）30/14。
+   * 字距取 `+0.01em`：中文大字不吃负字距（负值会把汉字挤到相碰，v0.27 §2.2
+   * 的校准结论同样适用于 hero）；眉标沿用「短标签正字距」口径，但 hero 面
+   * 的眉标是 12px 大写拉丁，比侧栏 11px 中文眉标更需要开距，取 `+0.08em`。 */
+  --font-size-hero: 56px;
+  --font-size-hero-sub: 18px;
+  --font-size-hero-eyebrow: 12px;
+  --line-height-hero: 1.15;
+  --line-height-hero-sub: 1.5;
+  --font-letter-spacing-hero: 0.01em;
+  --font-letter-spacing-hero-eyebrow: 0.08em;
 
   /* ── 间距 ——§2.3「基础间距单位 4px」────────────────────────────────── */
   --space-1: 4px;
@@ -316,6 +343,24 @@
   }
 }
 
+/* 登录页 hero 面：手机档（v0.30，与上面同属性断点单列——覆盖的是 hero 字阶，
+   不是外壳量，混进上面那块会让「外壳」与「某个页面」的令牌互相纠缠）。 */
+@media (max-width: 767px) {
+  :root {
+    --font-size-hero: 34px;
+    --font-size-hero-sub: 15px;
+  }
+}
+
+/* 登录页 hero 面：矮屏档（v0.30）。按**视口高度**判定——它是「纵向不够用」的
+   对策（横屏手机、矮窗口），与宽度无关，因此不与 §3.1 的宽度断点合并。 */
+@media (max-height: 520px) {
+  :root {
+    --font-size-hero: 30px;
+    --font-size-hero-sub: 14px;
+  }
+}
+
 /**
  * 减少动效 —— 单点全局覆盖（§6 要求支持 `prefers-reduced-motion`）。
  *
@@ -384,6 +429,10 @@ html[data-theme='dark'] {
   --color-title-fade: #8b929b;
   --color-dapple-a: rgba(91, 147, 255, 0.18);
   --color-dapple-b: rgba(91, 147, 255, 0.06);
+
+  /* 登录取景（v0.30）：暗底上暖光提亮一档，与 success/warning 的提亮口径一致
+     （浅色 #cf8f3e → 暗色 #e2a45c）。 */
+  --color-dawn-warm: #e2a45c;
 
   /* 组件别名：主按钮在暗色下整体翻转（亮底 + 深字，等于浅色的镜像） */
   --color-primary-surface: #e9ebee;

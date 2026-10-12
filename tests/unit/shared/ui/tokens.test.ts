@@ -61,6 +61,11 @@ const EXPECTED_COLOR_TOKENS = {
   '--color-title-fade': '#77777e',
   '--color-dapple-a': 'rgba(93, 140, 255, 0.22)',
   '--color-dapple-b': 'rgba(93, 140, 255, 0.08)',
+
+  /* §2.1 登录取景（1，v0.30 登录页 hero 面）：日出暖光——星球弧顶暖色带与
+     大气暖晕。色族取自 cat-amber / warning 的琥珀一脉，但独立成令牌（不复用
+     分类/状态语义色）。两态齐备。 */
+  '--color-dawn-warm': '#cf8f3e',
 } as const;
 
 /**
@@ -97,6 +102,7 @@ const EXPECTED_DARK_TOKENS = {
   '--color-title-fade': '#8b929b',
   '--color-dapple-a': 'rgba(91, 147, 255, 0.18)',
   '--color-dapple-b': 'rgba(91, 147, 255, 0.06)',
+  '--color-dawn-warm': '#e2a45c',
   '--color-bg-figure': '#2e3238',
   '--color-primary-surface': '#e9ebee',
   '--color-primary-hover': '#ffffff',
@@ -253,7 +259,7 @@ const rootBlock = /^:root\s*\{([^}]*)\}/m.exec(tokensSource)?.[1] ?? tokensSourc
 const tokens = parseCustomProperties(rootBlock);
 
 describe('设计令牌 · 颜色', () => {
-  it('32 个颜色令牌全部存在且取值与规范语义一致', () => {
+  it('33 个颜色令牌全部存在且取值与规范语义一致', () => {
     const mismatches = findTokenMismatches(
       tokens,
       EXPECTED_COLOR_TOKENS,
@@ -261,10 +267,10 @@ describe('设计令牌 · 颜色', () => {
     );
 
     expect(mismatches).toEqual([]);
-    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(32);
+    expect(Object.keys(EXPECTED_COLOR_TOKENS)).toHaveLength(33);
   });
 
-  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3 + 分类色 6 + v2 追加 5」', () => {
+  it('颜色契约是「基础 9 + 派生 9 + 状态边框 3 + 分类色 6 + v2 追加 5 + hero 面追加 1」', () => {
     const names = Object.keys(EXPECTED_COLOR_TOKENS);
     // 判据必须限定到三个状态色：基础语义色里本来就有 `--color-border`（分隔线），
     // 用 `endsWith('-border')` 会把它也算成状态边框，于是基础色少一个、边框多一个。
@@ -285,12 +291,16 @@ describe('设计令牌 · 颜色', () => {
       '--color-dapple-a',
       '--color-dapple-b',
     ];
+    // hero 面追加（v0.30 登录页）：登录取景的日出暖光 1 枚。它同样不属于上面
+    // 任一语义组（既非分类也非状态），单列一组，避免落进 base 把 9 撑大。
+    const v30Additions = ['--color-dawn-warm'];
     const base = names.filter(
       (name) =>
         !borders.includes(name) &&
         !derived.includes(name) &&
         !categorical.includes(name) &&
-        !v2Additions.includes(name),
+        !v2Additions.includes(name) &&
+        !v30Additions.includes(name),
     );
 
     // 计数写死在这里是有意的：§2.4 把令牌分组定为契约，
@@ -300,7 +310,8 @@ describe('设计令牌 · 颜色', () => {
     expect(borders).toHaveLength(3);
     expect(categorical).toHaveLength(6);
     expect(v2Additions).toHaveLength(5);
-    expect(names).toHaveLength(32);
+    expect(v30Additions).toHaveLength(1);
+    expect(names).toHaveLength(33);
   });
 
   it('状态色柔和底按 8% alpha 推导，accent-soft 保留原型定值', () => {
@@ -405,6 +416,68 @@ describe('设计令牌 · 字体', () => {
     expect(family).toContain('sans-serif');
     // 外部字体需要网络请求，与「不引入新的第三方服务」冲突。
     expect(family).not.toMatch(/https?:|url\(/);
+  });
+});
+
+/**
+ * 登录页 hero 面字阶（v0.30，《UI 页面规范》§2.2 hero 面追加）。
+ *
+ * 三档尺寸随视口收敛：基准档（桌面）在 `:root`，手机档与矮屏档是文件末尾的
+ * 媒体查询覆盖（与 `--space-page-x` 同例）。这里逐条锁定——hero 是 56px 的巨字，
+ * 档间差值改错一档、或漏改另一档，都会被一眼看出，但那时已经在页面上了。
+ */
+const EXPECTED_HERO_SCALE = {
+  '--font-size-hero': '56px',
+  '--font-size-hero-sub': '18px',
+  '--font-size-hero-eyebrow': '12px',
+  '--line-height-hero': '1.15',
+  '--line-height-hero-sub': '1.5',
+  '--font-letter-spacing-hero': '0.01em',
+  '--font-letter-spacing-hero-eyebrow': '0.08em',
+} as const;
+
+/**
+ * 收集媒体查询里的 `:root` 覆盖块（`{条件, 声明}` 两段式）。
+ *
+ * 不能用「首个 `@media (max-width: 767px)` 块」这种口径：tokens.css 里同断点
+ * 有两个块（外壳量与 hero 字阶各一），先命中哪个取决于书写顺序——那正是本条
+ * 断言最该防住的「改了一档漏了另一档」，检查器自己先按位置猜就失守了。
+ */
+function collectMediaRootBlocks(css: string): readonly {
+  readonly condition: string;
+  readonly overrides: ReadonlyMap<string, string>;
+}[] {
+  return [...css.matchAll(/@media \(([^)]*)\)\s*\{\s*:root\s*\{([^}]*)\}\s*\}/g)].map((match) => ({
+    condition: match[1] ?? '',
+    overrides: parseCustomProperties(match[2] ?? ''),
+  }));
+}
+
+describe('设计令牌 · 登录页 hero 面（v0.30）', () => {
+  it('hero 字阶基准档（桌面）取值与规范一致', () => {
+    expect(findTokenMismatches(tokens, EXPECTED_HERO_SCALE)).toEqual([]);
+  });
+
+  it('hero 字阶两档覆盖：手机（≤767px）34/15、矮屏（≤520px 高）30/14', () => {
+    const blocks = collectMediaRootBlocks(tokensSource);
+
+    const overridesFor = (condition: string): ReadonlyMap<string, string> => {
+      const matching = blocks.filter((entry) => entry.condition === condition);
+      expect(matching.length, `应存在 ${condition} 的 :root 覆盖块`).toBeGreaterThan(0);
+      const merged = new Map<string, string>();
+      for (const entry of matching) {
+        for (const [name, value] of entry.overrides) merged.set(name, value);
+      }
+      return merged;
+    };
+
+    const narrow = overridesFor('max-width: 767px');
+    expect(narrow.get('--font-size-hero')).toBe('34px');
+    expect(narrow.get('--font-size-hero-sub')).toBe('15px');
+
+    const short = overridesFor('max-height: 520px');
+    expect(short.get('--font-size-hero')).toBe('30px');
+    expect(short.get('--font-size-hero-sub')).toBe('14px');
   });
 });
 
