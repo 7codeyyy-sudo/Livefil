@@ -89,6 +89,19 @@ export default defineConfig({
     // 先构建再启动：`next start` 需要 `.next` 产物，直接跑会失败。
     command: `npm run build && npm run start -- --port ${E2E_PORT}`,
     url: BASE_URL,
+    /**
+     * 浏览器套件显式以 local 模式启动。
+     *
+     * 页面登录门禁（proxy.ts）只在 `APP_MODE=cloud` 生效；而本套件的用例全部
+     * 直接 `page.goto` 业务路径、API 一律由 `page.route` 打桩，从不登录。
+     * 不钉住模式的话，`.env.local` 的 `cloud` 取值会让每一次 goto 被 307 到
+     * /login，288 个用例全军覆没。cloud 门禁本身由集成测试（会话链）与
+     * fnd 验收脚本覆盖，浏览器层不重复承担它。
+     *
+     * `env` 会**整体替换**子进程环境（不与 process.env 合并），所以必须显式
+     * spread——漏掉 PATH 会让 `npm` 直接找不到。
+     */
+    env: { ...process.env, APP_MODE: 'local' },
     // 本地复用已在运行的服务器可以省下一次构建；CI 下必须每次全新构建，
     // 否则可能测到上一次的产物。
     reuseExistingServer: process.env.CI === undefined,

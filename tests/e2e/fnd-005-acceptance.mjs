@@ -87,9 +87,13 @@ function runCommand(command, args, options = {}) {
   const { input, timeoutMs = COMMAND_TIMEOUT_MS, shell = false } = options;
 
   return new Promise((resolve, reject) => {
+    // APP_MODE 钉 local：与 fnd-001 的 LEGAL_ENV 同理——本脚本的启动/构建用例
+    // 测的是「环境合法性 + 服务可启动」，而 `.env.local` 的 cloud 取值会让
+    // 页面登录门禁（proxy.ts）把首页 307 到 /login，把判定从「能启动」漂移成
+    // 「必须先登录」。进程环境变量优先级高于 .env 文件，钉住即生效。
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
-      env: projectEnv(),
+      env: { ...projectEnv(), APP_MODE: 'local' },
       stdio: ['pipe', 'pipe', 'pipe'],
       shell,
     });
@@ -396,7 +400,7 @@ test('requestId 代理层与错误包装器已接入真实路由', () => {
   );
   assert.match(
     proxySource,
-    /export function proxy\(/,
+    /export (async )?function proxy\(/,
     '导出函数必须命名为 proxy（或用 default 导出），否则构建失败',
   );
 
@@ -406,7 +410,12 @@ test('requestId 代理层与错误包装器已接入真实路由', () => {
   // 这里刻意用文本断言而不是动态 import：这两个文件使用了 `@/` 路径别名，
   // Node 无法直接解析。为了验收脚本能 import 而改掉项目别名是本末倒置。
   // 真正的行为验证由下面的集成测试运行与 tests/e2e/api-contract.spec.ts 承担。
-  assert.match(proxySource, /matcher:\s*\['\/api\/:path\*'\]/, '代理层应只作用于 API 路径');
+  //
+  // 断言随页面门禁（AUTH-002）演进：原先这里断言 matcher 只含 `/api/:path*`；
+  // 现在 API 条目保留（request-id 契约不变），新增页面条目承载 cloud 模式的
+  // 登录门禁，且门禁必须复用 resolveSession 唯一会话入口（不得另起第二套判据）。
+  assert.match(proxySource, /'\/api\/:path\*'/, '代理层应覆盖 API 路径（request-id 契约）');
+  assert.match(proxySource, /resolveSession\(/, '页面门禁应复用 resolveSession（唯一会话入口）');
   assert.match(proxySource, /resolveRequestId\(/, '代理层应调用 resolveRequestId');
 
   // proxy 恒定运行在 Node.js 运行时，声明 `runtime` 会让生产构建抛错（E1031），

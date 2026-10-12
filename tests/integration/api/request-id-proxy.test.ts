@@ -31,20 +31,20 @@ function createRequest(headers: Record<string, string> = {}): NextRequest {
 }
 
 describe('代理层回写 X-Request-Id', () => {
-  it('客户端提供了合法值时原样沿用', () => {
-    const response = proxy(createRequest({ [REQUEST_ID_HEADER]: PROVIDED_REQUEST_ID }));
+  it('客户端提供了合法值时原样沿用', async () => {
+    const response = await proxy(createRequest({ [REQUEST_ID_HEADER]: PROVIDED_REQUEST_ID }));
 
     expect(response.headers.get(REQUEST_ID_HEADER)).toBe(PROVIDED_REQUEST_ID);
   });
 
-  it('头缺失时生成合法 UUID 并回写', () => {
-    const response = proxy(createRequest());
+  it('头缺失时生成合法 UUID 并回写', async () => {
+    const response = await proxy(createRequest());
 
     expect(response.headers.get(REQUEST_ID_HEADER)).toMatch(UUID_V4);
   });
 
-  it('头非法时丢弃原值并生成新的', () => {
-    const response = proxy(createRequest({ [REQUEST_ID_HEADER]: 'req_123' }));
+  it('头非法时丢弃原值并生成新的', async () => {
+    const response = await proxy(createRequest({ [REQUEST_ID_HEADER]: 'req_123' }));
     const value = response.headers.get(REQUEST_ID_HEADER);
 
     expect(value).not.toBe('req_123');
@@ -64,25 +64,30 @@ describe('代理层回写 X-Request-Id', () => {
     ).toThrow(TypeError);
   });
 
-  it('大小写不同的头名同样被识别（HTTP 头名不区分大小写）', () => {
-    const response = proxy(createRequest({ 'X-Request-Id': PROVIDED_REQUEST_ID }));
+  it('大小写不同的头名同样被识别（HTTP 头名不区分大小写）', async () => {
+    const response = await proxy(createRequest({ 'X-Request-Id': PROVIDED_REQUEST_ID }));
 
     expect(response.headers.get(REQUEST_ID_HEADER)).toBe(PROVIDED_REQUEST_ID);
   });
 
-  it('每次请求各自解析，不会跨请求串号', () => {
-    const first = proxy(createRequest()).headers.get(REQUEST_ID_HEADER);
-    const second = proxy(createRequest()).headers.get(REQUEST_ID_HEADER);
+  it('每次请求各自解析，不会跨请求串号', async () => {
+    const first = (await proxy(createRequest())).headers.get(REQUEST_ID_HEADER);
+    const second = (await proxy(createRequest())).headers.get(REQUEST_ID_HEADER);
 
     expect(first).not.toBe(second);
   });
 });
 
 describe('代理层的作用范围', () => {
-  it('只匹配 /api 路径，避免给页面与静态资源增加处理', async () => {
+  it('API 条目保持在案（request-id 契约不因页面门禁而丢），页面门禁复用唯一会话入口', async () => {
     const proxyModule = await import('../../../proxy.ts');
 
-    expect(proxyModule.config.matcher).toEqual(['/api/:path*']);
+    // 断言随页面门禁（AUTH-002）演进：原先这里断言 matcher 只含 `/api/:path*`；
+    // 现在 API 条目保留（request-id 契约不变），新增页面条目承载 cloud 模式的
+    // 登录门禁，且门禁必须经由 resolveSession（取当前用户的唯一入口），
+    // 不得另起第二套会话判据。
+    expect(proxyModule.config.matcher[0]).toBe('/api/:path*');
+    expect(proxyModule.config.matcher).toHaveLength(2);
   });
 
   it('不得声明 runtime（proxy 恒定运行在 Node.js 运行时，声明会被 Next 拒绝）', async () => {
