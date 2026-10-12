@@ -1,0 +1,45 @@
+/**
+ * 移动端栏列表样式（PM-20261012-008 提案 A 2.2.1）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+/* 每栏一张横条：名称在左、指向标在右。整行可点（链接包整行而不是文字内嵌），
+   手指点目标的命中面积才够——手机档的首要交互指标。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  text-decoration: none;
+}
+
+.item:hover {
+  background-color: var(--color-surface-soft);
+}
+
+.name {
+  min-width: 0;
+}
+
+.chevron {
+  color: var(--color-text-secondary);
+}

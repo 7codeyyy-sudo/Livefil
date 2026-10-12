@@ -28,5 +28,17 @@ const FALLBACK_NEXT_STEP = '这一页没有额外的下一步提示，可以从�
  * @param pathname `usePathname()` 的返回值（不含查询串与 hash，与表里的键同形）。
  */
 export function helpNextStepText(pathname: string): string {
-  return HELP_NEXT_STEP_BY_ROUTE[pathname] ?? FALLBACK_NEXT_STEP;
+  const exact = HELP_NEXT_STEP_BY_ROUTE[pathname];
+  if (exact !== undefined) {
+    return exact;
+  }
+  // 设置页两栏化（PM-20261012-008）后当前路由是 `/settings/<栏>`：帮助讲的
+  // 是「设置这一页」的下一步，与落在哪一栏无关，沿用 `/settings` 条目。
+  // 冻结表本身一字未动——这里只是查找口径对子路由的自然延伸。
+  for (const [route, text] of Object.entries(HELP_NEXT_STEP_BY_ROUTE)) {
+    if (pathname.startsWith(`${route}/`)) {
+      return text;
+    }
+  }
+  return FALLBACK_NEXT_STEP;
 }

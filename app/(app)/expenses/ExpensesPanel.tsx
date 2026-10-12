@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   Button,
@@ -439,7 +440,8 @@ export function ExpensesPanel() {
  * ## 条尾
  *
  * 「清除筛选」按 A5 落在条尾（任一生效时才出现）；「管理分类」同为低强调操作，
- * 一并在条尾右对齐。
+ * 一并在条尾右对齐；「管理领域」是其同款孪生入口（PM-20261012-008 提案 B1——
+ * 领域的另一使用场景在任务侧，管理处不搬进开销，只给场景内直达）。
  */
 function FilterBar({
   filter,
@@ -456,6 +458,7 @@ function FilterBar({
   readonly onChange: (next: ExpenseListFilter) => void;
   readonly onManageCategories: () => void;
 }) {
+  const router = useRouter();
   const update = (patch: Partial<ExpenseListFilter>) => {
     onChange({ ...filter, ...patch });
   };
@@ -533,6 +536,10 @@ function FilterBar({
       <div className={styles.filterTrailing}>
         <Button variant="ghost" onClick={onManageCategories}>
           管理分类
+        </Button>
+        {/* 提案 B1：同款低强调入口直达领域管理（落点＝设置·生活领域栏）。 */}
+        <Button variant="ghost" onClick={() => router.push('/settings/life-areas')}>
+          管理领域
         </Button>
         {hasActiveFilter(filter) ? (
           <Button variant="ghost" onClick={() => onChange(EMPTY_EXPENSE_FILTER)}>

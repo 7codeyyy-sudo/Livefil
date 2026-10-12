@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 设置表单（IAM-002，《UI 页面规范》v0.16 §5）。
+ * 设置表单状态提供者（IAM-002 → PM-20261012-008 两栏化重构）。
  *
  * ## 它持有什么
  *
@@ -9,41 +9,77 @@
  * 差就是"未保存"的判据——不需要在每个分区里各存一份 `isDirty` 布尔，那种状态
  * 很容易在保存失败、并发修改、字段回滚之后与真实差异脱节。
  *
+ * ## 为什么状态从「页面组件」升到「布局级 Provider」
+ *
+ * 两栏化（v0.31 候审）把设置页拆成 7 个独立 URL 后，栏与栏之间是**路由切换**：
+ * 状态若留在某个栏页面里，切栏即卸载、未保存的编辑随之蒸发。把 Provider 挂在
+ * `settings/layout.tsx` 下（布局在子路由切换时保持挂载），草稿与基线因此
+ * **跨栏存续**——这正是提案 2.2.3「未保存态只在栏内提示」成立的前提：
+ * 切栏本身不再有任何丢失，才轮得到撤掉离开确认弹窗。
+ *
  * ## 为什么 `initial` 只用来初始化
  *
- * 表单自己持有草稿之后就不再跟随 props：每次保存成功都会用响应更新基线，
+ * 提供者自己持有草稿之后就不再跟随 props：每次保存成功都会用响应更新基线，
  * 而重新取数（错误态重试）会重新挂载本组件。若让草稿跟着 props 走，用户在
  * 别处触发的任何刷新都会**静默丢掉**他正在输入的内容。
+ *
+ * ## 离开守卫已随本重构移除（提案 2.2.3 根治项）
+ *
+ * 原实现双路径拦截（`beforeunload` 系统框 + document 捕获阶段拦导航点击 +
+ * 自绘确认弹窗），在单页 8 分区结构下制造了实测的「连环弹窗」。现在的口径：
+ * 未保存态只在栏内以「未保存」徽章提示（`SettingsSection` 既有行为），
+ * 栏间切换不丢草稿（见上），跨页离开与刷新不再弹任何确认。
+ * 与冻结 §5「路由离开脏页须确认」的口径差待 v0.31 补节落卷时明示（PM 侧）。
  */
-import { useCallback, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import type { UserDto } from '@/modules/identity/application/user-dto.ts';
-import { ConfirmDialog, useToast } from '@/shared/ui/components';
+import { useToast } from '@/shared/ui/components';
 
 import { updateProfile } from '../../_lib/identity-api';
 
-import {
-  AiSection,
-  RegionSection,
-  RemindersSection,
-  TaskDefaultsSection,
-} from './PreferenceSections';
-import { AccountSection } from './AccountSection';
-import { AppearanceSection } from './AppearanceSection';
-import { DataManagementSection } from './DataManagementSection';
-import { LifeAreasSection } from './LifeAreasSection';
-import { adoptSaved, isAnyDirty, toDraft, toProfilePatch } from './settings-draft';
+import { adoptSaved, toDraft, toProfilePatch } from './settings-draft';
 import type { SectionBindings, SettingsDraft } from './settings-draft';
-import { useUnsavedChangesGuard } from './settings-hooks';
-import styles from './SettingsForm.module.css';
 
-export function SettingsForm({ initial }: { readonly initial: UserDto }) {
+/** 各栏拿到的上下文：分区字段绑定 + 账号栏需要的已保存档案。 */
+export type SettingsContextValue = SectionBindings & {
+  /** 已保存的档案（改名后由账号栏刷新；数据管理/隐私栏读它的 `mode`）。 */
+  readonly profile: UserDto;
+  /** 账号栏改名成功后刷新只读行（基线即 `profile`）。 */
+  readonly onProfileUpdated: (next: UserDto) => void;
+};
+
+const SettingsContext = createContext<SettingsContextValue | null>(null);
+
+/**
+ * 取设置上下文。
+ *
+ * 只能在 `settings/layout.tsx` 的 Provider 之内使用（各栏页面经
+ * `SettingsColumn` 间接消费）。故意不给默认值：拿不到上下文时静默返回
+ * `undefined` 会让缺失挂载这种结构性错误表现为运行期类型错误的空洞深处，
+ * 直接抛错能在第一现场暴露。
+ */
+export function useSettings(): SettingsContextValue {
+  const value = useContext(SettingsContext);
+  if (value === null) {
+    throw new Error('useSettings 必须在 <SettingsForm>（设置布局 Provider）内使用');
+  }
+  return value;
+}
+
+export function SettingsForm({
+  initial,
+  children,
+}: {
+  readonly initial: UserDto;
+  readonly children: ReactNode;
+}) {
   const [saved, setSaved] = useState<UserDto>(initial);
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(initial));
   const toast = useToast();
 
   const baseline = toDraft(saved);
-  const guard = useUnsavedChangesGuard(isAnyDirty(draft, baseline));
 
   const update = useCallback((patch: Partial<SettingsDraft>): void => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -62,60 +98,10 @@ export function SettingsForm({ initial }: { readonly initial: UserDto }) {
     [draft, saved, toast],
   );
 
-  const bindings: SectionBindings = { draft, baseline, update, save };
-
-  return (
-    <div className={styles.form}>
-      {/*
-        §5：页面顶部显示数据模式标识。用 `mode` 的真实取值渲染，而不是写死一句
-        "本地模式"——云端模式接入后这里要能跟着变，写死会让那句话变成谎话。
-        云端句为 UI-010 v0.26「双态句」冻结文本（本地态＝v0.16 原文零改动）；
-        落卷前的旧句「数据会同步到你的账户」就地更正（RD-013 契约/UI 对照披露）。
-      */}
-      <p className={styles.modeNote}>
-        {initial.mode === 'local'
-          ? '本地模式 · 数据仅保存在本环境'
-          : '云端模式 · 数据保存在云端并按账号隔离'}
-      </p>
-
-      <LifeAreasSection />
-      <RegionSection {...bindings} />
-      <TaskDefaultsSection {...bindings} />
-      <RemindersSection {...bindings} />
-      <AiSection {...bindings} />
-      {/*
-        外观偏好（UI-009）不吃 `bindings`：它不进服务端草稿，而是本机即时生效的
-        客户端偏好（见 `AppearanceSection` 文件说明）。
-      */}
-      <AppearanceSection />
-      {/*
-        数据管理分区 7（OPS-002，v0.26 分区 7）：导出/导入/回收区三块；
-        删除块本批不渲染（契约缺口，总监 2026-10-09 裁定，RD-015 披露）。
-        说明行走 `mode` 双态（冻结句由 `GET /me` 驱动）。
-      */}
-      <DataManagementSection mode={saved.mode === 'cloud' ? 'cloud' : 'local'} />
-      {/*
-        账号分区（AUTH-002，v0.26 分区 9）：**仅认证态渲染**（C4——本地自用态
-        本分区不存在，原「云端账号区挂账」句由兑现注记承接）。传 `saved` 而非
-        `initial`：改名成功后只读行要跟着刷新，基线就是 saved。
-      */}
-      {saved.mode === 'cloud' ? (
-        <AccountSection profile={saved} onProfileUpdated={setSaved} />
-      ) : null}
-
-      {/*
-        脏页离开确认。用组件库的确认弹窗而不是 `window.confirm`：后者会阻塞
-        主线程、样式不可控，而且在自动化测试里需要处理原生对话框。
-      */}
-      <ConfirmDialog
-        open={guard.pendingLeave}
-        title="离开设置页？"
-        description="还有未保存的修改。现在离开会丢失它们。"
-        confirmLabel="放弃修改并离开"
-        destructive
-        onCancel={guard.cancelLeave}
-        onConfirm={guard.confirmLeave}
-      />
-    </div>
+  const value = useMemo<SettingsContextValue>(
+    () => ({ draft, baseline, update, save, profile: saved, onProfileUpdated: setSaved }),
+    [draft, baseline, update, save, saved],
   );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

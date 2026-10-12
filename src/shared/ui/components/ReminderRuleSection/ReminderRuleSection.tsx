@@ -172,7 +172,7 @@ export function ReminderRuleSection({
       {globalEnabled ? null : (
         <div className={styles.globalOff} data-variant="reminder-global-off">
           <p className={styles.globalOffText}>提醒总开关已关闭。</p>
-          <Link className={styles.globalOffLink} href="/settings">
+          <Link className={styles.globalOffLink} href="/settings/notifications">
             去开启
           </Link>
         </div>

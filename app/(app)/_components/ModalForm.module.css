@@ -14,3 +14,19 @@
   font-size: var(--font-size-caption);
   line-height: var(--line-height-caption);
 }
+
+/* 领域管理入口（PM-20261012-008 提案 B2）：选择器旁的小号低强调文本链接，
+   不是按钮——它是导航不是动作，强调级低一档才不与「安排」主按钮抢视线。 */
+.manageLink {
+  align-self: flex-start;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+  text-decoration: none;
+}
+
+.manageLink:hover {
+  color: var(--color-text-primary);
+}

@@ -33,26 +33,6 @@ export interface SettingsDraft {
   readonly aiDataConsent: boolean;
 }
 
-/**
- * 全部可编辑字段。
- *
- * 显式列出而不是用 `Object.keys(draft)`：脏判据要跳过"不是可编辑字段"的项
- * （将来若有只读展示字段，`Object.keys` 会把它一并算进去，于是页面永远显示"未保存"）。
- */
-export const SETTINGS_FIELDS = [
-  'locale',
-  'timezone',
-  'currencyCode',
-  'weekStartsOn',
-  'defaultTaskDurationMinutes',
-  'defaultBufferMinutes',
-  'reminderEnabled',
-  'quietHoursStart',
-  'quietHoursEnd',
-  'aiEnabled',
-  'aiDataConsent',
-] as const satisfies readonly (keyof SettingsDraft)[];
-
 /** 从接口响应建立草稿。 */
 export function toDraft(dto: UserDto): SettingsDraft {
   return {
@@ -105,11 +85,6 @@ export function isSectionDirty<K extends keyof SettingsDraft>(
   keys: readonly K[],
 ): boolean {
   return keys.some((key) => draft[key] !== baseline[key]);
-}
-
-/** 是否存在任何未保存的修改（路由离开守卫用它）。 */
-export function isAnyDirty(draft: SettingsDraft, baseline: SettingsDraft): boolean {
-  return isSectionDirty(draft, baseline, SETTINGS_FIELDS);
 }
 
 /**

@@ -45,7 +45,10 @@ export type NavItemProps = NavItemDefinition & {
  */
 export function NavItem({ href, label, onClick }: NavItemProps) {
   const pathname = usePathname();
-  const isCurrent = pathname === href;
+  // 全等或前缀（`href/`，带分隔符以免 `/settings` 误匹配 `/settingsx`）：
+  // 设置页两栏化（PM-20261012-008）后出现了 `/settings/account` 这类子路由，
+  // 全等判据会让进入任何一栏时侧栏「设置」都失去高亮。
+  const isCurrent = pathname === href || pathname.startsWith(`${href}/`);
 
   // 按需展开，而不是 `onClick={onClick}`：`exactOptionalPropertyTypes` 下把
   // `undefined` 显式传给 `Link` 的 `onClick` 不合法——Next 的类型是
