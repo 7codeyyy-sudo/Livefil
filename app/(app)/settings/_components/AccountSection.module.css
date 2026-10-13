@@ -17,6 +17,23 @@
   line-height: var(--line-height-caption);
 }
 
+/* 内部两列栅格（决策者 2026-10-13「放宽做成两列」）：信息行与改名一排、
+   改密码与改邮箱一排。显式双列 + 同一 1360 断点塌缩（不用 auto-fit 的理由
+   见 `SettingsPanel.module.css` `.form` 处：整行跨列杂项会让塌缩失效）。
+   行距 `--space-6`：区块自带 border-top 分隔；列距 `--space-7` 与卡片间距
+   同节奏。 */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6) var(--space-7);
+}
+
+@media (min-width: 1360px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .infoList {
   margin: 0;
   display: flex;

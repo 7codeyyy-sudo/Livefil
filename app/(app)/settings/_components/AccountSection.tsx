@@ -183,126 +183,131 @@ export function AccountSection({
         </p>
       ) : null}
 
-      <dl className={styles.infoList}>
-        <div className={styles.infoRow}>
-          <dt>邮箱</dt>
-          <dd>{profile.email ?? '未设置'}</dd>
-        </div>
-        <div className={styles.infoRow}>
-          <dt>账号</dt>
-          <dd>{profile.username ?? '未设置'}</dd>
-        </div>
-      </dl>
+      {/* 内部两列（决策者 2026-10-13「放宽做成两列」）：信息行与改名一排、
+          改密码与改邮箱一排，账号页高度近乎减半；窄容器（auto-fit 塌缩）
+          或不支持的布局引擎下回退单列纵排，顺序不变。 */}
+      <div className={styles.grid}>
+        <dl className={styles.infoList}>
+          <div className={styles.infoRow}>
+            <dt>邮箱</dt>
+            <dd>{profile.email ?? '未设置'}</dd>
+          </div>
+          <div className={styles.infoRow}>
+            <dt>账号</dt>
+            <dd>{profile.username ?? '未设置'}</dd>
+          </div>
+        </dl>
 
-      <div className={styles.block}>
-        <Input
-          label="名字"
-          value={displayName}
-          hint="可改可重复，仅用于展示。"
-          onChange={(event) => setDisplayName(event.target.value)}
-        />
-        <Button
-          type="button"
-          loading={savingName}
-          disabled={displayName.trim() === (profile.displayName ?? '')}
-          onClick={() => void saveDisplayName()}
-        >
-          保存名字
-        </Button>
-      </div>
-
-      <div className={styles.block}>
-        <h3 className={styles.blockTitle}>修改密码</h3>
-        <Input
-          label="当前密码"
-          type="password"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-        />
-        <Input
-          label="新密码"
-          type="password"
-          autoComplete="new-password"
-          value={newPassword}
-          hint={
-            passwordRulesMet(newPassword)
-              ? '密码规则已满足。'
-              : '至少 8 位、最多 64 位，同时包含字母和数字。'
-          }
-          onChange={(event) => setNewPassword(event.target.value)}
-        />
-        <Button
-          type="button"
-          variant="primary"
-          loading={savingPassword}
-          disabled={currentPassword === '' || !passwordRulesMet(newPassword)}
-          onClick={() => void savePassword()}
-        >
-          确认修改
-        </Button>
-      </div>
-
-      <div className={styles.block}>
-        <h3 className={styles.blockTitle}>修改邮箱</h3>
-        <Input
-          label="新邮箱"
-          type="email"
-          value={newEmail}
-          onChange={(event) => setNewEmail(event.target.value)}
-        />
-        <Input
-          label="当前密码"
-          type="password"
-          autoComplete="current-password"
-          value={emailPassword}
-          onChange={(event) => setEmailPassword(event.target.value)}
-        />
-        {emailStep === 2 ? (
+        <div className={styles.block}>
           <Input
-            label="验证码"
-            value={emailCode}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            hint="验证码已发送至新邮箱，10 分钟内有效。"
-            onChange={(event) => setEmailCode(event.target.value)}
+            label="名字"
+            value={displayName}
+            hint="可改可重复，仅用于展示。"
+            onChange={(event) => setDisplayName(event.target.value)}
           />
-        ) : null}
-        <div className={styles.inlineActions}>
-          {emailStep === 1 ? (
-            <Button
-              type="button"
-              loading={savingEmail}
-              disabled={newEmail.trim() === '' || emailPassword === ''}
-              onClick={() => void sendEmailCode()}
-            >
-              发送验证码
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="primary"
-              loading={savingEmail}
-              disabled={emailCode === ''}
-              onClick={() => void saveEmail()}
-            >
-              确认修改
-            </Button>
-          )}
+          <Button
+            type="button"
+            loading={savingName}
+            disabled={displayName.trim() === (profile.displayName ?? '')}
+            onClick={() => void saveDisplayName()}
+          >
+            保存名字
+          </Button>
+        </div>
+
+        <div className={styles.block}>
+          <h3 className={styles.blockTitle}>修改密码</h3>
+          <Input
+            label="当前密码"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+          <Input
+            label="新密码"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            hint={
+              passwordRulesMet(newPassword)
+                ? '密码规则已满足。'
+                : '至少 8 位、最多 64 位，同时包含字母和数字。'
+            }
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            loading={savingPassword}
+            disabled={currentPassword === '' || !passwordRulesMet(newPassword)}
+            onClick={() => void savePassword()}
+          >
+            确认修改
+          </Button>
+        </div>
+
+        <div className={styles.block}>
+          <h3 className={styles.blockTitle}>修改邮箱</h3>
+          <Input
+            label="新邮箱"
+            type="email"
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+          />
+          <Input
+            label="当前密码"
+            type="password"
+            autoComplete="current-password"
+            value={emailPassword}
+            onChange={(event) => setEmailPassword(event.target.value)}
+          />
           {emailStep === 2 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setEmailStep(1);
-                setEmailCode('');
-                setError(null);
-              }}
-            >
-              上一步
-            </Button>
+            <Input
+              label="验证码"
+              value={emailCode}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              hint="验证码已发送至新邮箱，10 分钟内有效。"
+              onChange={(event) => setEmailCode(event.target.value)}
+            />
           ) : null}
+          <div className={styles.inlineActions}>
+            {emailStep === 1 ? (
+              <Button
+                type="button"
+                loading={savingEmail}
+                disabled={newEmail.trim() === '' || emailPassword === ''}
+                onClick={() => void sendEmailCode()}
+              >
+                发送验证码
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                loading={savingEmail}
+                disabled={emailCode === ''}
+                onClick={() => void saveEmail()}
+              >
+                确认修改
+              </Button>
+            )}
+            {emailStep === 2 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEmailStep(1);
+                  setEmailCode('');
+                  setError(null);
+                }}
+              >
+                上一步
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
