@@ -17,9 +17,10 @@
   line-height: var(--line-height-caption);
 }
 
-/* 内部两列栅格（决策者 2026-10-13「放宽做成两列」）：信息行与改名一排、
-   改密码与改邮箱一排。显式双列 + 同一 1360 断点塌缩（不用 auto-fit 的理由
-   见 `SettingsPanel.module.css` `.form` 处：整行跨列杂项会让塌缩失效）。
+/* 内部两列栅格（决策者 2026-10-13「放宽做成两列」，同日二轮反馈定形）：
+   左＝身份复合块、右＝改密码（行高接近不留洞），改邮箱整行（字段无提示行，
+   并排必然参差）。显式双列 + 同一 1360 断点塌缩（不用 auto-fit 的理由见
+   `SettingsPanel.module.css` `.form` 处：整行跨列杂项会让塌缩失效）。
    行距 `--space-6`：区块自带 border-top 分隔；列距 `--space-7` 与卡片间距
    同节奏。 */
 .grid {
@@ -32,6 +33,21 @@
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* 身份复合块：只读信息与改名同属「我是谁」，合一块、共用一条顶部分隔线——
+   拆成两个块时右列（改名）的分隔线与左列的裸信息行高差会掏出一个空洞。 */
+.identityBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 占满整行（改邮箱）：与改密码并排时缺一行提示文案，后续控件逐级错位。 */
+.fullWidth {
+  grid-column: 1 / -1;
 }
 
 .infoList {

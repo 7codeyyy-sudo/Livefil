@@ -183,22 +183,23 @@ export function AccountSection({
         </p>
       ) : null}
 
-      {/* 内部两列（决策者 2026-10-13「放宽做成两列」）：信息行与改名一排、
-          改密码与改邮箱一排，账号页高度近乎减半；窄容器（auto-fit 塌缩）
-          或不支持的布局引擎下回退单列纵排，顺序不变。 */}
+      {/* 版式（决策者 2026-10-13 二轮反馈：消灭行高差留白 + 消灭跨列参差）：
+          左列＝身份复合块（只读信息 + 改名，同区同分隔线），右列＝改密码——
+          两块行高接近，不再留下半截空洞；改邮箱独占整行：它的字段没有提示行，
+          与改密码并排时后续控件必然逐级错位，拆行后各块内部自洽。
+          窄容器（<1360px）塌回单列，顺序不变。 */}
       <div className={styles.grid}>
-        <dl className={styles.infoList}>
-          <div className={styles.infoRow}>
-            <dt>邮箱</dt>
-            <dd>{profile.email ?? '未设置'}</dd>
-          </div>
-          <div className={styles.infoRow}>
-            <dt>账号</dt>
-            <dd>{profile.username ?? '未设置'}</dd>
-          </div>
-        </dl>
-
-        <div className={styles.block}>
+        <div className={styles.identityBlock}>
+          <dl className={styles.infoList}>
+            <div className={styles.infoRow}>
+              <dt>邮箱</dt>
+              <dd>{profile.email ?? '未设置'}</dd>
+            </div>
+            <div className={styles.infoRow}>
+              <dt>账号</dt>
+              <dd>{profile.username ?? '未设置'}</dd>
+            </div>
+          </dl>
           <Input
             label="名字"
             value={displayName}
@@ -247,7 +248,7 @@ export function AccountSection({
           </Button>
         </div>
 
-        <div className={styles.block}>
+        <div className={`${styles.block} ${styles.fullWidth}`}>
           <h3 className={styles.blockTitle}>修改邮箱</h3>
           <Input
             label="新邮箱"
