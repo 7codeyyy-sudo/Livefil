@@ -15,11 +15,15 @@
 }
 
 /* 分区导航 rail：纵向链接列，本身不做成卡片——它属于导航而不是内容，
-   与外壳侧栏同语义（底色 + aria-current 只用来标当前项）。 */
+   与外壳侧栏同语义（底色 + aria-current 只用来标当前项）。
+   顶部 padding 对齐页面大标题的**光学中心**：rail 首项高 41.6px、h1 高
+   50.6px，同一行起点时中心差 20.5px（2026-10-13 终审四轮反馈「rail 与大
+   标题没对齐」的实测值）——`--space-5`（20px）收敛到 0.5px 残差内。 */
 .rail {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding-top: var(--space-5);
 }
 
 .railItem {
@@ -85,24 +89,46 @@
   }
 }
 
-/* 内容列的纵向堆叠（原 `.form`）。间距用 `--space-7`（28px）：分区内部各处的
-   间距都不大于 `--space-4`，分区之间要明显更大，否则"多个卡片"会读成
-   "一长条表单"。与其余页面容器同一档（原型底部/区块节奏）。 */
+/* 内容列（原 `.form`）：分区卡片两列。
+   决策者 2026-10-13 直接指令「放宽做成两列」——原 720px 单列让账号栏一屏
+   装不下、右侧大片留白。
+   显式双列 + 断点塌缩，而不用 auto-fit：整行跨列的杂项（页标题、模式标识）
+   在 Chrome 里会让 auto-fit 放弃塌缩空轨道，单分区栏的卡片被压进半宽
+   （实测反直觉行为，2026-10-13 截图断言抓过一次，勿回退）。
+   - 单分区栏：`:only-of-type` 让唯一分区独占整行（按元素类型数，不数兄弟序号，
+     杂项增减都不会错位）；
+   - 断点 1360px＝内容列容得下两列（≥2×~400px+gap）的视口下限，
+     布局量单点，候 v0.31 补节落卷。 */
 .form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-7);
   margin-top: var(--space-4);
-  /* 表单内容再宽也不会超过页面区（`--layout-max-width`），但设置项是
-     "一行一个控件"的窄内容，铺满 1200px 会让标签与控件离得很远。 */
-  max-width: 720px;
 }
 
-.modeNote {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-caption);
+.form > :not(section) {
+  grid-column: 1 / -1;
+}
+
+.form > section:only-of-type {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1360px) {
+  .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 设置页容器放宽到 1200px（同一指令）。
+   页面容器宽是外壳冻结量（v0.29 `--layout-max-width: 900px`，六页共用），
+   rail 与内容两栏挤在 900−200≈670px 里是「太窄」的根源。设置页改为
+   「rail + 内容」的新布局族，容器单独放宽——但不改全局令牌、不动其余五页：
+   用 `:has` 把规则**定向**到渲染本页 shell 的那个页面容器上（`data-app-page`
+   是外壳 `.page` 的既有锚点，app-shell.spec 同一取法）。
+   旧浏览器不支持 `:has` 时整条规则被忽略：回退到 900px 现状，不破版。
+   1200px 取自 §3.2 早期「页面区 1200px」的历史值（v0.29 为仪表盘页收窄为
+   900），设置页作为 rail 布局族重新取宽；候 v0.31 补节落卷。 */
+:global([data-app-page]):has(.shell) {
+  width: min(1200px, 100%);
 }

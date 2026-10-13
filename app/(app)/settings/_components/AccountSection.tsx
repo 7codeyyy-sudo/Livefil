@@ -10,11 +10,12 @@
  * 统一的「保存分区」按钮对前者无意义、对后者多一次无谓的脏态。
  * 每个动作自带按钮与结果反馈，即时提交即时 toast（表单纪律 L826）。
  *
- * ## 模式标识不在本分区重复
+ * ## 模式标识行已随两栏化后的终审指令移除（2026-10-13）
  *
- * 双态句的呈现位是**设置页顶部**（UI-010「模式标识双态句」条文：`/me` 返回 +
- * 设置页顶部）——顶部 `modeNote` 已按 `mode` 渲染，分区内再放一行会让同页
- * 出现两处同句（PM-006 C4 与该条文的呈现位表述取后者，RD-013 披露）。
+ * 原 §5「页面顶部显示数据模式标识」的双态句曾在设置壳层渲染一行；终审在
+ * 两栏化验收时裁定不需要（侧栏账号区已有模式标识，此处冗余——侧栏那处的
+ * 取值缺陷是另一条已留档缺陷，不属本面板）。连带的规范悬空引用（§5 该句、
+ * 分区 8 隐私说明第 1/2 条的「页面顶部」）归 v0.31 补节勘误。
  *
  * ## 账号（username）行只读、无修改入口
  *
@@ -183,126 +184,132 @@ export function AccountSection({
         </p>
       ) : null}
 
-      <dl className={styles.infoList}>
-        <div className={styles.infoRow}>
-          <dt>邮箱</dt>
-          <dd>{profile.email ?? '未设置'}</dd>
-        </div>
-        <div className={styles.infoRow}>
-          <dt>账号</dt>
-          <dd>{profile.username ?? '未设置'}</dd>
-        </div>
-      </dl>
-
-      <div className={styles.block}>
-        <Input
-          label="名字"
-          value={displayName}
-          hint="可改可重复，仅用于展示。"
-          onChange={(event) => setDisplayName(event.target.value)}
-        />
-        <Button
-          type="button"
-          loading={savingName}
-          disabled={displayName.trim() === (profile.displayName ?? '')}
-          onClick={() => void saveDisplayName()}
-        >
-          保存名字
-        </Button>
-      </div>
-
-      <div className={styles.block}>
-        <h3 className={styles.blockTitle}>修改密码</h3>
-        <Input
-          label="当前密码"
-          type="password"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-        />
-        <Input
-          label="新密码"
-          type="password"
-          autoComplete="new-password"
-          value={newPassword}
-          hint={
-            passwordRulesMet(newPassword)
-              ? '密码规则已满足。'
-              : '至少 8 位、最多 64 位，同时包含字母和数字。'
-          }
-          onChange={(event) => setNewPassword(event.target.value)}
-        />
-        <Button
-          type="button"
-          variant="primary"
-          loading={savingPassword}
-          disabled={currentPassword === '' || !passwordRulesMet(newPassword)}
-          onClick={() => void savePassword()}
-        >
-          确认修改
-        </Button>
-      </div>
-
-      <div className={styles.block}>
-        <h3 className={styles.blockTitle}>修改邮箱</h3>
-        <Input
-          label="新邮箱"
-          type="email"
-          value={newEmail}
-          onChange={(event) => setNewEmail(event.target.value)}
-        />
-        <Input
-          label="当前密码"
-          type="password"
-          autoComplete="current-password"
-          value={emailPassword}
-          onChange={(event) => setEmailPassword(event.target.value)}
-        />
-        {emailStep === 2 ? (
+      {/* 版式（决策者 2026-10-13 二轮反馈：消灭行高差留白 + 消灭跨列参差）：
+          左列＝身份复合块（只读信息 + 改名，同区同分隔线），右列＝改密码——
+          两块行高接近，不再留下半截空洞；改邮箱独占整行：它的字段没有提示行，
+          与改密码并排时后续控件必然逐级错位，拆行后各块内部自洽。
+          窄容器（<1360px）塌回单列，顺序不变。 */}
+      <div className={styles.grid}>
+        <div className={styles.identityBlock}>
+          <dl className={styles.infoList}>
+            <div className={styles.infoRow}>
+              <dt>邮箱</dt>
+              <dd>{profile.email ?? '未设置'}</dd>
+            </div>
+            <div className={styles.infoRow}>
+              <dt>账号</dt>
+              <dd>{profile.username ?? '未设置'}</dd>
+            </div>
+          </dl>
           <Input
-            label="验证码"
-            value={emailCode}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            hint="验证码已发送至新邮箱，10 分钟内有效。"
-            onChange={(event) => setEmailCode(event.target.value)}
+            label="名字"
+            value={displayName}
+            hint="可改可重复，仅用于展示。"
+            onChange={(event) => setDisplayName(event.target.value)}
           />
-        ) : null}
-        <div className={styles.inlineActions}>
-          {emailStep === 1 ? (
-            <Button
-              type="button"
-              loading={savingEmail}
-              disabled={newEmail.trim() === '' || emailPassword === ''}
-              onClick={() => void sendEmailCode()}
-            >
-              发送验证码
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="primary"
-              loading={savingEmail}
-              disabled={emailCode === ''}
-              onClick={() => void saveEmail()}
-            >
-              确认修改
-            </Button>
-          )}
+          <Button
+            type="button"
+            loading={savingName}
+            disabled={displayName.trim() === (profile.displayName ?? '')}
+            onClick={() => void saveDisplayName()}
+          >
+            保存名字
+          </Button>
+        </div>
+
+        <div className={styles.block}>
+          <h3 className={styles.blockTitle}>修改密码</h3>
+          <Input
+            label="当前密码"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+          <Input
+            label="新密码"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            hint={
+              passwordRulesMet(newPassword)
+                ? '密码规则已满足。'
+                : '至少 8 位、最多 64 位，同时包含字母和数字。'
+            }
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            loading={savingPassword}
+            disabled={currentPassword === '' || !passwordRulesMet(newPassword)}
+            onClick={() => void savePassword()}
+          >
+            确认修改
+          </Button>
+        </div>
+
+        <div className={`${styles.block} ${styles.fullWidth}`}>
+          <h3 className={styles.blockTitle}>修改邮箱</h3>
+          <Input
+            label="新邮箱"
+            type="email"
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+          />
+          <Input
+            label="当前密码"
+            type="password"
+            autoComplete="current-password"
+            value={emailPassword}
+            onChange={(event) => setEmailPassword(event.target.value)}
+          />
           {emailStep === 2 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setEmailStep(1);
-                setEmailCode('');
-                setError(null);
-              }}
-            >
-              上一步
-            </Button>
+            <Input
+              label="验证码"
+              value={emailCode}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              hint="验证码已发送至新邮箱，10 分钟内有效。"
+              onChange={(event) => setEmailCode(event.target.value)}
+            />
           ) : null}
+          <div className={styles.inlineActions}>
+            {emailStep === 1 ? (
+              <Button
+                type="button"
+                loading={savingEmail}
+                disabled={newEmail.trim() === '' || emailPassword === ''}
+                onClick={() => void sendEmailCode()}
+              >
+                发送验证码
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                loading={savingEmail}
+                disabled={emailCode === ''}
+                onClick={() => void saveEmail()}
+              >
+                确认修改
+              </Button>
+            )}
+            {emailStep === 2 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEmailStep(1);
+                  setEmailCode('');
+                  setError(null);
+                }}
+              >
+                上一步
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
