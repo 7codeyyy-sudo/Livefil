@@ -54,14 +54,24 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { resolveSession, withSessionCookie } from './app/_lib/session-api.ts';
-import { AuthenticationError } from '@/shared/errors/app-error.ts';
+import { AuthenticationError, InvariantError } from '@/shared/errors/app-error.ts';
 import { serverEnv } from '@/shared/validation/env.server.ts';
 import { REQUEST_ID_HEADER, resolveRequestId } from '@/shared/telemetry/request-id.ts';
+import { createLogger } from '@/shared/telemetry/logger.ts';
+
+/** 门禁自己的观测出口（放行决策必须留痕，见 catch 处的分类理由）。 */
+const pageGateLogger = createLogger({ bindings: { operation: 'page-gate' } });
 
 /**
  * 页面门禁：cloud 模式下把未登录请求送到登录页（携带 `next=` 回跳参数），
- * local 模式逐字节放行；校验链抛出的非认证错误（数据库不可达等）原样上抛——
- * 不把基础设施故障伪装成「请登录」，否则 DB 故障会表现为全员被踢去登录页。
+ * local 模式逐字节放行。
+ *
+ * 校验链抛出的错误按**类**分流（逐条理由见 catch 处）：
+ * 认证失败 ⇒ 307 登录页；装配缺失（`InvariantError`）⇒ 原样上抛 500（配置
+ * 错误要响亮）；其余基础设施错误（数据库不可达等）⇒ **warn 后放行**——
+ * 数据的权威在 API 层（库挂时各端点独立 500），门禁放行不吐数据，而上抛
+ * 锁死的恰恰是签名合法的正式用户（2026-10-13 实测：Docker 未启动时
+ * 整站 500，比改门前的「骨架 + 错误态」降级更糟）。
  *
  * @param request 进入的请求（已被 matcher 限定为页面路径）。
  * @param forwardedHeaders 已注入解析后请求 ID 的请求头。
@@ -85,19 +95,39 @@ async function gatePage(
       response.headers.set(REQUEST_ID_HEADER, requestId);
       return response;
     } catch (error) {
-      if (!(error instanceof AuthenticationError)) {
+      if (error instanceof AuthenticationError) {
+        // `next` 只放站内「当前路径 + 查询串」；登录页消费前还会用 safeNext 再验
+        // 一次同源（B4），两道校验互为兜底。用 nextUrl.clone() 而不是 request.url
+        // 拼接：反向代理后面 request.url 的 scheme 是内部值，nextUrl 才反映外部地址。
+        const loginUrl = request.nextUrl.clone();
+        loginUrl.pathname = '/login';
+        loginUrl.search = '';
+        loginUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
+        const redirect = NextResponse.redirect(loginUrl);
+        redirect.headers.set(REQUEST_ID_HEADER, requestId);
+        return redirect;
+      }
+
+      if (error instanceof InvariantError) {
+        // 装配缺失＝部署配置错误：响亮地失败（500），不静默放行——静默会把
+        // 配置问题藏成「门禁时好时坏」，排查成本远高于一次显式的 500。
         throw error;
       }
-      // `next` 只放站内「当前路径 + 查询串」；登录页消费前还会用 safeNext 再验
-      // 一次同源（B4），两道校验互为兜底。用 nextUrl.clone() 而不是 request.url
-      // 拼接：反向代理后面 request.url 的 scheme 是内部值，nextUrl 才反映外部地址。
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/login';
-      loginUrl.search = '';
-      loginUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      const redirect = NextResponse.redirect(loginUrl);
-      redirect.headers.set(REQUEST_ID_HEADER, requestId);
-      return redirect;
+
+      // 其余错误（数据库不可达等基础设施故障）⇒ warn 后**放行**，不 500：
+      // ① 数据的权威在 API 层——库挂时每个端点各自 500，门禁放行不可能多吐
+      //    一个字节（页面 RSC 只出骨架、常量文案与栏名）；
+      // ② 门禁与数据共库——库恢复即恢复拦截，不存在持久失守的窗口；
+      // ③ 上抛锁死的是最不该被锁的人：签名合法的正式用户（无/坏 Cookie 在
+      //    第 1 步就被送去登录页，登录页在 matcher 之外）。2026-10-13 实测：
+      //    DB 宕机时整站 500，比改门前的「骨架 + 错误态」降级更糟。
+      pageGateLogger.warn('会话校验因基础设施错误失败，门禁按放行处理', {
+        route: request.nextUrl.pathname,
+        requestId,
+      });
+      const response = NextResponse.next({ request: { headers: forwardedHeaders } });
+      response.headers.set(REQUEST_ID_HEADER, requestId);
+      return response;
     }
   }
 
