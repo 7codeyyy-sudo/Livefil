@@ -15,11 +15,15 @@
 }
 
 /* 分区导航 rail：纵向链接列，本身不做成卡片——它属于导航而不是内容，
-   与外壳侧栏同语义（底色 + aria-current 只用来标当前项）。 */
+   与外壳侧栏同语义（底色 + aria-current 只用来标当前项）。
+   顶部 padding 对齐页面大标题的**光学中心**：rail 首项高 41.6px、h1 高
+   50.6px，同一行起点时中心差 20.5px（2026-10-13 终审四轮反馈「rail 与大
+   标题没对齐」的实测值）——`--space-5`（20px）收敛到 0.5px 残差内。 */
 .rail {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding-top: var(--space-5);
 }
 
 .railItem {
