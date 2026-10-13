@@ -54,7 +54,7 @@ async function openColumn(page: Page, path: string, heading: string): Promise<vo
 }
 
 test.describe('设置页 · 栏结构与分区分布', () => {
-  test('各栏渲染对应分区，数据模式标识在壳层常驻', async ({ page }) => {
+  test('各栏渲染对应分区', async ({ page }) => {
     await installSettingsStub(page);
     await skipTour(page);
 
@@ -79,8 +79,9 @@ test.describe('设置页 · 栏结构与分区分布', () => {
       }
     }
 
-    // §5：页面顶部显示数据模式标识——它在壳层，任何栏都可见。
-    await expect(page.getByText('本地模式 · 数据仅保存在本环境')).toBeVisible();
+    // 模式标识行已按终审 2026-10-13 指令移除：壳层不再渲染双态句（§5 悬空
+    // 引用候 v0.31 勘误）。数据侧 mode 判据不受影响，此处断言其「不再出现」。
+    await expect(page.getByText(/模式 · 数据/)).toHaveCount(0);
   });
 
   test('桌面端 /settings 落到首栏；local 态没有账号栏', async ({ page }) => {

@@ -128,12 +128,3 @@
 :global([data-app-page]):has(.shell) {
   width: min(1200px, 100%);
 }
-
-.modeNote {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-caption);
-}
