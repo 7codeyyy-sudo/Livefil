@@ -173,6 +173,10 @@ export function tourStepsForPage(page: TourPageKey): readonly TourStepDefinition
  *
  * 只认六个精确路由（§ A 六页）；子路由（如 `/goals/{id}`）与其它页面不参与
  * 导览，返回 `null`（导览层据此整块不出现）。
+ *
+ * 例外是 `/settings/<栏>`（PM-20261012-008 两栏化后的七个栏 URL）：页签仍记
+ * 「设置」——两枚设置锚点分居「通用」「外观」两栏，栏内缺的那步按 § B
+ * 「锚点缺失即跳过」处理，否则整个设置页签的导览与进度会随拆栏整体失效。
  */
 export function tourPageKeyForPath(pathname: string): TourPageKey | null {
   switch (pathname) {
@@ -189,8 +193,13 @@ export function tourPageKeyForPath(pathname: string): TourPageKey | null {
     case '/settings':
       return 'settings';
     default:
-      return null;
+      break;
   }
+
+  if (pathname.startsWith('/settings/')) {
+    return 'settings';
+  }
+  return null;
 }
 
 /** 眉标文案：「第 n / M 步 · 页面名」（n 为本页子序号、M 为本页步数，§ C）。 */

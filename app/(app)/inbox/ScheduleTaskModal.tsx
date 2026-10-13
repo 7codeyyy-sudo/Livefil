@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 import { Button, Input, Modal, Select, useAsyncQuery } from '@/shared/ui/components';
 
@@ -143,6 +144,24 @@ export function ScheduleTaskModal({ taskIds, onClose, onDone }: ScheduleTaskModa
               ))
             : null}
         </Select>
+        {/*
+          提案 B2（PM-20261012-008 3.1）：领域选择器旁的小号管理入口——
+          先关弹层再直达设置·生活领域栏；不做弹层内嵌管理（弹层套弹层的
+          连环坑在走查里已有实录）。提交进行中不放行，避免在飞请求被丢弃。
+        */}
+        <Link
+          href="/settings/life-areas"
+          className={modalFormStyles.manageLink}
+          onClick={(event) => {
+            if (submitting) {
+              event.preventDefault();
+              return;
+            }
+            onClose();
+          }}
+        >
+          管理领域
+        </Link>
         {errorMessage === null ? null : (
           <p role="alert" className={modalFormStyles.error}>
             {errorMessage}

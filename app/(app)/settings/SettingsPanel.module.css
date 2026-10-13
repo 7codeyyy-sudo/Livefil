@@ -1,0 +1,108 @@
+/**
+ * 设置两栏骨架的布局样式（PM-20261012-008 提案 A；前身＝`SettingsForm.module.css`
+ * 的表单布局——形态搬进外壳后两处样式合并在单点，避免跨文件引用类名）。
+ *
+ * 纪律：只引用设计令牌，不写颜色 / 时长 / 层级 / 字号 / 圆角字面量。
+ */
+
+/* 两栏网格：rail + 内容。rail 用 `minmax(160px, 200px)`——七栏最长的是
+   「提醒与通知」五字，160px 是文字 + 内边距的下限，富余空间给内容列。 */
+.shell {
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+  gap: var(--space-7);
+  align-items: start;
+}
+
+/* 分区导航 rail：纵向链接列，本身不做成卡片——它属于导航而不是内容，
+   与外壳侧栏同语义（底色 + aria-current 只用来标当前项）。 */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.railItem {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  text-decoration: none;
+}
+
+.railItem:hover {
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-primary);
+}
+
+/* 当前栏：底色 + 主文字色 + 加粗——与 NavItem 同一纪律（§7 状态不只靠颜色，
+   字重是那条非颜色通路）。`aria-current` 同时是语义与选择器。 */
+.railItem[aria-current='page'] {
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 移动端返回链：桌面 rail 已是可见的导航，这个返回反而会分心——按断点取舍。 */
+.backLink {
+  align-self: flex-start;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--color-text-primary);
+}
+
+@media (min-width: 768px) {
+  .backLink {
+    display: none;
+  }
+}
+
+/* ≤767px：退回单列（栏列表→详情），rail 整体不渲染。 */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    display: none;
+  }
+}
+
+/* 内容列的纵向堆叠（原 `.form`）。间距用 `--space-7`（28px）：分区内部各处的
+   间距都不大于 `--space-4`，分区之间要明显更大，否则"多个卡片"会读成
+   "一长条表单"。与其余页面容器同一档（原型底部/区块节奏）。 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  margin-top: var(--space-4);
+  /* 表单内容再宽也不会超过页面区（`--layout-max-width`），但设置项是
+     "一行一个控件"的窄内容，铺满 1200px 会让标签与控件离得很远。 */
+  max-width: 720px;
+}
+
+.modeNote {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-caption);
+}
